@@ -1,0 +1,7 @@
+# Repo-only files, excluded from the published pub package.
+assets/
+tool/
+CLAUDE.md
+.demos/
+**/.dart_tool/
+**/build/
