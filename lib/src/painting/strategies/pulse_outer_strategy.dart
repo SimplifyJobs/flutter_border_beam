@@ -38,6 +38,23 @@ class PulseOuterStrategy extends BeamVariantStrategy {
   static const double _sw = 0.95;
   static const double _sh = 0.9;
 
+  // The demo-hero tuning recipe (`.beam-host--pulse-outside-tuned` in the
+  // source's demo). The library's RAW defaults render a sparse, dim halo of
+  // separate blobs; the pulse-outside look everyone knows from
+  // beam.jakubantalik.com layers this recipe on top: unit-scaled insets and
+  // blurs (the ~20px core blur is what melts the blobs into one continuous
+  // edge-hugging glow), ×1.71 layer opacities, brightness 1.3×1.71 and
+  // saturation 1.2×1.71, and a 1.05 prominence boost. Baked in as the
+  // Flutter defaults; every value stays overridable through the widget's
+  // coreBlur/bloomBlur/glowBrightness/glowSaturation/glowBoost/opacity
+  // hooks.
+  static const double _tunedBoost = 1.05;
+  static const double _tunedGlowMul = 1.71;
+  static const double _tunedCoreInset = 6;
+  static const double _tunedBloomInset = 14;
+  static const double _tunedCoreBlur = 10;
+  static const double _tunedBloomBlur = 19;
+
   @override
   double? get preferredFps => 30;
 
@@ -45,6 +62,11 @@ class PulseOuterStrategy extends BeamVariantStrategy {
       (size.width / referenceWidth).clamp(minScale, maxScale);
   double _sy(Size size) =>
       (size.height / referenceHeight).clamp(minScale, maxScale);
+
+  // Halo reach/blur scale with element size relative to the demo's Subscribe
+  // button baseline (measured glow scale 0.35), damped ×0.7
+  // (`--sub-glow-unit`).
+  double _unit(Size size) => _sx(size) / minScale * 0.7;
 
   BeamColorMatrix _matrix(
     BeamConfig config,
@@ -66,7 +88,6 @@ class PulseOuterStrategy extends BeamVariantStrategy {
   ) {
     if (phases.fadeOpacity <= 0) return;
     final rect = Offset.zero & size;
-    final isDark = config.brightness == Brightness.dark;
     final params = PulseParams.resolve(
       BeamVariant.pulseOutside,
       config.brightness,
@@ -74,36 +95,46 @@ class PulseOuterStrategy extends BeamVariantStrategy {
     );
     final sx = _sx(size);
     final sy = _sy(size);
-    final boost = config.glowBoost;
+    final unit = _unit(size);
+    final boost = config.glowBoost * _tunedBoost;
     final border = config.palette.data.border;
 
+    // Filter ordering: CSS runs `blur()` before the color terms, and Skia
+    // runs a paint's colorFilter BEFORE its imageFilter, so the color matrix
+    // is composed explicitly after the blur (ImageFilter.compose runs
+    // `inner` first).
     final glowMatrix = _matrix(
       config,
       phases,
-      brightness: config.glowBrightness,
-      saturation: config.glowSaturation,
+      brightness: config.glowBrightness ?? 1.3 * _tunedGlowMul,
+      saturation: config.glowSaturation ?? 1.2 * _tunedGlowMul,
     );
-    Color fold(Color c) => glowMatrix.transform(c);
+    ImageFilter glowBlur(double sigma) => ImageFilter.compose(
+      outer: glowMatrix.toColorFilter(),
+      inner: ImageFilter.blur(
+        sigmaX: sigma,
+        sigmaY: sigma,
+        tileMode: TileMode.decal,
+      ),
+    );
+    Color fold(Color c) => c;
 
-    // ── Core glow: inset −10px, blurred, breathing ──
+    // ── Core glow: blurred, breathing, hugging the edge ──
     final coreOpacity = BeamLayerUtils.layerOpacity(
       config,
       fade: phases.fadeOpacity,
       preset: config.theme.innerOpacity,
       hookFactor: config.innerOpacityFactor,
+      extra: _tunedGlowMul,
     );
-    final coreBlur = config.coreBlur ?? (isDark ? 3.0 : 6.0);
+    final coreBlur = config.coreBlur ?? _tunedCoreBlur * unit;
     if (coreOpacity > 0) {
-      final coreRect = rect.inflate(10);
+      final coreRect = rect.inflate(_tunedCoreInset * unit);
       canvas.saveLayer(
         coreRect.inflate(coreBlur * 3),
         Paint()
           ..color = _white.withValues(alpha: coreOpacity)
-          ..imageFilter = ImageFilter.blur(
-            sigmaX: coreBlur,
-            sigmaY: coreBlur,
-            tileMode: TileMode.decal,
-          ),
+          ..imageFilter = glowBlur(coreBlur),
       );
       _scaled(canvas, rect.center, () {
         for (final spec in pulseOuterCore) {
@@ -127,26 +158,23 @@ class PulseOuterStrategy extends BeamVariantStrategy {
       canvas.restore();
     }
 
-    // ── Bloom halo: inset −30px, frozen, heavily blurred ──
+    // ── Bloom halo: frozen, heavily blurred ambient wash ──
     final bloomOpacity = BeamLayerUtils.layerOpacity(
       config,
       fade: phases.fadeOpacity,
       preset: config.theme.bloomOpacity,
       hookFactor: config.bloomOpacityFactor,
+      extra: _tunedGlowMul,
     );
-    final bloomBlur = config.bloomBlur ?? (isDark ? 22.5 : 15.0);
+    final bloomBlur = config.bloomBlur ?? _tunedBloomBlur * unit;
     if (bloomOpacity > 0) {
-      final bloomRect = rect.inflate(30);
+      final bloomRect = rect.inflate(_tunedBloomInset * unit);
       final frozenAlpha = 1 - params.op * 0.5;
       canvas.saveLayer(
         bloomRect.inflate(bloomBlur * 3),
         Paint()
           ..color = _white.withValues(alpha: bloomOpacity)
-          ..imageFilter = ImageFilter.blur(
-            sigmaX: bloomBlur,
-            sigmaY: bloomBlur,
-            tileMode: TileMode.decal,
-          ),
+          ..imageFilter = glowBlur(bloomBlur),
       );
       _scaled(canvas, rect.center, () {
         for (final spec in pulseOuterBloom) {
@@ -188,8 +216,10 @@ class PulseOuterStrategy extends BeamVariantStrategy {
     );
     final sx = _sx(size);
     final sy = _sy(size);
+    // Filter applied at layer composite time (post-gradient), matching CSS —
+    // see paintBehind for why this must not be folded into the colors.
     final matrix = _matrix(config, phases);
-    Color fold(Color c) => matrix.transform(c);
+    Color fold(Color c) => c;
     final border = config.palette.data.border;
 
     final strokeOpacity = BeamLayerUtils.layerOpacity(
@@ -197,6 +227,7 @@ class PulseOuterStrategy extends BeamVariantStrategy {
       fade: phases.fadeOpacity,
       preset: config.theme.strokeOpacity,
       hookFactor: config.strokeOpacityFactor,
+      extra: _tunedGlowMul,
     );
     if (strokeOpacity <= 0) return;
 
@@ -204,7 +235,9 @@ class PulseOuterStrategy extends BeamVariantStrategy {
     canvas.clipPath(geometry.ring);
     canvas.saveLayer(
       rect,
-      Paint()..color = _white.withValues(alpha: strokeOpacity),
+      Paint()
+        ..color = _white.withValues(alpha: strokeOpacity)
+        ..colorFilter = matrix.toColorFilter(),
     );
     // Optional static hairline under the colored stroke (preset 0 — the
     // wrapped child's own border provides the idle edge).
