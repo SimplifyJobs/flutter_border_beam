@@ -17,6 +17,7 @@ void main() {
     'colorful': BeamColors.colorful,
     'mono': BeamColors.mono,
     'ocean': BeamColors.ocean,
+    'sunset': BeamColors.sunset,
     'custom': const BeamColors.custom([ui.Color(0xFFFF0080)]),
   };
 

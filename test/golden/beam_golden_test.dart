@@ -7,7 +7,10 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// Golden scenes freeze the (fake) test clock at 1.3s after activation —
 /// past the 0.6s fade-in, mid-cycle for every variant — so each image
-/// captures a representative animated frame deterministically.
+/// captures a representative animated frame deterministically. The two
+/// traveling variants are captured a second time at a later instant
+/// (`_late`), because one frame of a sweep says nothing about where the
+/// sweep is the rest of the time.
 ///
 /// Regenerate with:
 ///   flutter test --update-goldens --tags golden
@@ -54,6 +57,7 @@ void main() {
     required Brightness brightness,
     double width = 350,
     double height = 140,
+    Duration freeze = const Duration(milliseconds: 1300),
   }) async {
     await tester.pumpWidget(
       scene(
@@ -64,7 +68,7 @@ void main() {
       ),
     );
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 1300));
+    await tester.pump(freeze);
     await expectLater(
       find.byType(MaterialApp),
       matchesGoldenFile('goldens/$name.png'),
@@ -80,6 +84,8 @@ void main() {
     for (final MapEntry(key: paletteName, value: colors) in {
       'colorful': BeamColors.colorful,
       'mono': BeamColors.mono,
+      'ocean': BeamColors.ocean,
+      'sunset': BeamColors.sunset,
     }.entries) {
       testWidgets('rotate $theme $paletteName', (tester) async {
         await capture(
@@ -148,6 +154,32 @@ void main() {
         );
       });
     }
+
+    // Second freezes for the traveling variants. rotate's 1.96s cycle puts
+    // 2.3s at cycle fraction 0.17 (vs 0.66 at 1.3s) — the beam is on the
+    // opposite side of the border. line's 3.1s cycle puts 2.0s at fraction
+    // 0.645, still inside the [0.325, 0.675] window where `beam-edge-fade`
+    // holds at 1, so the beam is at full strength further along its travel
+    // (x 0.60 vs 0.45 at 1.3s).
+    testWidgets('rotate $theme colorful late', (tester) async {
+      await capture(
+        tester,
+        'rotate_${theme}_colorful_late',
+        brightness: brightness,
+        freeze: const Duration(milliseconds: 2300),
+        (b) => BorderBeam.rotate(theme: beamTheme, child: mockSurface(b)),
+      );
+    });
+
+    testWidgets('line $theme colorful late', (tester) async {
+      await capture(
+        tester,
+        'line_${theme}_colorful_late',
+        brightness: brightness,
+        freeze: const Duration(milliseconds: 2000),
+        (b) => BorderBeam.line(theme: beamTheme, child: mockSurface(b)),
+      );
+    });
 
     testWidgets('rotate $theme ocean superellipse', (tester) async {
       await capture(
