@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:flutter_border_beam/src/constants/extra_palettes.dart';
 import 'package:flutter_border_beam/src/constants/palettes.dart';
 import 'package:flutter_border_beam/src/constants/pulse_tables.dart';
 import 'package:flutter_border_beam/src/constants/theme_presets.dart';
@@ -52,6 +53,76 @@ void main() {
       final s3 = sunsetPreset.lineBloomDark[3];
       expect(s3.color1.a, closeTo(0.91, 0.005));
       expect(s3.color2.a, closeTo(0.45, 0.005));
+    });
+  });
+
+  group('Flutter-only palette additions', () {
+    // These are not transcriptions: each is a short source-color list that
+    // `BeamColors.custom` distributes over the colorful geometry.
+    const sources = {
+      'aurora': (BeamColors.aurora, auroraColors),
+      'neon': (BeamColors.neon, neonColors),
+      'candy': (BeamColors.candy, candyColors),
+      'ember': (BeamColors.ember, emberColors),
+      'ice': (BeamColors.ice, iceColors),
+      'gold': (BeamColors.gold, goldColors),
+      'holographic': (BeamColors.holographic, holographicColors),
+    };
+
+    for (final MapEntry(key: name, value: (colors, source))
+        in sources.entries) {
+      test('$name resolves to the source table cardinalities', () {
+        final p = colors.resolve().data;
+        expect(p.border, hasLength(9));
+        expect(p.smallBorder, hasLength(8));
+        expect(p.smallInner, hasLength(8));
+        expect(p.lineDark, hasLength(9));
+        expect(p.lineLight, hasLength(9));
+        expect(p.lineInner, hasLength(9));
+        expect(p.lineBloomDark, hasLength(5));
+        expect(p.lineBloomLight, hasLength(5));
+      });
+
+      test('$name keeps the colorful geometry and alpha structure', () {
+        final p = colors.resolve().data;
+        for (final (i, blob) in p.border.indexed) {
+          expect(blob.position, colorfulPreset.border[i].position);
+          expect(blob.size, colorfulPreset.border[i].size);
+          expect(blob.color.a, closeTo(colorfulPreset.border[i].color.a, 1e-6));
+        }
+        for (final (i, blob) in p.smallInner.indexed) {
+          expect(
+            blob.color.a,
+            closeTo(colorfulPreset.smallInner[i].color.a, 1e-6),
+          );
+        }
+        for (final (i, pair) in p.lineBloomDark.indexed) {
+          expect(
+            pair.color1.a,
+            closeTo(colorfulPreset.lineBloomDark[i].color1.a, 1e-6),
+          );
+        }
+      });
+
+      test('$name uses 3-5 source colors, cycled over the border table', () {
+        expect(source.length, inInclusiveRange(3, 5));
+        expect(source.toSet(), hasLength(source.length), reason: 'duplicates');
+        final p = colors.resolve().data;
+        for (final (i, blob) in p.border.indexed) {
+          final expected = source[i % source.length];
+          expect(blob.color.r, closeTo(expected.r, 1e-6), reason: 'border $i');
+          expect(blob.color.g, closeTo(expected.g, 1e-6), reason: 'border $i');
+          expect(blob.color.b, closeTo(expected.b, 1e-6), reason: 'border $i');
+        }
+      });
+    }
+
+    test('the source lists carry opaque colors', () {
+      for (final MapEntry(key: name, value: (_, source)) in sources.entries) {
+        for (final c in source) {
+          expect(c.a, 1.0, reason: '$name has a translucent source color');
+        }
+      }
     });
   });
 

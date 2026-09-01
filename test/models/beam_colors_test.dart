@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_border_beam/flutter_border_beam.dart';
+import 'package:flutter_border_beam/src/constants/palettes.dart';
 import 'package:flutter_border_beam/src/painting/beam_painter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -13,6 +14,10 @@ const _blobB = BeamBlob(
   position: Offset(0.12, -0.05),
   size: Size(60, 35),
 );
+const _pink = Color(0xFFFF0080);
+const _cyan = Color(0xFF00E5FF);
+const _brand = Color(0xFF18A8F0);
+
 const _lineBlob = LineBlob(
   color: Color(0xFFFF3264),
   sizeW: 120,
@@ -212,6 +217,515 @@ void main() {
       expect(palette.data.smallBorder, derived.data.smallBorder);
       expect(palette.data.smallInner, derived.data.smallInner);
       expect(palette.data.lineDark, derived.data.lineDark);
+    });
+  });
+
+  group('BeamColors.custom base', () {
+    test('base selects which tables supply geometry and alpha', () {
+      final overColorful = BeamColors.custom(const [_pink]).resolve();
+      final overMono = BeamColors.custom(const [
+        _pink,
+      ], base: BeamColors.mono).resolve();
+      // mono's inner-glow table is half as opaque as colorful's, and that
+      // alpha structure is what `base` selects.
+      expect(overColorful.data.smallInner[0].color.a, closeTo(0.5, 1e-6));
+      expect(overMono.data.smallInner[0].color.a, closeTo(0.25, 1e-6));
+      // The hue still comes from the caller's list either way.
+      expect(overMono.data.smallInner[0].color.r, closeTo(_pink.r, 1e-6));
+      expect(overMono.data.smallInner[0].color.g, closeTo(_pink.g, 1e-6));
+    });
+
+    test('a mono base does not make the result mono', () {
+      final palette = BeamColors.custom(const [
+        _pink,
+      ], base: BeamColors.mono).resolve();
+      expect(palette.forcesStaticColors, isFalse);
+      expect(palette.opacityMultiplier, 1.0);
+      expect(palette.monoTreatment, isFalse);
+    });
+
+    test('base participates in equality', () {
+      expect(
+        BeamColors.custom(const [_pink]),
+        BeamColors.custom(const [_pink], base: BeamColors.colorful),
+      );
+      expect(
+        BeamColors.custom(const [_pink]).hashCode,
+        BeamColors.custom(const [_pink], base: BeamColors.colorful).hashCode,
+      );
+      expect(
+        BeamColors.custom(const [_pink]),
+        isNot(BeamColors.custom(const [_pink], base: BeamColors.mono)),
+      );
+      expect(
+        BeamColors.custom(const [_pink], base: BeamColors.ocean),
+        BeamColors.custom(const [_pink], base: BeamColors.ocean),
+      );
+      expect(
+        BeamColors.custom(const [_pink], base: BeamColors.ocean).hashCode,
+        BeamColors.custom(const [_pink], base: BeamColors.ocean).hashCode,
+      );
+    });
+
+    test('a custom base nests', () {
+      final nested = BeamColors.custom(const [
+        _cyan,
+      ], base: BeamColors.custom(const [_pink], base: BeamColors.mono));
+      final palette = nested.resolve();
+      // Alpha structure still comes from mono, two levels down.
+      expect(palette.data.smallInner[0].color.a, closeTo(0.25, 1e-6));
+      // Colors come from the outermost list.
+      expect(palette.data.smallInner[0].color.b, closeTo(_cyan.b, 1e-6));
+    });
+  });
+
+  group('BeamColors.fromSeed', () {
+    const seeds = {
+      'black': Color(0xFF000000),
+      'white': Color(0xFFFFFFFF),
+      'pure red': Color(0xFFFF0000),
+      'brand blue': Color(0xFF18A8F0),
+      'mid gray': Color(0xFF808080),
+    };
+
+    for (final MapEntry(key: name, value: seed) in seeds.entries) {
+      for (final harmony in BeamSeedHarmony.values) {
+        test('$name / ${harmony.name} gives 3-4 distinct in-band colors', () {
+          final palette = BeamColors.fromSeed(seed, harmony: harmony).resolve();
+          // The 9-slot border table cycles the derived colors, so its
+          // distinct set is exactly the derived palette.
+          final derived = {for (final b in palette.data.border) b.color};
+          expect(derived.length, inInclusiveRange(3, 4), reason: '$derived');
+          for (final c in derived) {
+            final hsl = HSLColor.fromColor(c);
+            expect(
+              hsl.lightness,
+              inInclusiveRange(0.54, 0.71),
+              reason: '$c is outside the glow lightness band',
+            );
+            // 0.55 floor, times monochrome's 0.7 lowest saturation step.
+            expect(hsl.saturation, greaterThanOrEqualTo(0.37), reason: '$c');
+            expect(c.a, 1.0);
+          }
+        });
+      }
+    }
+
+    test('geometry comes from the colorful preset', () {
+      final palette = const BeamColors.fromSeed(_brand).resolve();
+      for (final (i, blob) in palette.data.border.indexed) {
+        expect(blob.position, colorfulPreset.border[i].position);
+        expect(blob.size, colorfulPreset.border[i].size);
+      }
+      expect(palette.data.smallInner, hasLength(8));
+      expect(palette.data.lineBloomDark, hasLength(5));
+      // Preset alpha survives the substitution.
+      expect(palette.data.smallInner[0].color.a, closeTo(0.5, 1e-6));
+    });
+
+    test('resolves without mono modifiers', () {
+      final palette = const BeamColors.fromSeed(_brand).resolve();
+      expect(palette.forcesStaticColors, isFalse);
+      expect(palette.opacityMultiplier, 1.0);
+      expect(palette.monoTreatment, isFalse);
+    });
+
+    test('the default harmony is analogous', () {
+      expect(
+        const BeamColors.fromSeed(_brand),
+        const BeamColors.fromSeed(_brand, harmony: BeamSeedHarmony.analogous),
+      );
+    });
+
+    test('equality covers seed and harmony', () {
+      expect(
+        BeamColors.fromSeed(const Color(0xFF18A8F0)),
+        BeamColors.fromSeed(const Color(0xFF18A8F0)),
+      );
+      expect(
+        BeamColors.fromSeed(const Color(0xFF18A8F0)).hashCode,
+        BeamColors.fromSeed(const Color(0xFF18A8F0)).hashCode,
+      );
+      expect(
+        const BeamColors.fromSeed(_brand),
+        isNot(const BeamColors.fromSeed(Color(0xFFF018A8))),
+      );
+      expect(
+        const BeamColors.fromSeed(_brand),
+        isNot(
+          const BeamColors.fromSeed(_brand, harmony: BeamSeedHarmony.triadic),
+        ),
+      );
+      expect(
+        const BeamColors.fromSeed(_brand),
+        isNot(BeamColors.custom(const [_brand])),
+      );
+    });
+
+    test('different harmonies produce different palettes', () {
+      final tables = {
+        for (final h in BeamSeedHarmony.values)
+          h: BeamColors.fromSeed(_brand, harmony: h).resolve().data.border[1],
+      };
+      expect(tables.values.map((b) => b.color).toSet(), hasLength(4));
+    });
+
+    test('triadic spreads the seed hue by 120 degrees', () {
+      final palette = const BeamColors.fromSeed(
+        _brand,
+        harmony: BeamSeedHarmony.triadic,
+      ).resolve();
+      final hues = [
+        for (var i = 0; i < 3; i++)
+          HSLColor.fromColor(palette.data.border[i].color).hue,
+      ];
+      expect((hues[1] - hues[0]) % 360, closeTo(120, 1));
+      expect((hues[2] - hues[1]) % 360, closeTo(120, 1));
+    });
+  });
+
+  group('BeamColors.fromScheme', () {
+    test('uses primary, secondary and tertiary', () {
+      const scheme = ColorScheme.dark(
+        primary: Color(0xFFFF0000),
+        secondary: Color(0xFF00FF00),
+        tertiary: Color(0xFF0000FF),
+      );
+      expect(
+        BeamColors.fromScheme(scheme),
+        BeamColors.custom(const [
+          Color(0xFFFF0000),
+          Color(0xFF00FF00),
+          Color(0xFF0000FF),
+        ]),
+      );
+    });
+
+    test('drops near-duplicate roles', () {
+      const scheme = ColorScheme.dark(
+        primary: Color(0xFFFF0000),
+        secondary: Color(0xFFFF0102),
+        tertiary: Color(0xFF0000FF),
+      );
+      expect(
+        BeamColors.fromScheme(scheme),
+        BeamColors.custom(const [Color(0xFFFF0000), Color(0xFF0000FF)]),
+      );
+    });
+
+    test('an all-identical scheme collapses to one color', () {
+      const scheme = ColorScheme.dark(
+        primary: _pink,
+        secondary: _pink,
+        tertiary: _pink,
+      );
+      expect(BeamColors.fromScheme(scheme), BeamColors.custom(const [_pink]));
+      expect(BeamColors.fromScheme(scheme).resolve().data.border, hasLength(9));
+    });
+
+    test('value-equal on the three roles only', () {
+      const a = ColorScheme.dark(
+        primary: Color(0xFFFF0000),
+        secondary: Color(0xFF00FF00),
+        tertiary: Color(0xFF0000FF),
+        surface: Color(0xFF111111),
+      );
+      const b = ColorScheme.dark(
+        primary: Color(0xFFFF0000),
+        secondary: Color(0xFF00FF00),
+        tertiary: Color(0xFF0000FF),
+        surface: Color(0xFF222222),
+      );
+      expect(BeamColors.fromScheme(a), BeamColors.fromScheme(b));
+      expect(
+        BeamColors.fromScheme(a).hashCode,
+        BeamColors.fromScheme(b).hashCode,
+      );
+      expect(
+        BeamColors.fromScheme(a),
+        isNot(
+          BeamColors.fromScheme(
+            const ColorScheme.dark(
+              primary: Color(0xFF00FF00),
+              secondary: Color(0xFFFF0000),
+              tertiary: Color(0xFF0000FF),
+            ),
+          ),
+        ),
+      );
+    });
+
+    test('geometry comes from the colorful preset', () {
+      const scheme = ColorScheme.dark(
+        primary: Color(0xFFFF0000),
+        secondary: Color(0xFF00FF00),
+        tertiary: Color(0xFF0000FF),
+      );
+      final palette = BeamColors.fromScheme(scheme).resolve();
+      for (final (i, blob) in palette.data.border.indexed) {
+        expect(blob.position, colorfulPreset.border[i].position);
+        expect(blob.size, colorfulPreset.border[i].size);
+      }
+    });
+  });
+
+  group('BeamColors.lerp', () {
+    const ocean = BeamColors.ocean;
+    const sunset = BeamColors.sunset;
+
+    test('t = 0 reproduces the tables of a', () {
+      expect(
+        const BeamColors.lerp(ocean, sunset, 0).resolve().data,
+        ocean.resolve().data,
+      );
+    });
+
+    test('t = 1 reproduces the tables of b', () {
+      expect(
+        const BeamColors.lerp(ocean, sunset, 1).resolve().data,
+        sunset.resolve().data,
+      );
+    });
+
+    test('the midpoint is the per-entry Color.lerp of both ends', () {
+      final a = ocean.resolve().data;
+      final b = sunset.resolve().data;
+      final mid = const BeamColors.lerp(ocean, sunset, 0.5).resolve().data;
+      for (final (i, blob) in mid.border.indexed) {
+        expect(
+          blob.color,
+          Color.lerp(a.border[i].color, b.border[i].color, .5),
+        );
+        expect(blob.position, a.border[i].position);
+        expect(blob.size, a.border[i].size);
+      }
+      for (final (i, blob) in mid.lineInner.indexed) {
+        expect(
+          blob.color,
+          Color.lerp(a.lineInner[i].color, b.lineInner[i].color, .5),
+        );
+        expect(blob.sizeW, a.lineInner[i].sizeW);
+        expect(blob.offsetX, a.lineInner[i].offsetX);
+      }
+      expect(
+        mid.spike.primary,
+        Color.lerp(a.spike.primary, b.spike.primary, .5),
+      );
+      expect(
+        mid.spikeLt.secondary,
+        Color.lerp(a.spikeLt.secondary, b.spikeLt.secondary, .5),
+      );
+      expect(
+        mid.lineBloomDark[2].color2,
+        Color.lerp(a.lineBloomDark[2].color2, b.lineBloomDark[2].color2, .5),
+      );
+      expect(mid.smallInner, hasLength(8));
+    });
+
+    test('the mono modifiers come from the nearer end', () {
+      final nearMono = const BeamColors.lerp(
+        BeamColors.mono,
+        ocean,
+        0.2,
+      ).resolve();
+      expect(nearMono.forcesStaticColors, isTrue);
+      expect(nearMono.monoTreatment, isTrue);
+      expect(nearMono.opacityMultiplier, closeTo(0.6, 1e-9));
+
+      final nearOcean = const BeamColors.lerp(
+        BeamColors.mono,
+        ocean,
+        0.8,
+      ).resolve();
+      expect(nearOcean.forcesStaticColors, isFalse);
+      expect(nearOcean.monoTreatment, isFalse);
+      expect(nearOcean.opacityMultiplier, closeTo(0.9, 1e-9));
+    });
+
+    test('a shorter b table cycles', () {
+      const spec = BeamColors.spec(border: [_blobA]);
+      final lerped = const BeamColors.lerp(ocean, spec, 1).resolve().data;
+      expect(lerped.border, hasLength(9));
+      expect(lerped.border.map((b) => b.color).toSet(), hasLength(1));
+      // Geometry still comes from a.
+      expect(lerped.border[4].size, ocean.resolve().data.border[4].size);
+    });
+
+    test('equality covers both ends and t', () {
+      expect(
+        const BeamColors.lerp(ocean, sunset, 0.25),
+        const BeamColors.lerp(ocean, sunset, 0.25),
+      );
+      expect(
+        const BeamColors.lerp(ocean, sunset, 0.25).hashCode,
+        const BeamColors.lerp(ocean, sunset, 0.25).hashCode,
+      );
+      expect(
+        const BeamColors.lerp(ocean, sunset, 0.25),
+        isNot(const BeamColors.lerp(ocean, sunset, 0.75)),
+      );
+      expect(
+        const BeamColors.lerp(ocean, sunset, 0.25),
+        isNot(const BeamColors.lerp(sunset, ocean, 0.25)),
+      );
+      expect(const BeamColors.lerp(ocean, sunset, 0), isNot(ocean));
+    });
+
+    test('extrapolates past 1', () {
+      final past = const BeamColors.lerp(ocean, sunset, 2).resolve().data;
+      final a = ocean.resolve().data;
+      final b = sunset.resolve().data;
+      expect(
+        past.border[0].color,
+        Color.lerp(a.border[0].color, b.border[0].color, 2),
+      );
+    });
+  });
+
+  group('BeamColors.scaleAlpha', () {
+    test('multiplies every table entry alpha and keeps the hue', () {
+      final base = BeamColors.colorful.resolve().data;
+      final dim = BeamColors.colorful.scaleAlpha(0.5).resolve().data;
+      for (final (i, blob) in dim.smallInner.indexed) {
+        expect(blob.color.a, closeTo(base.smallInner[i].color.a * 0.5, 1e-6));
+        expect(blob.color.r, closeTo(base.smallInner[i].color.r, 1e-6));
+        expect(blob.position, base.smallInner[i].position);
+        expect(blob.size, base.smallInner[i].size);
+      }
+      expect(dim.border.first.color.a, closeTo(0.5, 1e-6));
+      expect(dim.spike.primary.a, closeTo(base.spike.primary.a * 0.5, 1e-6));
+      expect(
+        dim.lineBloomDark[0].color2.a,
+        closeTo(base.lineBloomDark[0].color2.a * 0.5, 1e-6),
+      );
+      expect(dim.lineInner[3].sizeW, base.lineInner[3].sizeW);
+    });
+
+    test('clamps the product at 1', () {
+      final bright = BeamColors.colorful.scaleAlpha(4).resolve().data;
+      for (final blob in [...bright.border, ...bright.smallInner]) {
+        expect(blob.color.a, lessThanOrEqualTo(1.0));
+      }
+      // colorful's smallInner[0] is 0.5 -> 2.0 before the clamp.
+      expect(bright.smallInner[0].color.a, 1.0);
+      expect(bright.border.first.color.a, 1.0);
+    });
+
+    test('a zero factor makes every entry transparent', () {
+      final gone = BeamColors.colorful.scaleAlpha(0).resolve().data;
+      for (final blob in gone.border) {
+        expect(blob.color.a, 0.0);
+      }
+      expect(gone.spike.primary.a, 0.0);
+      expect(gone.lineBloomLight[4].color1.a, 0.0);
+    });
+
+    test('keeps the source palette modifiers', () {
+      final dim = BeamColors.mono.scaleAlpha(0.5).resolve();
+      expect(dim.forcesStaticColors, isTrue);
+      expect(dim.opacityMultiplier, 0.5);
+      expect(dim.monoTreatment, isTrue);
+      expect(
+        BeamColors.gold.scaleAlpha(0.5).resolve().forcesStaticColors,
+        isTrue,
+      );
+    });
+
+    test('equality covers the source and the factor', () {
+      expect(
+        BeamColors.ocean.scaleAlpha(0.5),
+        BeamColors.ocean.scaleAlpha(0.5),
+      );
+      expect(
+        BeamColors.ocean.scaleAlpha(0.5).hashCode,
+        BeamColors.ocean.scaleAlpha(0.5).hashCode,
+      );
+      expect(
+        BeamColors.ocean.scaleAlpha(0.5),
+        isNot(BeamColors.ocean.scaleAlpha(0.6)),
+      );
+      expect(
+        BeamColors.ocean.scaleAlpha(0.5),
+        isNot(BeamColors.sunset.scaleAlpha(0.5)),
+      );
+      expect(BeamColors.ocean.scaleAlpha(1), isNot(BeamColors.ocean));
+    });
+
+    test('stacks', () {
+      final twice = BeamColors.colorful.scaleAlpha(0.5).scaleAlpha(0.5);
+      expect(twice.resolve().data.border.first.color.a, closeTo(0.25, 1e-6));
+    });
+
+    test('rejects a negative factor', () {
+      expect(
+        () => BeamColors.colorful.scaleAlpha(-1).resolve(),
+        throwsA(isA<AssertionError>()),
+      );
+    });
+  });
+
+  group('Flutter-only presets', () {
+    test('gold pins the hue but keeps full layer opacity', () {
+      final gold = BeamColors.gold.resolve();
+      expect(gold.forcesStaticColors, isTrue);
+      expect(gold.opacityMultiplier, 1.0);
+      expect(gold.monoTreatment, isFalse);
+    });
+
+    test('every other new preset animates its hue', () {
+      for (final colors in const [
+        BeamColors.aurora,
+        BeamColors.neon,
+        BeamColors.candy,
+        BeamColors.ember,
+        BeamColors.ice,
+        BeamColors.holographic,
+      ]) {
+        final palette = colors.resolve();
+        expect(palette.forcesStaticColors, isFalse, reason: '$colors');
+        expect(palette.opacityMultiplier, 1.0, reason: '$colors');
+        expect(palette.monoTreatment, isFalse, reason: '$colors');
+      }
+    });
+
+    test('the new presets are all distinct from each other', () {
+      const all = [
+        BeamColors.aurora,
+        BeamColors.neon,
+        BeamColors.candy,
+        BeamColors.ember,
+        BeamColors.ice,
+        BeamColors.gold,
+        BeamColors.holographic,
+        BeamColors.colorful,
+        BeamColors.mono,
+        BeamColors.ocean,
+        BeamColors.sunset,
+      ];
+      expect(all.toSet(), hasLength(all.length));
+      expect(
+        all.map((c) => c.resolve().data.border[0].color).toSet(),
+        hasLength(all.length),
+      );
+    });
+  });
+
+  group('BeamBlob.size semantics', () {
+    test('a spec blob keeps the radii it was given', () {
+      // `size` is the ellipse RADII, not its diameters: painters pass
+      // `size.width`/`size.height` straight through as radiusX/radiusY, so a
+      // 70x40 blob spans 140x80 logical pixels. Nothing in the resolve path
+      // may halve or double it.
+      const blob = BeamBlob(
+        color: Color(0xFFFF0080),
+        position: Offset(0.33, -0.074),
+        size: Size(70, 40),
+      );
+      final palette = const BeamColors.spec(border: [blob]).resolve();
+      expect(palette.data.border.single.size, const Size(70, 40));
+      expect(palette.data.border.single.position, const Offset(0.33, -0.074));
+      // The derived tables keep the source library's radii too.
+      expect(palette.data.border.single.size, colorfulPreset.border[0].size);
     });
   });
 

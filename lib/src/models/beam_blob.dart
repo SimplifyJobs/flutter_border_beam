@@ -5,14 +5,14 @@ import 'package:flutter/foundation.dart';
 /// One radial-gradient color blob positioned around the border.
 ///
 /// This is the core building block of every beam palette: an ellipse of
-/// [size] logical pixels, centered at [position] (expressed as a fraction of
-/// the decorated box, so `Offset(0.33, -0.074)` is the CSS position
-/// `33% -7.4%`), fading from [color] at the center to transparent at the
-/// edge.
+/// [size] radii in logical pixels, centered at [position] (expressed as a
+/// fraction of the decorated box, so `Offset(0.33, -0.074)` is the CSS
+/// position `33% -7.4%`), fading from [color] at the center to transparent
+/// at the edge.
 @immutable
 class BeamBlob {
   /// Creates a blob. [position] is fractional (may exceed 0–1 to sit on or
-  /// beyond the edge); [size] is the ellipse diameter in logical pixels.
+  /// beyond the edge); [size] holds the ellipse radii in logical pixels.
   const BeamBlob({
     required this.color,
     required this.position,
@@ -26,7 +26,10 @@ class BeamBlob {
   /// (0,0 = top-left, 1,1 = bottom-right; values outside 0–1 are valid).
   final Offset position;
 
-  /// Ellipse diameter (width × height) in logical pixels.
+  /// Ellipse radii in logical pixels: [Size.width] is the horizontal radius
+  /// and [Size.height] the vertical one, matching CSS
+  /// `radial-gradient(ellipse W H ...)`, whose sizes are radii. Painters
+  /// pass these straight through as `radiusX`/`radiusY`.
   final Size size;
 
   /// Returns a copy with a different [color], keeping the geometry.
@@ -56,7 +59,7 @@ class BeamBlob {
 /// width/height factors.
 @immutable
 class LineBlob {
-  /// Creates a line blob with base ellipse size and pixel offsets from the
+  /// Creates a line blob with base ellipse radii and pixel offsets from the
   /// traveling beam center.
   const LineBlob({
     required this.color,
@@ -69,11 +72,12 @@ class LineBlob {
   /// Blob color (may carry alpha for inner-glow tables).
   final Color color;
 
-  /// Base ellipse width in px, multiplied by the animated beam width factor.
+  /// Base horizontal ellipse radius in px, multiplied by the animated beam
+  /// width factor and passed to the painter as `radiusX`.
   final double sizeW;
 
-  /// Base ellipse height in px, multiplied by the animated beam height
-  /// factor.
+  /// Base vertical ellipse radius in px, multiplied by the animated beam
+  /// height factor and passed to the painter as `radiusY`.
   final double sizeH;
 
   /// Horizontal offset in px from the traveling beam center.
