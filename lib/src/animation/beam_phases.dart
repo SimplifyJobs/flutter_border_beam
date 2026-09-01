@@ -171,15 +171,29 @@ class BeamPhaseResolver {
 
   /// A representative static frame for reduced motion: mid-cycle, no hue
   /// offset, full opacity.
+  ///
+  /// The frame is shown for as long as reduced motion lasts, so it carries
+  /// the palette's own colors — a hue sampled from the ping-pong would tint
+  /// the whole effect by an arbitrary offset.
   BeamFramePhases staticFrame() {
-    final t = config.cycleSeconds / 2;
-    final phases = sample(t, 1);
     if (config.variant.isPulse) {
       // Freeze the breathing at rest, matching the source's
       // prefers-reduced-motion behavior (animations disabled entirely).
-      return BeamFramePhases(fadeOpacity: 1, hueDegrees: 0);
+      return const BeamFramePhases(fadeOpacity: 1, hueDegrees: 0);
     }
-    return phases;
+    // The traveling variants keep their mid-cycle geometry.
+    final phases = sample(config.cycleSeconds / 2, 1);
+    return BeamFramePhases(
+      fadeOpacity: 1,
+      hueDegrees: 0,
+      angleRadians: phases.angleRadians,
+      lineX: phases.lineX,
+      lineW: phases.lineW,
+      lineH: phases.lineH,
+      spike: phases.spike,
+      spike2: phases.spike2,
+      edge: phases.edge,
+    );
   }
 
   double _hue(double t) {

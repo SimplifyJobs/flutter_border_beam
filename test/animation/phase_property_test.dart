@@ -212,22 +212,14 @@ void main() {
         expect(resolver.staticFrame().fadeOpacity, 1);
       });
 
-      test(
-        '$variant: is hue-neutral',
-        () {
-          // Reduced motion paints one frame forever, so it must show the
-          // palette's own colors rather than an arbitrary point of the hue
-          // ping-pong frozen in place.
-          final resolver = BeamPhaseResolver(configFor(variant));
-          expect(resolver.staticFrame().hueDegrees, 0);
-          expect(resolver.staticFrame().bloomHueDegrees, 0);
-        },
-        skip: variant.isPulse
-            ? null
-            : 'defect: staticFrame() freezes the traveling variants '
-                  'mid-hue-ping-pong (-26.8 deg for rotate/small, -9.4 deg '
-                  'for line) instead of the documented "no hue offset"',
-      );
+      test('$variant: is hue-neutral', () {
+        // Reduced motion paints one frame forever, so it must show the
+        // palette's own colors rather than an arbitrary point of the hue
+        // ping-pong frozen in place.
+        final resolver = BeamPhaseResolver(configFor(variant));
+        expect(resolver.staticFrame().hueDegrees, 0);
+        expect(resolver.staticFrame().bloomHueDegrees, 0);
+      });
     }
   });
 }

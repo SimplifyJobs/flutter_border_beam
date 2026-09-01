@@ -84,25 +84,18 @@ void main() {
     return false;
   }
 
-  // A box thinner than two border widths deflates to a negative inner rect,
-  // and the ring geometry hands that negative half-extent to
-  // RRect.fromRectAndRadius as a corner radius.
-  const thinBoxDefect =
-      'defect: BeamRingGeometry derives a negative corner radius when a side '
-      'is thinner than 2x borderWidth, so RRect.fromRectAndRadius asserts';
-
   group('degenerate sizes', () {
-    const sizes = <String, (ui.Size, String?)>{
-      'zero': (ui.Size.zero, thinBoxDefect),
-      '1x1': (ui.Size(1, 1), thinBoxDefect),
-      'wide sliver': (ui.Size(2000, 2), null),
-      'tall sliver': (ui.Size(2, 2000), null),
+    const sizes = <String, ui.Size>{
+      'zero': ui.Size.zero,
+      '1x1': ui.Size(1, 1),
+      'wide sliver': ui.Size(2000, 2),
+      'tall sliver': ui.Size(2, 2000),
     };
     for (final variant in BeamVariant.values) {
-      for (final MapEntry(key: name, value: (size, skip)) in sizes.entries) {
+      for (final MapEntry(key: name, value: size) in sizes.entries) {
         test('$variant paints a $name box', () {
           paintFrames(variant, configFor(variant), size);
-        }, skip: skip);
+        });
       }
     }
   });
@@ -200,8 +193,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 700));
       expect(tester.takeException(), isNull);
-      // Skipped by thinBoxDefect: testWidgets only takes a bool.
-    }, skip: true);
+    });
 
     testWidgets('a beam around a zero-height child in a Column renders', (
       tester,
@@ -219,7 +211,6 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 700));
       expect(tester.takeException(), isNull);
-      // Skipped by thinBoxDefect: testWidgets only takes a bool.
-    }, skip: true);
+    });
   });
 }

@@ -36,15 +36,23 @@ class BeamRingGeometry {
 
   /// Inner contour (the content box: deflated by [borderWidth], radius
   /// reduced accordingly).
+  ///
+  /// A box thinner than twice the border width has no content box left, and
+  /// the contour is empty — the ring is then the whole shape.
   late final Path inner = _shapePath(
     rect.deflate(borderWidth),
-    math.max(0, radius - borderWidth),
+    radius - borderWidth,
   );
 
   /// The border ring: [outer] minus [inner].
-  late final Path ring = Path.combine(PathOperation.difference, outer, inner);
+  late final Path ring = rect.isEmpty
+      ? Path()
+      : Path.combine(PathOperation.difference, outer, inner);
 
   Path _shapePath(Rect r, double cornerRadius) {
+    // A rect with no area (or an inverted one, from deflating past the
+    // center) has no contour to describe.
+    if (r.isEmpty) return Path();
     final clamped = _clampRadius(r, cornerRadius);
     if (useSuperellipse) {
       return Path()..addRSuperellipse(
@@ -59,6 +67,9 @@ class BeamRingGeometry {
   /// family (used by pulse-outside's outward layers).
   Path contour(Rect r, double cornerRadius) => _shapePath(r, cornerRadius);
 
+  // Corner radii are clamped to half the shortest side (a larger one has no
+  // room to draw) and never go below zero, which every rounded-rect
+  // constructor rejects.
   static double _clampRadius(Rect r, double radius) =>
-      math.min(radius, math.min(r.width, r.height) / 2);
+      math.max(0, math.min(radius, math.min(r.width, r.height) / 2));
 }

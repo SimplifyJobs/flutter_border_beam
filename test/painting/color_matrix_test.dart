@@ -117,6 +117,40 @@ void main() {
       expect(g.outer.contains(const Offset(8, 8)), isTrue);
     });
 
+    test('a box thinner than twice the border has no content box', () {
+      for (final superellipse in [false, true]) {
+        final g = BeamRingGeometry(
+          rect: const Rect.fromLTWH(0, 0, 1, 1),
+          radius: 16,
+          borderWidth: 1,
+          useSuperellipse: superellipse,
+        );
+        expect(g.inner.getBounds().isEmpty, isTrue);
+        // Nothing is carved out: the ring is the whole box.
+        expect(g.ring.getBounds(), g.outer.getBounds());
+        expect(g.ring.contains(const Offset(0.5, 0.5)), isTrue);
+      }
+    });
+
+    test('an empty box has no contours at all', () {
+      for (final rect in const [
+        Rect.zero,
+        Rect.fromLTWH(0, 0, 40, 0),
+        Rect.fromLTWH(0, 0, 0, 40),
+      ]) {
+        final g = BeamRingGeometry(
+          rect: rect,
+          radius: 16,
+          borderWidth: 1,
+          useSuperellipse: false,
+        );
+        expect(g.outer.getBounds().isEmpty, isTrue);
+        expect(g.inner.getBounds().isEmpty, isTrue);
+        expect(g.ring.getBounds().isEmpty, isTrue);
+        expect(g.contour(rect, 16).getBounds().isEmpty, isTrue);
+      }
+    });
+
     test('radius clamps to half the shortest side', () {
       final g = BeamRingGeometry(
         rect: const Rect.fromLTWH(0, 0, 40, 10),
