@@ -24,7 +24,7 @@ frame.
 
 - `lib/flutter_border_beam.dart` — barrel; ONLY `BorderBeam`, `BorderBeamController`, `BeamVariant`, `BeamColors`, `BeamBlob`/`LineBlob`, `BeamTheme` are public.
 - `lib/src/border_beam.dart` — widget, 5 named constructors, scheduling/lifecycle. Controller attached ⇒ it owns playback exclusively (asserts `startAfter`/`duration` are null).
-- `lib/src/animation/` — `beam_clock.dart` (ticker, speed, pause, spring fades via `sprung`, optional fps cap), `oscillator.dart` (pingPong + the 17-oscillator pulse bank), `beam_phases.dart` (per-frame value object + keyframe sampling).
+- `lib/src/animation/` — `beam_clock.dart` (ticker, speed, pause, spring fades via `spring_curve.dart`, optional fps cap), `oscillator.dart` (pingPong + the 17-oscillator pulse bank), `beam_phases.dart` (per-frame value object + keyframe sampling).
 - `lib/src/painting/` — `beam_painter.dart` (one `CustomPainter`, repaint driven by the clock, `behind`/`above` passes), `strategies/` (one per variant family), `ring_geometry.dart` (rrect + `RSuperellipse` ring via `Path.combine` difference), `gradient_builders.dart`, `color_matrix.dart` (hue/brightness/saturation matrices), `layer_utils.dart`.
 - `lib/src/constants/` — **verbatim transcriptions** of the React source's tables (`palettes.dart`, `theme_presets.dart`, `pulse_tables.dart`, `pulse_params.dart`, `line_keyframes.dart`).
 - `lib/src/models/` — public/internal data types; `BeamConfig.resolve` mirrors the React component's computed values (per-variant default durations, the line 13° hue cap, mono forcing static colors).

@@ -8,6 +8,12 @@
   `package:flutter_border_beam/flutter_border_beam.dart`.
 - The canonical repository is https://github.com/SimplifyJobs/flutter_border_beam.
 
+### Removed
+
+- The `sprung` dependency. The fade envelope is eased by the in-package
+  `FadeSpringCurve` (mass 1, stiffness 180, damping 20 — the same spring),
+  so the package depends on the Flutter SDK alone.
+
 ## 0.1.0
 
 Initial release — a faithful Flutter port of the [border-beam](https://github.com/Jakubantalik/border-beam) React library (v1.3.0) by Jakub Antalik.

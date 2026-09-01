@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:sprung/sprung.dart';
+
+import 'spring_curve.dart';
 
 /// The fade lifecycle stage of a beam.
 enum BeamFadeStage {
@@ -20,8 +21,8 @@ enum BeamFadeStage {
 /// function of elapsed time, driven by ONE [Ticker] (the React library uses
 /// one shared requestAnimationFrame loop). The clock integrates scaled
 /// deltas so [speed] changes and pauses keep continuity, runs the
-/// fade-in/fade-out envelope (spring-eased via `sprung`), and can cap its
-/// notification rate for the pulse variants (~30fps in the source).
+/// fade-in/fade-out envelope (spring-eased via [FadeSpringCurve]), and can
+/// cap its notification rate for the pulse variants (~30fps in the source).
 class BeamClock extends ChangeNotifier {
   /// Creates a clock. [createTicker] is typically
   /// `TickerProviderStateMixin.createTicker`. [maxFps] caps notification
@@ -41,7 +42,7 @@ class BeamClock extends ChangeNotifier {
   static const double fadeOutSeconds = 0.5;
 
   // Spring-eased fade, isolated here so the curve is trivially replaceable.
-  static final _fadeCurve = Sprung.criticallyDamped;
+  static const _fadeCurve = FadeSpringCurve.instance;
 
   final Ticker Function(TickerCallback) _createTicker;
 
@@ -83,8 +84,8 @@ class BeamClock extends ChangeNotifier {
 
   /// The current fade envelope value (0–1).
   ///
-  /// The spring curve can numerically overshoot by ~1%; the result is
-  /// clamped so it is always a valid opacity.
+  /// The spring curve is lightly under-damped and overshoots its target by
+  /// up to ~3%; the result is clamped so it is always a valid opacity.
   double get fadeOpacity {
     final raw = switch (_stage) {
       BeamFadeStage.none => _visible ? 1.0 : 0.0,
