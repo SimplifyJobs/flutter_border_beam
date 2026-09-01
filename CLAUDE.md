@@ -14,6 +14,8 @@ Flutter package: animated border beam effects. A faithful port of the
 - `cd example && flutter run` — demo gallery app (React-demo-styled; tokens in `example/lib/src/demo_theme.dart`).
 - `tool/record_demo.sh --target lib/showcase.dart --prefix SHOWCASE --contact` — record a demo reel mp4 into `.demos/` (needs a booted iOS simulator + ffmpeg). Reels use `example/lib/demo_harness.dart`'s marker contract (`<PREFIX>:<name>:START/END`, `<PREFIX>:DONE`); new reels are just a map of name → scene widget.
 - `dart pub publish --dry-run` — pre-publish validation.
+- **Cutting a release** — bump `version:` in `pubspec.yaml`, add a `## <version>` section to `CHANGELOG.md`, merge to `main`, then push the matching tag: `git tag v<version> && git push origin v<version>`. `.github/workflows/release.yaml` verifies the tag against the pubspec and the changelog, re-runs format/analyze/test, publishes to pub.dev over GitHub OIDC (no secrets), and creates the GitHub Release from that changelog section; a version with a `-suffix` is marked prerelease. Goldens are verified only by the macOS `goldens` job in `ci.yaml` — the release job runs on ubuntu and skips them, so tag a commit that is green on `main`.
+- **One-time, before the first automated release** — publish manually with `flutter pub publish` (pub.dev only automates publishing for packages that already exist), then enable pub.dev Admin → Automated publishing for `SimplifyJobs/flutter_border_beam` with tag pattern `v{{version}}`.
 
 ## Architecture
 
