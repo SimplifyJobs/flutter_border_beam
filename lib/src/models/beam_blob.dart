@@ -1,5 +1,7 @@
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
+
 /// One radial-gradient color blob positioned around the border.
 ///
 /// This is the core building block of every beam palette: an ellipse of
@@ -7,6 +9,7 @@ import 'dart:ui';
 /// the decorated box, so `Offset(0.33, -0.074)` is the CSS position
 /// `33% -7.4%`), fading from [color] at the center to transparent at the
 /// edge.
+@immutable
 class BeamBlob {
   /// Creates a blob. [position] is fractional (may exceed 0–1 to sit on or
   /// beyond the edge); [size] is the ellipse diameter in logical pixels.
@@ -29,12 +32,29 @@ class BeamBlob {
   /// Returns a copy with a different [color], keeping the geometry.
   BeamBlob withColor(Color color) =>
       BeamBlob(color: color, position: position, size: size);
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BeamBlob &&
+          other.color == color &&
+          other.position == position &&
+          other.size == size;
+
+  @override
+  int get hashCode => Object.hash(color, position, size);
+
+  @override
+  String toString() =>
+      'BeamBlob(color: $color, position: $position, '
+      'size: $size)';
 }
 
 /// A blob used by the line variant. Line blobs ride the bottom edge: their
 /// x-position is `beamX + offsetX` px and their y sits at the bottom edge
 /// shifted by [offsetY] px, with the ellipse scaled by the animated
 /// width/height factors.
+@immutable
 class LineBlob {
   /// Creates a line blob with base ellipse size and pixel offsets from the
   /// traveling beam center.
@@ -70,10 +90,29 @@ class LineBlob {
     offsetX: offsetX,
     offsetY: offsetY,
   );
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LineBlob &&
+          other.color == color &&
+          other.sizeW == sizeW &&
+          other.sizeH == sizeH &&
+          other.offsetX == offsetX &&
+          other.offsetY == offsetY;
+
+  @override
+  int get hashCode => Object.hash(color, sizeW, sizeH, offsetX, offsetY);
+
+  @override
+  String toString() =>
+      'LineBlob(color: $color, size: ${sizeW}x$sizeH, '
+      'offset: $offsetX, $offsetY)';
 }
 
 /// A pair of colors used by one fixed bloom spike of the line variant
 /// (center color and mid-stop color).
+@immutable
 class SpikePair {
   /// Creates a spike color pair.
   const SpikePair(this.color1, this.color2);
@@ -83,10 +122,22 @@ class SpikePair {
 
   /// Color at the spike's mid gradient stop.
   final Color color2;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SpikePair && other.color1 == color1 && other.color2 == color2;
+
+  @override
+  int get hashCode => Object.hash(color1, color2);
+
+  @override
+  String toString() => 'SpikePair($color1, $color2)';
 }
 
 /// Primary/secondary spike colors used by the line variant's traveling
 /// accents.
+@immutable
 class SpikeColors {
   /// Creates the spike color pair.
   const SpikeColors({required this.primary, required this.secondary});
@@ -96,6 +147,21 @@ class SpikeColors {
 
   /// The secondary spike color.
   final Color secondary;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SpikeColors &&
+          other.primary == primary &&
+          other.secondary == secondary;
+
+  @override
+  int get hashCode => Object.hash(primary, secondary);
+
+  @override
+  String toString() =>
+      'SpikeColors(primary: $primary, '
+      'secondary: $secondary)';
 }
 
 /// Which oscillator group (1–3) scales/drifts a pulse blob.

@@ -1,5 +1,7 @@
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
+
 import '../constants/palettes.dart';
 import 'beam_blob.dart';
 import 'beam_palette.dart';
@@ -23,6 +25,11 @@ import 'beam_palette.dart';
 /// ```
 ///
 /// For pixel-level control, [BeamColors.spec] accepts explicit blob tables.
+///
+/// Every variant is a value type: two instances built from equal inputs are
+/// `==`, so rebuilding `BeamColors.custom([...])` inline in a `build` method
+/// does not force the widget to re-resolve its gradient tables.
+@immutable
 sealed class BeamColors {
   const BeamColors._();
 
@@ -60,7 +67,72 @@ sealed class BeamColors {
   }) = _SpecBeamColors;
 
   /// Resolves this color choice to concrete gradient tables.
-  BeamPalette resolve();
+  ///
+  /// The result is memoized per instance: repeated calls on the same
+  /// instance return the identical [BeamPalette].
+  BeamPalette resolve() => _paletteCache[this] ??= _buildPalette();
+
+  /// Builds the palette. Called at most once per instance by [resolve].
+  BeamPalette _buildPalette();
+}
+
+// Per-instance memo for [BeamColors.resolve]. An Expando (rather than a
+// field) so that const instances — the presets, and any `const
+// BeamColors.custom([...])` — can cache too.
+final Expando<BeamPalette> _paletteCache = Expando<BeamPalette>(
+  'BeamColors.resolve',
+);
+
+/// Distributes [colors] over [base]'s blob geometry, cycling when there are
+/// fewer colors than blob slots and preserving each table entry's alpha so
+/// the layered depth of the effect survives the substitution.
+BeamPresetData _distribute(List<Color> colors, BeamPresetData base) {
+  Color pick(int i, Color original) {
+    final c = colors[i % colors.length];
+    // Keep the preset's alpha so inner/bloom layering depth is preserved.
+    return c.withValues(alpha: original.a);
+  }
+
+  return BeamPresetData(
+    border: [
+      for (final (i, b) in base.border.indexed) b.withColor(pick(i, b.color)),
+    ],
+    spike: SpikeColors(
+      primary: pick(0, base.spike.primary),
+      secondary: pick(1, base.spike.secondary),
+    ),
+    spikeLt: SpikeColors(
+      primary: pick(0, base.spikeLt.primary),
+      secondary: pick(1, base.spikeLt.secondary),
+    ),
+    smallBorder: [
+      for (final (i, b) in base.smallBorder.indexed)
+        b.withColor(pick(i, b.color)),
+    ],
+    smallInner: [
+      for (final (i, b) in base.smallInner.indexed)
+        b.withColor(pick(i, b.color)),
+    ],
+    lineDark: [
+      for (final (i, b) in base.lineDark.indexed) b.withColor(pick(i, b.color)),
+    ],
+    lineLight: [
+      for (final (i, b) in base.lineLight.indexed)
+        b.withColor(pick(i, b.color)),
+    ],
+    lineInner: [
+      for (final (i, b) in base.lineInner.indexed)
+        b.withColor(pick(i, b.color)),
+    ],
+    lineBloomDark: [
+      for (final (i, s) in base.lineBloomDark.indexed)
+        SpikePair(pick(i, s.color1), pick(i, s.color2)),
+    ],
+    lineBloomLight: [
+      for (final (i, s) in base.lineBloomLight.indexed)
+        SpikePair(pick(i, s.color1), pick(i, s.color2)),
+    ],
+  );
 }
 
 class _PresetBeamColors extends BeamColors {
@@ -70,12 +142,25 @@ class _PresetBeamColors extends BeamColors {
   final bool isMono;
 
   @override
-  BeamPalette resolve() => BeamPalette(
+  BeamPalette _buildPalette() => BeamPalette(
     data: preset,
     forcesStaticColors: isMono,
     opacityMultiplier: isMono ? 0.5 : 1.0,
     monoTreatment: isMono,
   );
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is _PresetBeamColors &&
+          identical(other.preset, preset) &&
+          other.isMono == isMono;
+
+  @override
+  int get hashCode => Object.hash(identityHashCode(preset), isMono);
+
+  @override
+  String toString() => 'BeamColors(preset, isMono: $isMono)';
 }
 
 class _CustomBeamColors extends BeamColors {
@@ -84,60 +169,21 @@ class _CustomBeamColors extends BeamColors {
   final List<Color> colors;
 
   @override
-  BeamPalette resolve() {
+  BeamPalette _buildPalette() {
     assert(colors.isNotEmpty, 'BeamColors.custom requires at least one color');
-    Color pick(int i, Color original) {
-      final c = colors[i % colors.length];
-      // Keep the preset's alpha so inner/bloom layering depth is preserved.
-      return c.withValues(alpha: original.a);
-    }
-
-    final base = colorfulPreset;
-    return BeamPalette(
-      data: BeamPresetData(
-        border: [
-          for (final (i, b) in base.border.indexed)
-            b.withColor(pick(i, b.color)),
-        ],
-        spike: SpikeColors(
-          primary: pick(0, base.spike.primary),
-          secondary: pick(1, base.spike.secondary),
-        ),
-        spikeLt: SpikeColors(
-          primary: pick(0, base.spikeLt.primary),
-          secondary: pick(1, base.spikeLt.secondary),
-        ),
-        smallBorder: [
-          for (final (i, b) in base.smallBorder.indexed)
-            b.withColor(pick(i, b.color)),
-        ],
-        smallInner: [
-          for (final (i, b) in base.smallInner.indexed)
-            b.withColor(pick(i, b.color)),
-        ],
-        lineDark: [
-          for (final (i, b) in base.lineDark.indexed)
-            b.withColor(pick(i, b.color)),
-        ],
-        lineLight: [
-          for (final (i, b) in base.lineLight.indexed)
-            b.withColor(pick(i, b.color)),
-        ],
-        lineInner: [
-          for (final (i, b) in base.lineInner.indexed)
-            b.withColor(pick(i, b.color)),
-        ],
-        lineBloomDark: [
-          for (final (i, s) in base.lineBloomDark.indexed)
-            SpikePair(pick(i, s.color1), pick(i, s.color2)),
-        ],
-        lineBloomLight: [
-          for (final (i, s) in base.lineBloomLight.indexed)
-            SpikePair(pick(i, s.color1), pick(i, s.color2)),
-        ],
-      ),
-    );
+    return BeamPalette(data: _distribute(colors, colorfulPreset));
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is _CustomBeamColors && listEquals(other.colors, colors);
+
+  @override
+  int get hashCode => Object.hashAll(colors);
+
+  @override
+  String toString() => 'BeamColors.custom($colors)';
 }
 
 class _SpecBeamColors extends BeamColors {
@@ -152,13 +198,13 @@ class _SpecBeamColors extends BeamColors {
   final List<LineBlob>? lineBlobs;
 
   @override
-  BeamPalette resolve() {
+  BeamPalette _buildPalette() {
     assert(border.isNotEmpty, 'BeamColors.spec requires at least one blob');
     // Derive any missing tables by cycling the provided border colors over
     // the default geometry.
-    final derived = _CustomBeamColors([
+    final derived = _distribute([
       for (final b in border) b.color,
-    ]).resolve().data;
+    ], colorfulPreset);
     return BeamPalette(
       data: BeamPresetData(
         border: border,
@@ -179,4 +225,24 @@ class _SpecBeamColors extends BeamColors {
       ),
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is _SpecBeamColors &&
+          listEquals(other.border, border) &&
+          listEquals(other.smallBorder, smallBorder) &&
+          listEquals(other.lineBlobs, lineBlobs);
+
+  @override
+  int get hashCode => Object.hash(
+    Object.hashAll(border),
+    smallBorder == null ? null : Object.hashAll(smallBorder!),
+    lineBlobs == null ? null : Object.hashAll(lineBlobs!),
+  );
+
+  @override
+  String toString() =>
+      'BeamColors.spec(border: ${border.length} blobs, '
+      'smallBorder: ${smallBorder?.length}, lineBlobs: ${lineBlobs?.length})';
 }

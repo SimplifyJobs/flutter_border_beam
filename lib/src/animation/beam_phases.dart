@@ -6,6 +6,7 @@ import '../constants/line_keyframes.dart';
 import '../constants/pulse_params.dart';
 import '../models/beam_config.dart';
 import '../models/beam_variant.dart';
+import 'beam_clock.dart';
 import 'oscillator.dart';
 
 /// Samples a keyframe table at cycle progress [t] (0–1).
@@ -88,28 +89,37 @@ class BeamFramePhases {
 /// mirroring the source's CSS keyframes and JS pulse driver exactly.
 class BeamPhaseResolver {
   /// Creates a resolver for [config].
-  BeamPhaseResolver(this.config)
-    : _bank = config.variant.isPulse
-          ? PulseOscillatorBank(
-              PulseParams.resolve(
-                config.variant,
-                config.brightness,
-                config.cycleSeconds,
-              ),
-            )
-          : null,
-      _pulseParams = config.variant.isPulse
-          ? PulseParams.resolve(
-              config.variant,
-              config.brightness,
-              config.cycleSeconds,
-            )
-          : null;
+  factory BeamPhaseResolver(BeamConfig config) => BeamPhaseResolver._(
+    config,
+    config.variant.isPulse
+        ? PulseParams.resolve(
+            config.variant,
+            config.brightness,
+            config.cycleSeconds,
+          )
+        : null,
+  );
+
+  BeamPhaseResolver._(this.config, PulseParams? pulseParams)
+    : _pulseParams = pulseParams,
+      _bank = pulseParams == null ? null : PulseOscillatorBank(pulseParams);
 
   /// The resolved beam configuration.
   final BeamConfig config;
   final PulseOscillatorBank? _bank;
   final PulseParams? _pulseParams;
+
+  /// Seconds added to the sample time of the fixed-period hue tracks only.
+  ///
+  /// The cycle-derived tracks (rotate angle, line travel, pulse
+  /// oscillators) all scale with [BeamConfig.cycleSeconds], so a cycle
+  /// change can be absorbed by rescaling elapsed time
+  /// ([BeamClock.retime]) — their fractions come out unchanged. The hue
+  /// tracks run on fixed periods ([huePeriodSeconds],
+  /// [bloomHuePeriodSeconds], [PulseParams.huePeriod]) and would jump under
+  /// that rescale, so the widget shifts them back by the amount the
+  /// timeline moved.
+  double hueTimeOffset = 0;
 
   /// The hue ping-pong keyframes of the rotate/line variants
   /// (0% −range, 50% +range, 100% −range, ease-in-out per segment, 12s).
@@ -139,7 +149,7 @@ class BeamPhaseResolver {
           fadeOpacity: fadeOpacity,
           hueDegrees: hue,
           bloomHueDegrees: _pingPongHue(
-            t,
+            t + hueTimeOffset,
             bloomHuePeriodSeconds,
             config.hueRange + 10,
           ),
@@ -174,12 +184,13 @@ class BeamPhaseResolver {
 
   double _hue(double t) {
     if (config.staticColors) return 0;
+    final hueT = t + hueTimeOffset;
     if (config.variant.isPulse) {
       // Continuous full revolution (sawtooth 0→360°).
       final period = _pulseParams!.huePeriod;
-      return ((t / period) % 1.0) * 360;
+      return ((hueT / period) % 1.0) * 360;
     }
-    return _pingPongHue(t, huePeriodSeconds, config.hueRange);
+    return _pingPongHue(hueT, huePeriodSeconds, config.hueRange);
   }
 
   // CSS `beam-hue-shift`: keyframes −range @0%, +range @50%, −range @100%,

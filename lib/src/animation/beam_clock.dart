@@ -148,6 +148,25 @@ class BeamClock extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Rescales the timeline by [factor], keeping every cycle-relative phase
+  /// where it is.
+  ///
+  /// Used when a beam's cycle duration changes mid-run: every animated
+  /// track derived from the cycle reads `elapsed / cycleSeconds`, so
+  /// multiplying elapsed time by `newCycle / oldCycle` leaves each track at
+  /// the exact fraction it had. The fade envelope and the frame-rate cap
+  /// are wall-clock schedules, not cycle-relative ones, so their anchors
+  /// move with the timeline rather than being scaled — the fade keeps its
+  /// current opacity and its remaining duration.
+  void retime(double factor) {
+    assert(factor > 0, 'retime factor must be positive');
+    final shift = _elapsed * factor - _elapsed;
+    _elapsed += shift;
+    _fadeStart += shift;
+    _lastNotify += shift;
+    notifyListeners();
+  }
+
   /// Marks the beam visible at full opacity without animating (used for
   /// reduced motion and for initially-active beams that must not fade in).
   void showStatic() {

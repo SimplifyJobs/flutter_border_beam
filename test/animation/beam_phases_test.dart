@@ -12,13 +12,31 @@ BeamConfig _config(
   BeamVariant v, {
   bool staticColors = false,
   double hueRange = 30,
+  Duration? cycleDuration,
 }) => BeamConfig.resolve(
   variant: v,
   palette: BeamColors.colorful.resolve(),
   brightness: Brightness.dark,
   staticColors: staticColors,
   hueRange: hueRange,
+  cycleDuration: cycleDuration,
 );
+
+// The retime a widget performs when its cycle duration changes mid-run:
+// elapsed time is rescaled by the cycle ratio and the hue clock is shifted
+// back by the same amount.
+({double t, BeamPhaseResolver resolver}) _retimed(
+  BeamPhaseResolver from,
+  double t,
+  Duration newCycle,
+) {
+  final next = BeamPhaseResolver(
+    _config(from.config.variant, hueRange: 30, cycleDuration: newCycle),
+  );
+  final scaled = t * next.config.cycleSeconds / from.config.cycleSeconds;
+  next.hueTimeOffset = from.hueTimeOffset + t - scaled;
+  return (t: scaled, resolver: next);
+}
 
 void main() {
   group('sampleKeyframes', () {
@@ -94,6 +112,100 @@ void main() {
       );
       expect(config.staticColors, isTrue);
       expect(BeamPhaseResolver(config).sample(3, 1).hueDegrees, 0);
+    });
+
+    test('hueTimeOffset shifts only the fixed-period hue tracks', () {
+      final r = BeamPhaseResolver(_config(BeamVariant.rotate));
+      final unshifted = BeamPhaseResolver(_config(BeamVariant.rotate));
+      r.hueTimeOffset = 2;
+      expect(
+        r.sample(3, 1).hueDegrees,
+        closeTo(unshifted.sample(5, 1).hueDegrees, 1e-9),
+      );
+      expect(
+        r.sample(3, 1).angleRadians,
+        closeTo(unshifted.sample(3, 1).angleRadians, 1e-9),
+        reason: 'the cycle-derived tracks ignore the hue offset',
+      );
+
+      final line = BeamPhaseResolver(_config(BeamVariant.line))
+        ..hueTimeOffset = -1.5;
+      final lineRef = BeamPhaseResolver(_config(BeamVariant.line));
+      expect(
+        line.sample(4, 1).bloomHueDegrees,
+        closeTo(lineRef.sample(2.5, 1).bloomHueDegrees, 1e-9),
+      );
+      expect(
+        line.sample(4, 1).lineX,
+        closeTo(lineRef.sample(4, 1).lineX, 1e-9),
+      );
+
+      final pulse = BeamPhaseResolver(_config(BeamVariant.pulseInside))
+        ..hueTimeOffset = 4;
+      // Sawtooth over 16s: a 4s shift is a quarter revolution.
+      expect(pulse.sample(0, 1).hueDegrees, closeTo(90, 1e-6));
+    });
+
+    test('a static palette ignores the hue offset', () {
+      final r = BeamPhaseResolver(
+        _config(BeamVariant.rotate, staticColors: true),
+      )..hueTimeOffset = 3.7;
+      expect(r.sample(2, 1).hueDegrees, 0);
+    });
+
+    test('retiming a cycle change holds every rotate track', () {
+      final before = BeamPhaseResolver(
+        _config(BeamVariant.rotate, cycleDuration: const Duration(seconds: 2)),
+      );
+      const t = 0.9;
+      final ref = before.sample(t, 1);
+      final next = _retimed(before, t, const Duration(seconds: 4));
+      final after = next.resolver.sample(next.t, 1);
+      expect(after.angleRadians, closeTo(ref.angleRadians, 1e-9));
+      expect(after.hueDegrees, closeTo(ref.hueDegrees, 1e-9));
+    });
+
+    test('retiming a cycle change holds every line track', () {
+      final before = BeamPhaseResolver(
+        _config(BeamVariant.line, cycleDuration: const Duration(seconds: 3)),
+      );
+      const t = 2.4;
+      final ref = before.sample(t, 1);
+      final next = _retimed(before, t, const Duration(milliseconds: 1500));
+      final after = next.resolver.sample(next.t, 1);
+      expect(after.lineX, closeTo(ref.lineX, 1e-9));
+      expect(after.lineW, closeTo(ref.lineW, 1e-9));
+      expect(after.lineH, closeTo(ref.lineH, 1e-9));
+      expect(after.spike, closeTo(ref.spike, 1e-9));
+      expect(after.spike2, closeTo(ref.spike2, 1e-9));
+      expect(after.edge, closeTo(ref.edge, 1e-9));
+      expect(after.hueDegrees, closeTo(ref.hueDegrees, 1e-9));
+      expect(after.bloomHueDegrees, closeTo(ref.bloomHueDegrees, 1e-9));
+    });
+
+    test('retiming a cycle change holds every pulse oscillator', () {
+      final before = BeamPhaseResolver(
+        _config(
+          BeamVariant.pulseInside,
+          cycleDuration: const Duration(milliseconds: 2300),
+        ),
+      );
+      const t = 1.7;
+      final ref = before.sample(t, 1);
+      final next = _retimed(before, t, const Duration(seconds: 5));
+      final after = next.resolver.sample(next.t, 1);
+      for (var i = 0; i < 3; i++) {
+        expect(after.pulse.bw[i], closeTo(ref.pulse.bw[i], 1e-9));
+        expect(after.pulse.bh[i], closeTo(ref.pulse.bh[i], 1e-9));
+        expect(after.pulse.bx[i], closeTo(ref.pulse.bx[i], 1e-9));
+        expect(after.pulse.by[i], closeTo(ref.pulse.by[i], 1e-9));
+      }
+      expect(after.pulse.bgh, closeTo(ref.pulse.bgh, 1e-9));
+      expect(after.pulse.bopTl, closeTo(ref.pulse.bopTl, 1e-9));
+      expect(after.pulse.bopTr, closeTo(ref.pulse.bopTr, 1e-9));
+      expect(after.pulse.bopBl, closeTo(ref.pulse.bopBl, 1e-9));
+      expect(after.pulse.bopBr, closeTo(ref.pulse.bopBr, 1e-9));
+      expect(after.hueDegrees, closeTo(ref.hueDegrees, 1e-9));
     });
 
     test('static frame is full-opacity and hue-neutral', () {

@@ -439,6 +439,10 @@ class BorderBeam extends StatefulWidget {
 
   /// Length of one animation cycle; null uses the variant default
   /// (1.96s rotate/small, 3.1s line, 2.3s pulse).
+  ///
+  /// Changing it while the beam runs retimes the animation in place: every
+  /// track keeps the phase it was at, so the beam speeds up or slows down
+  /// without a jump.
   final Duration? cycleDuration;
 
   /// Optional playback controller. When set it owns playback exclusively —
@@ -492,6 +496,13 @@ class BorderBeam extends StatefulWidget {
   State<BorderBeam> createState() => _BorderBeamState();
 }
 
+// The cycle length a widget resolves to, independent of theme — enough to
+// detect a cycle change without resolving the whole config.
+double _cycleSecondsOf(BorderBeam widget) =>
+    (widget.cycleDuration ?? widget.variant.defaultCycleDuration)
+        .inMicroseconds /
+    Duration.microsecondsPerSecond;
+
 // TickerProviderStateMixin (not Single-): a variant change rebuilds the
 // clock, creating a second ticker over this State's lifetime.
 class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
@@ -506,6 +517,12 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
   BeamVariantStrategy get _strategy => strategyFor(widget.variant);
 
   bool _autoPlayScheduled = false;
+  bool _hasStarted = false;
+  bool _reducedMotionApplied = false;
+  // Set only when reduced motion paused the clock, so turning reduced motion
+  // back off never overrides a pause the controller asked for.
+  bool _pausedForReducedMotion = false;
+  double _hueTimeOffset = 0;
 
   @override
   void initState() {
@@ -518,16 +535,56 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
   void didChangeDependencies() {
     super.didChangeDependencies();
     // Autoplay needs MediaQuery (reduced motion), so it can't run from
-    // initState.
-    if (_autoPlayScheduled) return;
-    _autoPlayScheduled = true;
-    if (widget.controller == null && widget.autoPlay && widget.active) {
-      if (widget.startAfter != null) {
-        _startTimer = Timer(widget.startAfter!, _start);
-      } else {
-        _start();
+    // initState. Reduced motion is also tracked here, where a change to it
+    // is delivered.
+    final reduced = _reducedMotion;
+    if (!_autoPlayScheduled) {
+      _autoPlayScheduled = true;
+      _reducedMotionApplied = reduced;
+      if (widget.controller == null && widget.autoPlay && widget.active) {
+        if (widget.startAfter != null) {
+          _startTimer = Timer(widget.startAfter!, _start);
+        } else {
+          _start();
+        }
+      }
+      return;
+    }
+    if (reduced == _reducedMotionApplied) return;
+    _reducedMotionApplied = reduced;
+    if (reduced) {
+      _pauseForReducedMotion();
+    } else {
+      _leaveReducedMotion();
+    }
+  }
+
+  void _pauseForReducedMotion() {
+    if (!_clock.isRunning) return;
+    _clock.pause();
+    _pausedForReducedMotion = true;
+  }
+
+  void _leaveReducedMotion() {
+    if (_pausedForReducedMotion) {
+      _pausedForReducedMotion = false;
+      if (_clock.isVisible) {
+        _clock.resume();
+        return;
       }
     }
+    // The beam never got to start: reduced motion was on when autoplay ran.
+    // A beam that has already played is left alone — its duration may have
+    // run out. startAfter belongs to that first autoplay only, so it is
+    // honored while its timer is pending and skipped once it has fired.
+    if (_hasStarted ||
+        widget.controller != null ||
+        !widget.autoPlay ||
+        !widget.active) {
+      return;
+    }
+    if (_clock.isVisible || (_startTimer?.isActive ?? false)) return;
+    _start();
   }
 
   void _createClock() {
@@ -540,8 +597,29 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
 
   void _start() {
     if (_reducedMotion) return;
+    _hasStarted = true;
+    // Activating from hidden restarts the timeline, so the hue shift a
+    // retime accumulated goes with it; a mid-fade-out re-activation keeps
+    // the timeline, and keeps the shift.
+    if (!_clock.isVisible) _setHueTimeOffset(0);
     _clock.activate();
     _armDurationTimer();
+  }
+
+  void _setHueTimeOffset(double seconds) {
+    _hueTimeOffset = seconds;
+    _resolver?.hueTimeOffset = seconds;
+  }
+
+  // A cycle-duration change mid-run must not snap the beam. Rescaling
+  // elapsed time by the cycle ratio holds every cycle-derived track at its
+  // current fraction; shifting the hue clock back by the same amount holds
+  // the fixed-period hue tracks, which do not scale with the cycle.
+  void _retimeToNewCycle(double oldCycle, double newCycle) {
+    if (!_clock.isVisible || oldCycle <= 0 || oldCycle == newCycle) return;
+    final before = _clock.elapsedSeconds;
+    _clock.retime(newCycle / oldCycle);
+    _setHueTimeOffset(_hueTimeOffset + before - _clock.elapsedSeconds);
   }
 
   void _armDurationTimer() {
@@ -578,6 +656,10 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
       _createClock();
       widget.controller?.attach(_clock);
       if (wasVisible && widget.controller == null && widget.active) _start();
+    }
+    if (oldWidget.variant == widget.variant &&
+        oldWidget.cycleDuration != widget.cycleDuration) {
+      _retimeToNewCycle(_cycleSecondsOf(oldWidget), _cycleSecondsOf(widget));
     }
     if (widget.controller == null && oldWidget.active != widget.active) {
       _startTimer?.cancel();
@@ -649,7 +731,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
         glowBrightness: widget.glowBrightness,
         glowSaturation: widget.glowSaturation,
       );
-      _resolver = BeamPhaseResolver(_config!);
+      _resolver = BeamPhaseResolver(_config!)..hueTimeOffset = _hueTimeOffset;
     }
     return _config!;
   }
@@ -660,7 +742,6 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     final config = _resolveConfig(ambient);
     final strategy = _strategy;
     final reduced = _reducedMotion;
-    if (reduced && _clock.isRunning) _clock.pause();
     final staticMode =
         reduced &&
         (widget.controller != null
