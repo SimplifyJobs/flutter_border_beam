@@ -35,20 +35,25 @@ void main() {
     );
   }
 
-  Widget mockSurface(Brightness brightness, {double radius = 16}) =>
-      DecoratedBox(
-        decoration: BoxDecoration(
-          color: brightness == Brightness.dark
-              ? const Color(0xFF1D1D1D)
-              : const Color(0xFFFFFFFF),
-          borderRadius: BorderRadius.circular(radius),
-          border: Border.all(
-            color: brightness == Brightness.dark
-                ? const Color(0x14FFFFFF)
-                : const Color(0x14000000),
-          ),
-        ),
-      );
+  // [radii] carries a per-corner radius when a scene needs one; otherwise
+  // every corner takes [radius].
+  Widget mockSurface(
+    Brightness brightness, {
+    double radius = 16,
+    BorderRadius? radii,
+  }) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: brightness == Brightness.dark
+          ? const Color(0xFF1D1D1D)
+          : const Color(0xFFFFFFFF),
+      borderRadius: radii ?? BorderRadius.circular(radius),
+      border: Border.all(
+        color: brightness == Brightness.dark
+            ? const Color(0x14FFFFFF)
+            : const Color(0x14000000),
+      ),
+    ),
+  );
 
   Future<void> capture(
     WidgetTester tester,
@@ -216,6 +221,69 @@ void main() {
         ]),
         style: const BeamStyle(theme: BeamTheme.dark),
         child: mockSurface(b),
+      ),
+    );
+  });
+
+  // Per-corner and stadium geometry, dark/colorful only: the shape is what
+  // these scenes are about, so one palette is enough.
+  const cornerRadii = BorderRadius.only(
+    topLeft: Radius.circular(40),
+    bottomRight: Radius.circular(40),
+  );
+
+  testWidgets('rotate dark colorful per-corner radii', (tester) async {
+    await capture(
+      tester,
+      'rotate_dark_colorful_corners',
+      brightness: Brightness.dark,
+      (b) => BorderBeam.rotate(
+        style: const BeamStyle(theme: BeamTheme.dark),
+        shape: const BeamShape(radius: cornerRadii),
+        child: mockSurface(b, radii: cornerRadii),
+      ),
+    );
+  });
+
+  testWidgets('rotate dark colorful per-corner superellipse', (tester) async {
+    await capture(
+      tester,
+      'rotate_dark_colorful_corners_squircle',
+      brightness: Brightness.dark,
+      (b) => BorderBeam.rotate(
+        style: const BeamStyle(theme: BeamTheme.dark),
+        shape: const BeamShape(radius: cornerRadii, superellipse: true),
+        child: mockSurface(b, radii: cornerRadii),
+      ),
+    );
+  });
+
+  // A 350x60 box: the stadium radius clamps to 30 on every corner, so the
+  // beam travels a pill and the surface matches it.
+  testWidgets('rotate dark colorful stadium', (tester) async {
+    await capture(
+      tester,
+      'rotate_dark_colorful_stadium',
+      brightness: Brightness.dark,
+      height: 60,
+      (b) => BorderBeam.rotate(
+        style: const BeamStyle(theme: BeamTheme.dark),
+        shape: const BeamShape.stadium(),
+        child: mockSurface(b, radius: 30),
+      ),
+    );
+  });
+
+  testWidgets('line dark colorful stadium', (tester) async {
+    await capture(
+      tester,
+      'line_dark_colorful_stadium',
+      brightness: Brightness.dark,
+      height: 60,
+      (b) => BorderBeam.line(
+        style: const BeamStyle(theme: BeamTheme.dark),
+        shape: const BeamShape.stadium(),
+        child: mockSurface(b, radius: 30),
       ),
     );
   });
