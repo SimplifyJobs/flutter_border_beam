@@ -41,6 +41,15 @@ class BeamClock extends ChangeNotifier {
   /// Fade-out duration in seconds (React `beam-fade-out 0.5s`).
   static const double fadeOutSeconds = 0.5;
 
+  /// How far [pulse] lifts [boost] at its peak.
+  static const double pulsePeak = 2;
+
+  /// How far [flash] lifts [boost] at its peak.
+  ///
+  /// High enough that every layer reaches the clamp `BeamLayerUtils`
+  /// applies, which is what makes the blink read as full opacity.
+  static const double flashPeak = 4;
+
   // Spring-eased fade, isolated here so the curve is trivially replaceable.
   static const _fadeCurve = FadeSpringCurve.instance;
 
@@ -62,6 +71,7 @@ class BeamClock extends ChangeNotifier {
   double _fadeFromOpacity = 0;
   double _lastNotify = -1;
   bool _visible = false;
+  _Boost? _boost;
 
   /// Elapsed animation time in (speed-scaled) seconds.
   double get elapsedSeconds => _elapsed;
@@ -74,6 +84,45 @@ class BeamClock extends ChangeNotifier {
 
   /// The current fade stage.
   BeamFadeStage get stage => _stage;
+
+  /// Whether a [pulse] or [flash] envelope is still playing.
+  bool get isBoosting => _boost != null;
+
+  /// The amplitude envelope on top of [fadeOpacity]: 1 at rest, rising to
+  /// [pulsePeak] or [flashPeak] while a [pulse] or [flash] plays.
+  ///
+  /// The painter multiplies it into the fade it hands the resolver, so it
+  /// scales every layer's opacity at once. Layer opacity is clamped at paint
+  /// time, so a boost brightens the dim layers and saturates the ones that
+  /// are already near full — it can never overflow.
+  double get boost {
+    final b = _boost;
+    if (b == null) return 1;
+    return 1 + b.envelopeAt(_elapsed) * (b.peak - 1);
+  }
+
+  /// Lifts the beam to [pulsePeak] and settles back over ~0.6s — a one-shot
+  /// bump that marks a moment without restarting anything.
+  ///
+  /// No-op while the beam is hidden or frozen: there is no frame budget to
+  /// play the envelope on.
+  void pulse() => _startBoost(
+    const _Boost(peak: pulsePeak, rise: 0.24, hold: 0, fall: 0.36),
+  );
+
+  /// Blinks the beam to [flashPeak], holds for 120ms, and decays — a
+  /// sharper, brighter accent than [pulse].
+  ///
+  /// No-op while the beam is hidden or frozen.
+  void flash() => _startBoost(
+    const _Boost(peak: flashPeak, rise: 0, hold: 0.12, fall: 0.28),
+  );
+
+  void _startBoost(_Boost boost) {
+    if (!_visible || !isRunning) return;
+    _boost = boost.startingAt(_elapsed);
+    notifyListeners();
+  }
 
   /// Playback rate multiplier. Takes effect from the next frame.
   double get speed => _speed;
@@ -116,6 +165,7 @@ class BeamClock extends ChangeNotifier {
     } else {
       _elapsed = 0;
       _fadeFromOpacity = 0;
+      _boost = null;
     }
     _visible = true;
     _stage = BeamFadeStage.fadingIn;
@@ -203,12 +253,15 @@ class BeamClock extends ChangeNotifier {
       _ticker!.stop();
       _elapsed = 0;
       onFadeComplete?.call(false);
-    } else if (_stage == BeamFadeStage.none && maxFps != null) {
+    } else if (_stage == BeamFadeStage.none && maxFps != null && !isBoosting) {
       // Rate cap (pulse variants): skip paint-frame notifications, matching
-      // the source's ~30fps pulse driver. Time still accumulates.
+      // the source's ~30fps pulse driver. Time still accumulates. A boost is
+      // short and steep, so it plays at the full frame rate.
       final interval = 1 / maxFps! - 0.002;
       if (_elapsed - _lastNotify < interval) mustNotify = false;
     }
+    // Drop a spent boost, keeping the frame that lands back at 1.
+    if (_boost?.isDoneAt(_elapsed) ?? false) _boost = null;
     if (mustNotify) {
       _lastNotify = _elapsed;
       notifyListeners();
@@ -217,8 +270,60 @@ class BeamClock extends ChangeNotifier {
 
   @override
   void dispose() {
+    _boost = null;
     _ticker?.dispose();
     _ticker = null;
     super.dispose();
+  }
+}
+
+/// One amplitude bump: a rise, a hold at the peak, and a decay back to rest.
+class _Boost {
+  const _Boost({
+    required this.peak,
+    required this.rise,
+    required this.hold,
+    required this.fall,
+    this.startedAt = 0,
+  });
+
+  /// The multiplier at the top of the envelope.
+  final double peak;
+
+  /// Seconds spent climbing to [peak], spring-eased like the fade.
+  final double rise;
+
+  /// Seconds held at [peak].
+  final double hold;
+
+  /// Seconds spent decaying back to rest, smootherstep-eased so the release
+  /// has no visible corner at either end.
+  final double fall;
+
+  /// Timeline position the envelope started at.
+  final double startedAt;
+
+  double get _total => rise + hold + fall;
+
+  _Boost startingAt(double now) =>
+      _Boost(peak: peak, rise: rise, hold: hold, fall: fall, startedAt: now);
+
+  bool isDoneAt(double now) => now - startedAt >= _total;
+
+  /// The 0–1 envelope at timeline position [now].
+  double envelopeAt(double now) {
+    var x = now - startedAt;
+    if (x <= 0) return rise > 0 ? 0 : 1;
+    if (x < rise) return FadeSpringCurve.instance.transform(x / rise);
+    x -= rise;
+    if (x < hold) return 1;
+    x -= hold;
+    if (fall <= 0 || x >= fall) return 0;
+    return 1 - _smootherstep(x / fall);
+  }
+
+  static double _smootherstep(double x) {
+    final c = x.clamp(0.0, 1.0);
+    return c * c * c * (c * (c * 6 - 15) + 10);
   }
 }

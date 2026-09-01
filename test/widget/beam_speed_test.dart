@@ -11,7 +11,7 @@ Widget _host(Widget child) => MaterialApp(
   ),
 );
 
-BeamClock _clock(WidgetTester tester) => tester
+BeamPainter _painter(WidgetTester tester) => tester
     .widgetList<CustomPaint>(
       find.descendant(
         of: find.byType(BorderBeam),
@@ -20,8 +20,9 @@ BeamClock _clock(WidgetTester tester) => tester
     )
     .expand((paint) => [paint.painter, paint.foregroundPainter])
     .whereType<BeamPainter>()
-    .first
-    .clock;
+    .first;
+
+BeamClock _clock(WidgetTester tester) => _painter(tester).clock;
 
 /// `BeamTiming.speed` is the declarative playback rate: the beam's timeline
 /// advances by `speed` seconds of animation per second of wall time. A
@@ -84,6 +85,42 @@ void main() {
     );
     await tester.pump(const Duration(seconds: 1));
     expect(clock.elapsedSeconds, closeTo(1.5, 1e-9));
+  });
+
+  testWidgets('changing only the speed keeps the resolved config', (
+    tester,
+  ) async {
+    Widget build(double speed) => _host(
+      BorderBeam.rotate(
+        timing: BeamTiming(speed: speed),
+        child: const SizedBox.expand(),
+      ),
+    );
+
+    await tester.pumpWidget(build(2));
+    final before = _painter(tester);
+    await tester.pumpWidget(build(0.5));
+    final after = _painter(tester);
+    expect(
+      identical(before.config, after.config),
+      isTrue,
+      reason: 'the rate is applied to the clock, not painted',
+    );
+    expect(identical(before.resolver, after.resolver), isTrue);
+  });
+
+  testWidgets('changing the cycle does re-resolve the config', (tester) async {
+    Widget build(Duration cycle) => _host(
+      BorderBeam.rotate(
+        timing: BeamTiming(cycle: cycle),
+        child: const SizedBox.expand(),
+      ),
+    );
+
+    await tester.pumpWidget(build(const Duration(seconds: 2)));
+    final before = _painter(tester);
+    await tester.pumpWidget(build(const Duration(seconds: 3)));
+    expect(identical(before.config, _painter(tester).config), isFalse);
   });
 
   testWidgets('a BorderBeamTheme speed is inherited', (tester) async {

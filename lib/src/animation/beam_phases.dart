@@ -5,6 +5,7 @@ import 'package:flutter/animation.dart' show Curves;
 import '../constants/line_keyframes.dart';
 import '../constants/pulse_params.dart';
 import '../models/beam_config.dart';
+import '../models/beam_options.dart';
 import '../models/beam_variant.dart';
 import 'beam_clock.dart';
 import 'oscillator.dart';
@@ -42,6 +43,10 @@ class BeamFramePhases {
     required this.hueDegrees,
     this.bloomHueDegrees = 0,
     this.angleRadians = 0,
+    this.travelProgress = 0,
+    this.travellers = const [0],
+    this.reversedNow = false,
+    this.finished = false,
     this.lineX = 0.06,
     this.lineW = 0.5,
     this.lineH = 0.8,
@@ -65,6 +70,33 @@ class BeamFramePhases {
 
   /// Rotating conic window angle (rotate/small), radians.
   final double angleRadians;
+
+  /// Raw sweep progress (0–1) of the leading beam through the current cycle.
+  ///
+  /// Equal to `travellers.first`. Already carries the travel direction and
+  /// the phase offset, and is the value a driven `BorderBeam.progress`
+  /// replaces.
+  final double travelProgress;
+
+  /// Sweep progress (0–1) of every beam travelling the contour, spaced
+  /// `1 / BeamConfig.beamCount` apart. Never empty; the first entry is
+  /// [travelProgress].
+  final List<double> travellers;
+
+  /// Whether the current cycle runs mirrored — always false under
+  /// [BeamDirection.forward], always true under [BeamDirection.reverse], and
+  /// alternating per cycle under [BeamDirection.bounce].
+  ///
+  /// The geometry in [travellers] is already mirrored; this flag lets a
+  /// strategy mirror asymmetric tables (a comet tail, a spike schedule) to
+  /// match.
+  final bool reversedNow;
+
+  /// Whether the beam has run out its `BeamPlayback.repeat` budget.
+  ///
+  /// The widget reacts by deactivating the clock, so the beam fades out the
+  /// way an inactive one does rather than cutting off.
+  final bool finished;
 
   /// Line beam x position, fraction of width.
   final double lineX;
@@ -121,35 +153,66 @@ class BeamPhaseResolver {
   /// so the widget shifts them back by the amount the timeline moved.
   double hueTimeOffset = 0;
 
+  /// Cycles the beam is allowed to run before it reports
+  /// [BeamFramePhases.finished], or null to run forever.
+  ///
+  /// The resolved form of `BeamPlayback.repeat`: playback is the widget's
+  /// business rather than a painted value, so it rides on the resolver
+  /// instead of on [BeamConfig].
+  int? repeatCycles;
+
+  /// Seconds added to the sample time of the travel tracks only.
+  ///
+  /// Shifts where the sweep sits without touching the hue tracks. The widget
+  /// uses it to hand a `BorderBeam.follow` gesture back to the clock: the
+  /// timed sweep picks up from wherever the pointer left the beam instead of
+  /// snapping back to its own schedule.
+  double travelTimeOffset = 0;
+
   /// Samples all phases at [t] seconds with the given [fadeOpacity].
-  BeamFramePhases sample(double t, double fadeOpacity) {
+  ///
+  /// [progress] takes the travel over when non-null (`BorderBeam.progress`
+  /// and `BorderBeam.follow`): the sweep sits at that fraction (0–1) instead
+  /// of running with the clock, while the fade envelope and the hue tracks
+  /// keep running. A driven progress is used as given —
+  /// [BeamConfig.direction] and [BeamConfig.phaseOffset] shape the timed
+  /// sweep, not this value.
+  BeamFramePhases sample(double t, double fadeOpacity, {double? progress}) {
     final v = config.variant;
     final hue = _hue(t);
+    final sweep = _sweep(t, progress);
     switch (v) {
       case BeamVariant.rotate || BeamVariant.small:
-        final (progress, envelope) = _travel(t);
         return BeamFramePhases(
-          fadeOpacity: fadeOpacity * envelope,
+          fadeOpacity: fadeOpacity * sweep.envelope,
           hueDegrees: hue,
-          angleRadians: progress * 2 * math.pi,
+          angleRadians: sweep.travellers.first * 2 * math.pi,
+          travelProgress: sweep.travellers.first,
+          travellers: sweep.travellers,
+          reversedNow: sweep.reversed,
+          finished: sweep.finished,
         );
       case BeamVariant.line:
-        final (progress, envelope) = _travel(t);
+        final head = sweep.travellers.first;
         final cs = config.cycleSeconds;
         final breathe = (t / (cs * config.breatheFactor)) % 1.0;
         final spikeT = (t / (cs * config.spikeFactor)) % 1.0;
         final spike2T = (t / (cs * config.spike2Factor)) % 1.0;
         return BeamFramePhases(
-          fadeOpacity: fadeOpacity * envelope,
+          fadeOpacity: fadeOpacity * sweep.envelope,
           hueDegrees: hue,
           bloomHueDegrees: _pingPongHue(
             t + hueTimeOffset,
             config.bloomHuePeriodSeconds,
             config.hueRange + 10,
           ),
-          lineX: sampleKeyframes(lineTravelX, progress),
-          lineW: sampleKeyframes(lineTravelW, progress),
-          edge: sampleKeyframes(lineEdgeFade, progress),
+          travelProgress: head,
+          travellers: sweep.travellers,
+          reversedNow: sweep.reversed,
+          finished: sweep.finished,
+          lineX: sampleKeyframes(lineTravelX, head),
+          lineW: sampleKeyframes(lineTravelW, head),
+          edge: sampleKeyframes(lineEdgeFade, head),
           lineH: sampleKeyframes(lineBreatheH, breathe, easedSegments: true),
           spike: sampleKeyframes(lineSpike, spikeT, easedSegments: true),
           spike2: sampleKeyframes(lineSpike2, spike2T, easedSegments: true),
@@ -158,9 +221,75 @@ class BeamPhaseResolver {
         return BeamFramePhases(
           fadeOpacity: fadeOpacity,
           hueDegrees: hue,
+          finished: sweep.finished,
           pulse: _bank!.sample(t),
         );
     }
+  }
+
+  /// Whether the beam has spent its [repeatCycles] budget at [t] seconds.
+  ///
+  /// The same test [sample] reports through [BeamFramePhases.finished],
+  /// without building a frame: the widget checks it every tick.
+  bool finishedAt(double t) {
+    final budget = repeatCycles;
+    if (budget == null) return false;
+    return _cycleIndex(_shift(t)) >= budget;
+  }
+
+  /// The travel timeline at [t]: the phase offset and any follow hand-back
+  /// folded in.
+  double _shift(double t) =>
+      t + config.phaseOffset * config.cycleSeconds + travelTimeOffset;
+
+  int _cycleIndex(double shifted) {
+    final period = config.cycleSeconds + config.gapSeconds;
+    return period <= 0 ? 0 : (shifted / period).floor();
+  }
+
+  /// The travel state of every beam at [t]: their progress, the gap
+  /// envelope, whether this cycle runs mirrored, and whether the repeat
+  /// budget is spent.
+  _Sweep _sweep(double t, double? driven) {
+    // The phase offset moves the beam along its own timeline; the hue tracks
+    // run on fixed periods of their own and stay where they are.
+    final shifted = _shift(t);
+    final cycleIndex = _cycleIndex(shifted);
+    final budget = repeatCycles;
+    final finished = budget != null && cycleIndex >= budget;
+    final reversed = switch (config.direction) {
+      BeamDirection.forward => false,
+      BeamDirection.reverse => true,
+      BeamDirection.bounce => cycleIndex.isOdd,
+    };
+
+    if (driven != null) {
+      // A driven progress replaces the sweep outright, so there is no gap to
+      // rest in either.
+      final head = driven.clamp(0.0, 1.0);
+      return _Sweep(_spread(head), 1, false, finished);
+    }
+    final (forward, envelope) = _travel(shifted);
+    final head = reversed ? 1 - forward : forward;
+    return _Sweep(
+      _spread(head, reversed: reversed),
+      envelope,
+      reversed,
+      finished,
+    );
+  }
+
+  /// Places [head] and the remaining `beamCount - 1` beams evenly around the
+  /// cycle, keeping [head] first.
+  List<double> _spread(double head, {bool reversed = false}) {
+    final n = config.beamCount;
+    if (n <= 1) return [head];
+    final step = 1 / n;
+    return List<double>.generate(n, (i) {
+      if (i == 0) return head;
+      final offset = reversed ? -i * step : i * step;
+      return (head + offset) % 1.0;
+    });
   }
 
   /// A representative static frame for reduced motion: mid-cycle, no hue
@@ -169,18 +298,24 @@ class BeamPhaseResolver {
   /// The frame is shown for as long as reduced motion lasts, so it carries
   /// the palette's own colors — a hue sampled from the ping-pong would tint
   /// the whole effect by an arbitrary offset.
-  BeamFramePhases staticFrame() {
+  ///
+  /// A driven [progress] is honored: a beam whose sweep is a progress
+  /// readout still reads its value under reduced motion.
+  BeamFramePhases staticFrame({double? progress}) {
     if (config.variant.isPulse) {
       // Freeze the breathing at rest, matching the source's
       // prefers-reduced-motion behavior (animations disabled entirely).
       return const BeamFramePhases(fadeOpacity: 1, hueDegrees: 0);
     }
     // The traveling variants keep their mid-cycle geometry.
-    final phases = sample(config.cycleSeconds / 2, 1);
+    final phases = sample(config.cycleSeconds / 2, 1, progress: progress);
     return BeamFramePhases(
       fadeOpacity: 1,
       hueDegrees: 0,
       angleRadians: phases.angleRadians,
+      travelProgress: phases.travelProgress,
+      travellers: phases.travellers,
+      reversedNow: phases.reversedNow,
       lineX: phases.lineX,
       lineW: phases.lineW,
       lineH: phases.lineH,
@@ -224,11 +359,15 @@ class BeamPhaseResolver {
   double _hue(double t) {
     if (config.staticColors) return 0;
     final hueT = t + hueTimeOffset;
-    if (config.variant.isPulse) {
+    return switch (config.hueMode) {
       // Continuous full revolution (sawtooth 0→360°).
-      return ((hueT / config.huePeriodSeconds) % 1.0) * 360;
-    }
-    return _pingPongHue(hueT, config.huePeriodSeconds, config.hueRange);
+      BeamHueMode.continuous => ((hueT / config.huePeriodSeconds) % 1.0) * 360,
+      BeamHueMode.pingPong => _pingPongHue(
+        hueT,
+        config.huePeriodSeconds,
+        config.hueRange,
+      ),
+    };
   }
 
   // CSS `beam-hue-shift`: keyframes −range @0%, +range @50%, −range @100%,
@@ -239,4 +378,15 @@ class BeamPhaseResolver {
     final eased = Curves.easeInOut.transform(local.clamp(0.0, 1.0));
     return -range + 2 * range * eased;
   }
+}
+
+/// One frame of travel: where every beam sits, the gap envelope, whether the
+/// cycle is mirrored, and whether the repeat budget is spent.
+class _Sweep {
+  const _Sweep(this.travellers, this.envelope, this.reversed, this.finished);
+
+  final List<double> travellers;
+  final double envelope;
+  final bool reversed;
+  final bool finished;
 }

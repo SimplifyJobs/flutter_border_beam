@@ -6,6 +6,7 @@
 /// optional playback controller.
 library;
 
+export 'src/beam_sync.dart' show BeamSync;
 export 'src/border_beam.dart' show BorderBeam;
 export 'src/border_beam_controller.dart' show BorderBeamController;
 export 'src/border_beam_theme.dart' show BorderBeamTheme, BorderBeamThemeData;

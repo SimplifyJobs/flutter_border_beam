@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'animation/beam_clock.dart';
 import 'animation/beam_phases.dart';
+import 'beam_sync.dart';
 import 'border_beam_controller.dart';
 import 'border_beam_theme.dart';
 import 'models/beam_colors.dart';
@@ -92,9 +94,67 @@ class BorderBeam extends StatefulWidget {
     this.timing,
     this.playback,
     this.controller,
+    this.progress,
+    this.follow,
+    this.strengthListenable,
+    this.speedListenable,
     this.onActivate,
     this.onDeactivate,
   });
+
+  /// Paints the beam with no child of its own, sized by its parent.
+  ///
+  /// The beam is the whole widget: drop it into a [Stack] under a
+  /// [Positioned.fill] and it traces the stack's bounds, over content it
+  /// does not have to wrap. Everything else behaves exactly as the generic
+  /// constructor.
+  ///
+  /// ```dart
+  /// Stack(
+  ///   children: [
+  ///     content,
+  ///     const Positioned.fill(
+  ///       child: BorderBeam.overlay(borderRadius: 16),
+  ///     ),
+  ///   ],
+  /// )
+  /// ```
+  const BorderBeam.overlay({
+    Key? key,
+    BeamVariant variant = BeamVariant.rotate,
+    BeamColors? colors,
+    bool? active,
+    double? borderRadius,
+    BeamStyle? style,
+    BeamShape? shape,
+    BeamTiming? timing,
+    BeamPlayback? playback,
+    BorderBeamController? controller,
+    double? progress,
+    Offset? follow,
+    ValueListenable<double>? strengthListenable,
+    ValueListenable<double>? speedListenable,
+    VoidCallback? onActivate,
+    VoidCallback? onDeactivate,
+  }) : this(
+         key: key,
+         variant: variant,
+         child: const SizedBox.expand(),
+         colors: colors,
+         active: active,
+         borderRadius: borderRadius,
+         style: style,
+         shape: shape,
+         timing: timing,
+         playback: playback,
+         controller: controller,
+         progress: progress,
+         follow: follow,
+         strengthListenable: strengthListenable,
+         speedListenable: speedListenable,
+         onActivate: onActivate,
+         onDeactivate: onDeactivate,
+       );
 
   /// Full border traveling beam (React `md`). The default look, tuned for
   /// cards and larger surfaces.
@@ -109,6 +169,10 @@ class BorderBeam extends StatefulWidget {
     BeamTiming? timing,
     BeamPlayback? playback,
     BorderBeamController? controller,
+    double? progress,
+    Offset? follow,
+    ValueListenable<double>? strengthListenable,
+    ValueListenable<double>? speedListenable,
     VoidCallback? onActivate,
     VoidCallback? onDeactivate,
   }) : this(
@@ -123,6 +187,10 @@ class BorderBeam extends StatefulWidget {
          timing: timing,
          playback: playback,
          controller: controller,
+         progress: progress,
+         follow: follow,
+         strengthListenable: strengthListenable,
+         speedListenable: speedListenable,
          onActivate: onActivate,
          onDeactivate: onDeactivate,
        );
@@ -140,6 +208,10 @@ class BorderBeam extends StatefulWidget {
     BeamTiming? timing,
     BeamPlayback? playback,
     BorderBeamController? controller,
+    double? progress,
+    Offset? follow,
+    ValueListenable<double>? strengthListenable,
+    ValueListenable<double>? speedListenable,
     VoidCallback? onActivate,
     VoidCallback? onDeactivate,
   }) : this(
@@ -154,6 +226,10 @@ class BorderBeam extends StatefulWidget {
          timing: timing,
          playback: playback,
          controller: controller,
+         progress: progress,
+         follow: follow,
+         strengthListenable: strengthListenable,
+         speedListenable: speedListenable,
          onActivate: onActivate,
          onDeactivate: onDeactivate,
        );
@@ -171,6 +247,10 @@ class BorderBeam extends StatefulWidget {
     BeamTiming? timing,
     BeamPlayback? playback,
     BorderBeamController? controller,
+    double? progress,
+    Offset? follow,
+    ValueListenable<double>? strengthListenable,
+    ValueListenable<double>? speedListenable,
     VoidCallback? onActivate,
     VoidCallback? onDeactivate,
   }) : this(
@@ -185,6 +265,10 @@ class BorderBeam extends StatefulWidget {
          timing: timing,
          playback: playback,
          controller: controller,
+         progress: progress,
+         follow: follow,
+         strengthListenable: strengthListenable,
+         speedListenable: speedListenable,
          onActivate: onActivate,
          onDeactivate: onDeactivate,
        );
@@ -202,6 +286,10 @@ class BorderBeam extends StatefulWidget {
     BeamTiming? timing,
     BeamPlayback? playback,
     BorderBeamController? controller,
+    double? progress,
+    Offset? follow,
+    ValueListenable<double>? strengthListenable,
+    ValueListenable<double>? speedListenable,
     VoidCallback? onActivate,
     VoidCallback? onDeactivate,
   }) : this(
@@ -216,6 +304,10 @@ class BorderBeam extends StatefulWidget {
          timing: timing,
          playback: playback,
          controller: controller,
+         progress: progress,
+         follow: follow,
+         strengthListenable: strengthListenable,
+         speedListenable: speedListenable,
          onActivate: onActivate,
          onDeactivate: onDeactivate,
        );
@@ -237,6 +329,10 @@ class BorderBeam extends StatefulWidget {
     BeamTiming? timing,
     BeamPlayback? playback,
     BorderBeamController? controller,
+    double? progress,
+    Offset? follow,
+    ValueListenable<double>? strengthListenable,
+    ValueListenable<double>? speedListenable,
     VoidCallback? onActivate,
     VoidCallback? onDeactivate,
   }) : this(
@@ -251,6 +347,10 @@ class BorderBeam extends StatefulWidget {
          timing: timing,
          playback: playback,
          controller: controller,
+         progress: progress,
+         follow: follow,
+         strengthListenable: strengthListenable,
+         speedListenable: speedListenable,
          onActivate: onActivate,
          onDeactivate: onDeactivate,
        );
@@ -286,6 +386,58 @@ class BorderBeam extends StatefulWidget {
   /// Optional playback controller. When set it owns playback exclusively —
   /// `playback.startAfter`/`duration` must be null and [active] is ignored.
   final BorderBeamController? controller;
+
+  /// Drives the beam's travel from a value instead of the clock, 0–1.
+  ///
+  /// The sweep sits where this says rather than running with time, which
+  /// turns the traveling variants into readouts: [BorderBeam.rotate] becomes
+  /// a glowing progress ring, [BorderBeam.line] a progress bar. The clock
+  /// keeps running underneath — the fade envelope, the hue shift, and the
+  /// line variant's breathe and spike tracks are all still alive, so the
+  /// beam looks lit rather than frozen.
+  ///
+  /// Changing it repaints without re-resolving the beam's configuration, so
+  /// it is cheap to drive from an animation. Null hands the travel back to
+  /// the clock; the pulse variants have no travel to drive.
+  final double? progress;
+
+  /// Pulls the traveling beam toward a point in the child's box, given in
+  /// normalized coordinates (0–1 on each axis).
+  ///
+  /// The beam leaves its schedule and eases to the perimeter position
+  /// nearest the point — critically damped, ~150ms — which reads as the glow
+  /// following the pointer. Setting it back to null hands the sweep back to
+  /// the clock from wherever it is, without a snap.
+  ///
+  /// Feed it from a [MouseRegion] or [Listener]:
+  ///
+  /// ```dart
+  /// MouseRegion(
+  ///   onHover: (e) => setState(() {
+  ///     final box = context.findRenderObject()! as RenderBox;
+  ///     final local = box.globalToLocal(e.position);
+  ///     _follow = Offset(local.dx / box.size.width, local.dy / box.size.height);
+  ///   }),
+  ///   onExit: (_) => setState(() => _follow = null),
+  ///   child: BorderBeam.rotate(follow: _follow, child: card),
+  /// )
+  /// ```
+  ///
+  /// [progress] wins over it, and the pulse variants ignore both.
+  final Offset? follow;
+
+  /// Scales every layer's opacity each frame, without rebuilding.
+  ///
+  /// The live twin of `BeamStyle.strength`: point it at a mic level, a
+  /// download rate, or any other signal and the beam breathes with it. Values
+  /// above 1 brighten up to the clamp every layer opacity already carries.
+  final ValueListenable<double>? strengthListenable;
+
+  /// Drives the playback rate each frame, without rebuilding.
+  ///
+  /// The live twin of `BeamTiming.speed`, and it wins over both that and a
+  /// [controller]'s rate while it is set. Values must stay positive.
+  final ValueListenable<double>? speedListenable;
 
   /// Called when the fade-in completes.
   final VoidCallback? onActivate;
@@ -326,6 +478,22 @@ class BorderBeam extends StatefulWidget {
           controller,
           defaultValue: null,
         ),
+      )
+      ..add(DoubleProperty('progress', progress, defaultValue: null))
+      ..add(DiagnosticsProperty<Offset>('follow', follow, defaultValue: null))
+      ..add(
+        DiagnosticsProperty<ValueListenable<double>>(
+          'strengthListenable',
+          strengthListenable,
+          defaultValue: null,
+        ),
+      )
+      ..add(
+        DiagnosticsProperty<ValueListenable<double>>(
+          'speedListenable',
+          speedListenable,
+          defaultValue: null,
+        ),
       );
   }
 }
@@ -335,10 +503,59 @@ double _cycleSecondsOf(BeamTiming timing, BeamVariant variant) =>
     (timing.cycle ?? variant.defaultCycleDuration).inMicroseconds /
     Duration.microsecondsPerSecond;
 
+// The timing fields the painted config is built from — everything except
+// `speed`, which is applied to the clock and never reaches BeamConfig.
+// Keeping it out of the cache key is what lets a rate change ride through
+// without re-resolving the config or rebuilding the phase resolver.
+BeamTiming _configTiming(BeamTiming timing) => BeamTiming(
+  cycle: timing.cycle,
+  cycleGap: timing.cycleGap,
+  direction: timing.direction,
+  phaseOffset: timing.phaseOffset,
+  beamCount: timing.beamCount,
+  huePeriod: timing.huePeriod,
+  bloomHuePeriod: timing.bloomHuePeriod,
+  breatheFactor: timing.breatheFactor,
+  spikeFactor: timing.spikeFactor,
+  spike2Factor: timing.spike2Factor,
+);
+
+// BeamReducedMotion.slow runs the clock at a quarter rate.
+const double _slowMotionFactor = 0.25;
+
+// How long the follow easing takes to cover most of the distance to the
+// pointer. Short enough to feel attached, long enough to smooth a jittery
+// pointer stream.
+const double _followResponseSeconds = 0.15;
+
+// A critically damped step toward [target]: no overshoot, no ringing, and it
+// carries velocity, so a target that keeps moving never produces a corner.
+({double value, double velocity}) _smoothDamp({
+  required double current,
+  required double target,
+  required double velocity,
+  required double dt,
+  required double response,
+}) {
+  final omega = 2 / response;
+  final x = omega * dt;
+  // Padé approximation of exp(-x) — stable at any frame duration.
+  final decay = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+  final change = current - target;
+  final temp = (velocity + omega * change) * dt;
+  return (
+    value: target + (change + temp) * decay,
+    velocity: (velocity - omega * temp) * decay,
+  );
+}
+
 // TickerProviderStateMixin (not Single-): a variant change rebuilds the
 // clock, creating a second ticker over this State's lifetime.
 class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
-  late BeamClock _clock;
+  // Exactly one of these is set: a beam owns a clock unless a BeamSync hands
+  // it the group's.
+  BeamClock? _ownClock;
+  BeamClock? _sharedClock;
   Timer? _startTimer;
   Timer? _durationTimer;
 
@@ -352,6 +569,20 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
   BeamPlayback _playback = const BeamPlayback();
   double _cycleSeconds = 0;
 
+  // The sweep position when something other than the clock drives it. It
+  // reaches the painter as a listenable so `progress` and `follow` move the
+  // beam without rebuilding the config.
+  final ValueNotifier<double?> _driven = ValueNotifier<double?>(null);
+  double? _followValue;
+  double _followVelocity = 0;
+  double _lastTickSeconds = 0;
+  BeamClock? _listeningTo;
+
+  BeamClock get _clock => _sharedClock ?? _ownClock!;
+
+  /// Whether this beam runs on a [BeamSync] group clock.
+  bool get _synced => _sharedClock != null;
+
   BeamVariantStrategy get _strategy => strategyFor(widget.variant);
 
   bool get _active => _playback.active ?? true;
@@ -359,7 +590,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
 
   bool _autoPlayScheduled = false;
   bool _hasStarted = false;
-  bool _reducedMotionApplied = false;
+  BeamReducedMotion? _reducedApplied;
   // Set only when reduced motion paused the clock, so turning reduced motion
   // back off never overrides a pause the controller asked for.
   bool _pausedForReducedMotion = false;
@@ -368,7 +599,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _createClock();
+    _createOwnClock();
     // The theme is not reachable yet; the widget's own values carry the beam
     // until didChangeDependencies resolves them properly, before first build.
     _timing = widget.timing ?? const BeamTiming();
@@ -376,6 +607,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     _cycleSeconds = _cycleSecondsOf(_timing, widget.variant);
     _applySpeed();
     widget.controller?.attach(_clock);
+    widget.speedListenable?.addListener(_applySpeed);
   }
 
   // Resolves the scheduling inputs against the enclosing BorderBeamTheme;
@@ -398,13 +630,25 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     _cycleSeconds = _cycleSecondsOf(timing, widget.variant);
     if (retime) _retimeToNewCycle(previousCycle, _cycleSeconds);
     _applySpeed();
+    _syncResolverPlayback();
+    _syncTickListener();
   }
 
-  // A controller sets the clock's speed itself when it attaches, and owns it
-  // from then on.
+  // The rate the clock runs at: a live speedListenable first, then the
+  // controller that owns playback, then the resolved timing — scaled down
+  // while reduced motion asks for slow motion. A synced beam leaves the
+  // group's rate to its BeamSync.
   void _applySpeed() {
-    if (widget.controller != null) return;
-    _clock.speed = _timing.speed ?? 1;
+    if (_synced) return;
+    final base =
+        widget.speedListenable?.value ??
+        widget.controller?.speed ??
+        _timing.speed ??
+        1;
+    final factor = _reducedApplied == BeamReducedMotion.slow
+        ? _slowMotionFactor
+        : 1.0;
+    _clock.speed = base * factor;
   }
 
   @override
@@ -412,14 +656,16 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     super.didChangeDependencies();
     // Autoplay needs MediaQuery (reduced motion), so it can't run from
     // initState. Reduced motion is also tracked here, where a change to it
-    // is delivered.
+    // is delivered, as is the enclosing BeamSync.
     final first = !_autoPlayScheduled;
+    _adoptSharedClock(BeamSync.clockOf(context));
     _resolveScheduling(retime: !first);
-    final reduced = _reducedMotion;
+    final reduced = _reduced;
     if (first) {
       _autoPlayScheduled = true;
-      _reducedMotionApplied = reduced;
-      if (widget.controller == null && _autoPlay && _active) {
+      _reducedApplied = reduced;
+      _applySpeed();
+      if (!_synced && widget.controller == null && _autoPlay && _active) {
         final startAfter = _playback.startAfter;
         if (startAfter != null) {
           _startTimer = Timer(startAfter, _start);
@@ -429,13 +675,40 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
       }
       return;
     }
-    if (reduced == _reducedMotionApplied) return;
-    _reducedMotionApplied = reduced;
-    if (reduced) {
+    if (reduced == _reducedApplied) return;
+    _reducedApplied = reduced;
+    _applySpeed();
+    // A group clock is BeamSync's to freeze, not one member's.
+    if (_synced) return;
+    if (_motionFrozen) {
       _pauseForReducedMotion();
     } else {
       _leaveReducedMotion();
     }
+  }
+
+  // Moves this beam onto (or off) a BeamSync group clock.
+  void _adoptSharedClock(BeamClock? shared) {
+    if (shared == _sharedClock) return;
+    assert(
+      shared == null || widget.controller == null,
+      'A BorderBeam under a BeamSync runs on the group clock, so it cannot '
+      'also take a BorderBeamController — a controller owns a clock of its '
+      'own. Drive the group through BeamSync, or move the beam out of it.',
+    );
+    _detachTickListener();
+    if (shared != null) {
+      final own = _ownClock;
+      _ownClock = null;
+      _sharedClock = shared;
+      own?.dispose();
+    } else {
+      _sharedClock = null;
+      _createOwnClock();
+      _applySpeed();
+      if (widget.controller == null && _autoPlay && _active) _start();
+    }
+    _syncTickListener();
   }
 
   void _pauseForReducedMotion() {
@@ -463,8 +736,8 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     _start();
   }
 
-  void _createClock() {
-    _clock = BeamClock(
+  void _createOwnClock() {
+    _ownClock = BeamClock(
       createTicker: createTicker,
       maxFps: _strategy.preferredFps,
       onFadeComplete: _onFadeComplete,
@@ -472,7 +745,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
   }
 
   void _start() {
-    if (_reducedMotion) return;
+    if (_motionFrozen || _synced) return;
     _hasStarted = true;
     // Activating from hidden restarts the timeline, so the hue shift a
     // retime accumulated goes with it; a mid-fade-out re-activation keeps
@@ -516,10 +789,136 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     }
   }
 
-  bool get _reducedMotion =>
-      (_playback.reducedMotion ?? BeamReducedMotion.staticFrame) !=
-          BeamReducedMotion.animate &&
-      (MediaQuery.maybeDisableAnimationsOf(context) ?? false);
+  /// The reduced-motion behavior in force, or null when the platform is not
+  /// asking for it (or this beam ignores the ask).
+  BeamReducedMotion? get _reduced {
+    if (!(MediaQuery.maybeDisableAnimationsOf(context) ?? false)) return null;
+    final mode = _playback.reducedMotion ?? BeamReducedMotion.staticFrame;
+    return mode == BeamReducedMotion.animate ? null : mode;
+  }
+
+  // A frozen beam stops ticking: the static frame and the hidden beam both
+  // have nothing to advance. Slow motion keeps running, at a quarter rate.
+  bool get _motionFrozen =>
+      _reducedApplied == BeamReducedMotion.staticFrame ||
+      _reducedApplied == BeamReducedMotion.hide;
+
+  // ─── Repeat budget & driven travel ──────────────────────────────────────
+
+  void _syncResolverPlayback() {
+    // Playback belongs to the group under a BeamSync, so one member's repeat
+    // budget must not stop everyone's clock.
+    _resolver?.repeatCycles = _synced ? null : _playback.repeat?.cycles;
+  }
+
+  // The per-frame hook is only worth its cost while something needs it.
+  void _syncTickListener() {
+    final needed =
+        widget.follow != null ||
+        _followValue != null ||
+        (!_synced && _playback.repeat?.cycles != null);
+    if (!needed) {
+      _detachTickListener();
+      return;
+    }
+    if (_listeningTo == _clock) return;
+    _detachTickListener();
+    _listeningTo = _clock..addListener(_onClockTick);
+    _lastTickSeconds = _clock.elapsedSeconds;
+  }
+
+  void _detachTickListener() {
+    _listeningTo?.removeListener(_onClockTick);
+    _listeningTo = null;
+  }
+
+  void _onClockTick() {
+    final now = _clock.elapsedSeconds;
+    final dt = now - _lastTickSeconds;
+    _lastTickSeconds = now;
+    // A restart rewinds the timeline and a retime rescales it; neither step
+    // is a frame's worth of time, so it is dropped rather than eased across.
+    if (dt > 0 && dt < 0.25) _advanceFollow(dt);
+    _checkRepeatBudget();
+  }
+
+  void _checkRepeatBudget() {
+    final resolver = _resolver;
+    if (resolver == null || resolver.repeatCycles == null) return;
+    final clock = _clock;
+    if (!clock.isVisible || clock.stage == BeamFadeStage.fadingOut) return;
+    // The beam fades out the way an inactive one does, so the last cycle
+    // ends on a fade rather than a cut.
+    if (resolver.finishedAt(clock.elapsedSeconds)) clock.deactivate();
+  }
+
+  // The perimeter position the pointer is asking for, as sweep progress.
+  double? _followTarget() {
+    final follow = widget.follow;
+    final config = _config;
+    if (follow == null || config == null) return null;
+    switch (widget.variant) {
+      case BeamVariant.rotate || BeamVariant.small:
+        // Progress 0 sits at 12 o'clock and runs clockwise, so the angle to
+        // the point is measured from straight up.
+        final angle =
+            math.atan2(follow.dy - 0.5, follow.dx - 0.5) + math.pi / 2;
+        return (angle / (2 * math.pi)) % 1.0;
+      case BeamVariant.line:
+        // The beam travels one edge, so only the coordinate along it counts.
+        final along = switch (config.edge) {
+          BeamEdge.top || BeamEdge.bottom => follow.dx,
+          BeamEdge.left || BeamEdge.right => follow.dy,
+        };
+        return along.clamp(0.0, 1.0);
+      case BeamVariant.pulseInside || BeamVariant.pulseOutside:
+        // Breathing has no travel to steer.
+        return null;
+    }
+  }
+
+  void _advanceFollow(double dt) {
+    final target = _followTarget();
+    final resolver = _resolver;
+    if (target == null || resolver == null) return;
+    final from = _followValue ?? _timedProgress(resolver);
+    // Shortest way round the contour: the beam never takes the long way to a
+    // point just behind it.
+    final delta = ((target - from) + 0.5) % 1.0 - 0.5;
+    final step = _smoothDamp(
+      current: from,
+      target: from + delta,
+      velocity: _followVelocity,
+      dt: dt,
+      response: _followResponseSeconds,
+    );
+    _followVelocity = step.velocity;
+    _followValue = step.value % 1.0;
+    if (widget.progress == null) _driven.value = _followValue;
+  }
+
+  double _timedProgress(BeamPhaseResolver resolver) =>
+      resolver.sample(_clock.elapsedSeconds, 1).travelProgress;
+
+  // Hands the sweep back to the clock where the pointer left it. Shifting
+  // the travel timeline is the same move as a phase offset, so the beam
+  // carries on from here instead of snapping back to its own schedule.
+  void _releaseFollow() {
+    final held = _followValue;
+    _followValue = null;
+    _followVelocity = 0;
+    _driven.value = widget.progress;
+    final resolver = _resolver;
+    if (held == null || resolver == null || _cycleSeconds <= 0) return;
+    final phases = resolver.sample(_clock.elapsedSeconds, 1);
+    var delta = held - phases.travelProgress;
+    // Travel time always runs forward; a mirrored cycle spends it backwards.
+    if (phases.reversedNow) delta = -delta;
+    delta = ((delta + 0.5) % 1.0) - 0.5;
+    resolver.travelTimeOffset += delta * _cycleSeconds;
+  }
+
+  // ─── Lifecycle ──────────────────────────────────────────────────────────
 
   @override
   void didUpdateWidget(BorderBeam oldWidget) {
@@ -529,19 +928,31 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
       oldWidget.controller?.detach(_clock);
       widget.controller?.attach(_clock);
     }
+    if (oldWidget.speedListenable != widget.speedListenable) {
+      oldWidget.speedListenable?.removeListener(_applySpeed);
+      widget.speedListenable?.addListener(_applySpeed);
+    }
     final variantChanged = oldWidget.variant != widget.variant;
     _resolveScheduling(retime: !variantChanged);
-    if (variantChanged) {
+    if (variantChanged && !_synced) {
       // The fps cap is variant-bound; rebuild the clock.
       final wasVisible = _clock.isVisible;
       widget.controller?.detach(_clock);
-      _clock.dispose();
-      _createClock();
+      _detachTickListener();
+      _ownClock!.dispose();
+      _createOwnClock();
       _applySpeed();
       widget.controller?.attach(_clock);
+      _syncTickListener();
       if (wasVisible && widget.controller == null && _active) _start();
     }
-    if (widget.controller == null && wasActive != _active) {
+    // The pointer left: release now rather than waiting for a tick, which a
+    // paused or stopped clock would never deliver.
+    if (widget.follow == null && _followValue != null) {
+      _releaseFollow();
+      _syncTickListener();
+    }
+    if (!_synced && widget.controller == null && wasActive != _active) {
       _startTimer?.cancel();
       if (_active) {
         _start();
@@ -556,8 +967,11 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
   void dispose() {
     _startTimer?.cancel();
     _durationTimer?.cancel();
+    widget.speedListenable?.removeListener(_applySpeed);
+    _detachTickListener();
     widget.controller?.detach(_clock);
-    _clock.dispose();
+    _ownClock?.dispose();
+    _driven.dispose();
     super.dispose();
   }
 
@@ -568,11 +982,12 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     TextDirection textDirection,
   ) {
     final brightness = (style.theme ?? BeamTheme.auto).resolve(ambient);
+    final timing = _configTiming(_timing);
     final key = (
       widget.variant,
       style,
       shape,
-      _timing,
+      timing,
       brightness,
       textDirection,
     );
@@ -584,10 +999,11 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
         brightness: brightness,
         style: style,
         shape: shape,
-        timing: _timing,
+        timing: timing,
         textDirection: textDirection,
       );
       _resolver = BeamPhaseResolver(_config!)..hueTimeOffset = _hueTimeOffset;
+      _syncResolverPlayback();
     }
     return _config!;
   }
@@ -604,14 +1020,21 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
       Directionality.maybeOf(context) ?? TextDirection.ltr,
     );
     final strategy = _strategy;
-    final reduced = _reducedMotion;
+    final playing = (widget.controller != null || _synced)
+        ? _clock.isVisible
+        : _active && _autoPlay;
     final staticMode =
-        reduced &&
-        (widget.controller != null ? _clock.isVisible : _active && _autoPlay);
+        _reducedApplied == BeamReducedMotion.staticFrame && playing;
+    // BeamReducedMotion.hide leaves the child bare: no painter, no ticks.
+    final hidden = _reducedApplied == BeamReducedMotion.hide;
+
+    // An explicit progress owns the sweep; a follow gesture only steers what
+    // the clock would otherwise drive.
+    _driven.value = widget.progress?.clamp(0.0, 1.0) ?? _followValue;
 
     return RepaintBoundary(
       child: CustomPaint(
-        painter: widget.variant == BeamVariant.pulseOutside
+        painter: !hidden && widget.variant == BeamVariant.pulseOutside
             ? BeamPainter(
                 clock: _clock,
                 config: config,
@@ -619,16 +1042,22 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
                 strategy: strategy,
                 behind: true,
                 staticMode: staticMode,
+                progress: _driven,
+                strength: widget.strengthListenable,
               )
             : null,
-        foregroundPainter: BeamPainter(
-          clock: _clock,
-          config: config,
-          resolver: _resolver!,
-          strategy: strategy,
-          behind: false,
-          staticMode: staticMode,
-        ),
+        foregroundPainter: hidden
+            ? null
+            : BeamPainter(
+                clock: _clock,
+                config: config,
+                resolver: _resolver!,
+                strategy: strategy,
+                behind: false,
+                staticMode: staticMode,
+                progress: _driven,
+                strength: widget.strengthListenable,
+              ),
         // The child never re-rasterizes with the beam's frames.
         child: RepaintBoundary(child: widget.child),
       ),
