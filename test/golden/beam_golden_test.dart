@@ -94,7 +94,7 @@ void main() {
           brightness: brightness,
           (b) => BorderBeam.rotate(
             colors: colors,
-            theme: beamTheme,
+            style: BeamStyle(theme: beamTheme),
             child: mockSurface(b),
           ),
         );
@@ -109,7 +109,7 @@ void main() {
           height: 36,
           (b) => BorderBeam.small(
             colors: colors,
-            theme: beamTheme,
+            style: BeamStyle(theme: beamTheme),
             child: mockSurface(b, radius: 32),
           ),
         );
@@ -122,7 +122,7 @@ void main() {
           brightness: brightness,
           (b) => BorderBeam.line(
             colors: colors,
-            theme: beamTheme,
+            style: BeamStyle(theme: beamTheme),
             child: mockSurface(b),
           ),
         );
@@ -135,7 +135,7 @@ void main() {
           brightness: brightness,
           (b) => BorderBeam.pulseInside(
             colors: colors,
-            theme: beamTheme,
+            style: BeamStyle(theme: beamTheme),
             child: mockSurface(b),
           ),
         );
@@ -148,7 +148,7 @@ void main() {
           brightness: brightness,
           (b) => BorderBeam.pulseOutside(
             colors: colors,
-            theme: beamTheme,
+            style: BeamStyle(theme: beamTheme),
             child: mockSurface(b),
           ),
         );
@@ -167,7 +167,10 @@ void main() {
         'rotate_${theme}_colorful_late',
         brightness: brightness,
         freeze: const Duration(milliseconds: 2300),
-        (b) => BorderBeam.rotate(theme: beamTheme, child: mockSurface(b)),
+        (b) => BorderBeam.rotate(
+          style: BeamStyle(theme: beamTheme),
+          child: mockSurface(b),
+        ),
       );
     });
 
@@ -177,7 +180,10 @@ void main() {
         'line_${theme}_colorful_late',
         brightness: brightness,
         freeze: const Duration(milliseconds: 2000),
-        (b) => BorderBeam.line(theme: beamTheme, child: mockSurface(b)),
+        (b) => BorderBeam.line(
+          style: BeamStyle(theme: beamTheme),
+          child: mockSurface(b),
+        ),
       );
     });
 
@@ -188,8 +194,8 @@ void main() {
         brightness: brightness,
         (b) => BorderBeam.rotate(
           colors: BeamColors.ocean,
-          theme: beamTheme,
-          useSuperellipse: true,
+          style: BeamStyle(theme: beamTheme),
+          shape: const BeamShape(superellipse: true),
           borderRadius: 28,
           child: mockSurface(b, radius: 28),
         ),
@@ -208,7 +214,7 @@ void main() {
           Color(0xFF00E5FF),
           Color(0xFFFFC400),
         ]),
-        theme: BeamTheme.dark,
+        style: const BeamStyle(theme: BeamTheme.dark),
         child: mockSurface(b),
       ),
     );

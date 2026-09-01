@@ -8,7 +8,13 @@ library;
 
 export 'src/border_beam.dart' show BorderBeam;
 export 'src/border_beam_controller.dart' show BorderBeamController;
+export 'src/border_beam_theme.dart' show BorderBeamTheme, BorderBeamThemeData;
 export 'src/models/beam_blob.dart' show BeamBlob, LineBlob;
 export 'src/models/beam_colors.dart' show BeamColors;
+export 'src/models/beam_playback.dart' show BeamPlayback;
+export 'src/models/beam_shape.dart' show BeamShape;
+export 'src/models/beam_style.dart' show BeamStyle;
 export 'src/models/beam_theme.dart' show BeamTheme;
+export 'src/models/beam_theme_config.dart' show BeamThemeConfig;
+export 'src/models/beam_timing.dart' show BeamTiming;
 export 'src/models/beam_variant.dart' show BeamVariant;

@@ -24,12 +24,13 @@ widget (`BeamClock`), mirroring the React library's single shared rAF loop.
 No `AnimationController`s; phases are recomputed from `elapsedSeconds` each
 frame.
 
-- `lib/flutter_border_beam.dart` — barrel; ONLY `BorderBeam`, `BorderBeamController`, `BeamVariant`, `BeamColors`, `BeamBlob`/`LineBlob`, `BeamTheme` are public.
-- `lib/src/border_beam.dart` — widget, 5 named constructors, scheduling/lifecycle. Controller attached ⇒ it owns playback exclusively (asserts `startAfter`/`duration` are null).
+- `lib/flutter_border_beam.dart` — barrel; ONLY `BorderBeam`, `BorderBeamController`, `BorderBeamTheme`/`BorderBeamThemeData`, `BeamVariant`, `BeamColors`, `BeamBlob`/`LineBlob`, `BeamTheme`, `BeamThemeConfig`, and the four value objects (`BeamStyle`, `BeamShape`, `BeamTiming`, `BeamPlayback`) are public.
+- `lib/src/border_beam.dart` — widget: a generic constructor taking a `BeamVariant` plus 5 named ones, three shorthands (`colors`/`active`/`borderRadius`) over the value objects, and scheduling/lifecycle. Controller attached ⇒ it owns playback exclusively (the resolved playback asserts `startAfter`/`duration` are null, and the controller's `speed` replaces `timing.speed`).
+- `lib/src/border_beam_theme.dart` — `BorderBeamTheme` (`InheritedWidget`) + `BorderBeamThemeData`. `of` walks every enclosing scope, depends on each, and merges them outside-in so nested themes compose.
 - `lib/src/animation/` — `beam_clock.dart` (ticker, speed, pause, spring fades via `spring_curve.dart`, optional fps cap), `oscillator.dart` (pingPong + the 17-oscillator pulse bank), `beam_phases.dart` (per-frame value object + keyframe sampling).
 - `lib/src/painting/` — `beam_painter.dart` (one `CustomPainter`, repaint driven by the clock, `behind`/`above` passes), `strategies/` (one per variant family), `ring_geometry.dart` (rrect + `RSuperellipse` ring via `Path.combine` difference), `gradient_builders.dart`, `color_matrix.dart` (hue/brightness/saturation matrices), `layer_utils.dart`.
 - `lib/src/constants/` — **verbatim transcriptions** of the React source's tables (`palettes.dart`, `theme_presets.dart`, `pulse_tables.dart`, `pulse_params.dart`, `line_keyframes.dart`).
-- `lib/src/models/` — public/internal data types; `BeamConfig.resolve` mirrors the React component's computed values (per-variant default durations, the line 13° hue cap, mono forcing static colors).
+- `lib/src/models/` — public/internal data types. The four public value objects (`beam_style.dart`, `beam_shape.dart`, `beam_timing.dart`, `beam_playback.dart`) are all-nullable, `const`, with `copyWith`/`merge`/`==`; a null field means *inherit*. `BeamConfig.resolve({variant, palette, brightness, style, shape, timing, textDirection})` flattens them into the painter's config and mirrors the React component's computed values (per-variant default durations and radii, the line 13° hue cap, mono forcing static colors); it carries the timing tracks (`gapSeconds`, hue periods, breathe/spike factors) and a per-corner resolved `BorderRadius`, and is value-equal so `BeamPainter.shouldRepaint` compares configs.
 
 ## Hard rules
 

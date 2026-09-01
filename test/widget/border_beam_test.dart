@@ -74,7 +74,7 @@ void main() {
     await tester.pumpWidget(
       _host(
         BorderBeam.rotate(
-          startAfter: const Duration(seconds: 2),
+          playback: const BeamPlayback(startAfter: Duration(seconds: 2)),
           onActivate: () => activated++,
           child: const SizedBox.expand(),
         ),
@@ -94,7 +94,7 @@ void main() {
     await tester.pumpWidget(
       _host(
         BorderBeam.rotate(
-          duration: const Duration(seconds: 2),
+          playback: const BeamPlayback(duration: Duration(seconds: 2)),
           onDeactivate: () => deactivated++,
           child: const SizedBox.expand(),
         ),
@@ -113,7 +113,10 @@ void main() {
   testWidgets('autoPlay: false never starts by itself', (tester) async {
     await tester.pumpWidget(
       _host(
-        const BorderBeam.pulseInside(autoPlay: false, child: SizedBox.expand()),
+        const BorderBeam.pulseInside(
+          playback: BeamPlayback(autoPlay: false),
+          child: SizedBox.expand(),
+        ),
       ),
     );
     await tester.pump(const Duration(seconds: 1));
@@ -153,26 +156,38 @@ void main() {
   });
 
   group('controller', () {
-    testWidgets('asserts when startAfter/duration are set with a controller', (
+    testWidgets('asserts when startAfter is set with a controller', (
       tester,
     ) async {
       final controller = BorderBeamController();
-      expect(
-        () => BorderBeam.rotate(
-          controller: controller,
-          startAfter: const Duration(seconds: 1),
-          child: const SizedBox.expand(),
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        _host(
+          BorderBeam.rotate(
+            controller: controller,
+            playback: const BeamPlayback(startAfter: Duration(seconds: 1)),
+            child: const SizedBox.expand(),
+          ),
         ),
-        throwsAssertionError,
       );
-      expect(
-        () => BorderBeam.rotate(
-          controller: controller,
-          duration: const Duration(seconds: 1),
-          child: const SizedBox.expand(),
+      expect(tester.takeException(), isAssertionError);
+    });
+
+    testWidgets('asserts when duration is set with a controller', (
+      tester,
+    ) async {
+      final controller = BorderBeamController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        _host(
+          BorderBeam.rotate(
+            controller: controller,
+            playback: const BeamPlayback(duration: Duration(seconds: 1)),
+            child: const SizedBox.expand(),
+          ),
         ),
-        throwsAssertionError,
       );
+      expect(tester.takeException(), isAssertionError);
     });
 
     testWidgets('controller owns playback end to end', (tester) async {

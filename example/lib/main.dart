@@ -215,7 +215,7 @@ class _RotateExamples extends StatelessWidget {
       children: [
         ExampleFrame(
           child: BorderBeam.rotate(
-            theme: beamTheme,
+            style: BeamStyle(theme: beamTheme),
             borderRadius: 20,
             child: const MockChatInput(),
           ),
@@ -227,7 +227,7 @@ class _RotateExamples extends StatelessWidget {
               child: ExampleFrame(
                 height: 140,
                 child: BorderBeam.small(
-                  theme: beamTheme,
+                  style: BeamStyle(theme: beamTheme),
                   borderRadius: 20,
                   child: const MockIconButton(),
                 ),
@@ -239,7 +239,7 @@ class _RotateExamples extends StatelessWidget {
               child: ExampleFrame(
                 height: 140,
                 child: BorderBeam.line(
-                  theme: beamTheme,
+                  style: BeamStyle(theme: beamTheme),
                   borderRadius: 20,
                   child: const MockSearchBar(),
                 ),
@@ -265,7 +265,7 @@ class _PulseExamples extends StatelessWidget {
           height: 300,
           clip: false,
           child: BorderBeam.pulseInside(
-            theme: beamTheme,
+            style: BeamStyle(theme: beamTheme),
             borderRadius: 20,
             child: const MockWorkingCard(),
           ),
@@ -278,7 +278,7 @@ class _PulseExamples extends StatelessWidget {
                 height: 160,
                 clip: false,
                 child: BorderBeam.pulseInside(
-                  theme: beamTheme,
+                  style: BeamStyle(theme: beamTheme),
                   borderRadius: 20,
                   child: const MockSubscribeButton(),
                 ),
@@ -291,7 +291,7 @@ class _PulseExamples extends StatelessWidget {
                 height: 220,
                 clip: false,
                 child: BorderBeam.pulseOutside(
-                  theme: beamTheme,
+                  style: BeamStyle(theme: beamTheme),
                   borderRadius: 20,
                   child: const MockChatInput(),
                 ),

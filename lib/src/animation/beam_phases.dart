@@ -51,13 +51,16 @@ class BeamFramePhases {
     this.pulse = const PulsePhaseSet.identity(),
   });
 
-  /// Fade envelope (0–1), multiplied into every layer opacity.
+  /// Fade envelope (0–1), multiplied into every layer opacity. Carries the
+  /// rest between sweeps (`BeamTiming.cycleGap`) as well as the beam's own
+  /// fade in and out.
   final double fadeOpacity;
 
   /// Animated hue rotation in degrees (excludes the static hue base).
   final double hueDegrees;
 
-  /// The line bloom's separate hue track (±(hueRange+10)° over 8s).
+  /// The line bloom's separate hue track (±(hueRange+10)°, over
+  /// `BeamConfig.bloomHuePeriodSeconds`).
   final double bloomHueDegrees;
 
   /// Rotating conic window angle (rotate/small), radians.
@@ -101,13 +104,11 @@ class BeamPhaseResolver {
   );
 
   BeamPhaseResolver._(this.config, PulseParams? pulseParams)
-    : _pulseParams = pulseParams,
-      _bank = pulseParams == null ? null : PulseOscillatorBank(pulseParams);
+    : _bank = pulseParams == null ? null : PulseOscillatorBank(pulseParams);
 
   /// The resolved beam configuration.
   final BeamConfig config;
   final PulseOscillatorBank? _bank;
-  final PulseParams? _pulseParams;
 
   /// Seconds added to the sample time of the fixed-period hue tracks only.
   ///
@@ -115,18 +116,10 @@ class BeamPhaseResolver {
   /// oscillators) all scale with [BeamConfig.cycleSeconds], so a cycle
   /// change can be absorbed by rescaling elapsed time
   /// ([BeamClock.retime]) — their fractions come out unchanged. The hue
-  /// tracks run on fixed periods ([huePeriodSeconds],
-  /// [bloomHuePeriodSeconds], [PulseParams.huePeriod]) and would jump under
-  /// that rescale, so the widget shifts them back by the amount the
-  /// timeline moved.
+  /// tracks run on fixed periods ([BeamConfig.huePeriodSeconds],
+  /// [BeamConfig.bloomHuePeriodSeconds]) and would jump under that rescale,
+  /// so the widget shifts them back by the amount the timeline moved.
   double hueTimeOffset = 0;
-
-  /// The hue ping-pong keyframes of the rotate/line variants
-  /// (0% −range, 50% +range, 100% −range, ease-in-out per segment, 12s).
-  static const double huePeriodSeconds = 12;
-
-  /// The line bloom hue period (8s).
-  static const double bloomHuePeriodSeconds = 8;
 
   /// Samples all phases at [t] seconds with the given [fadeOpacity].
   BeamFramePhases sample(double t, double fadeOpacity) {
@@ -134,28 +127,29 @@ class BeamPhaseResolver {
     final hue = _hue(t);
     switch (v) {
       case BeamVariant.rotate || BeamVariant.small:
-        final cycle = (t / config.cycleSeconds) % 1.0;
+        final (progress, envelope) = _travel(t);
         return BeamFramePhases(
-          fadeOpacity: fadeOpacity,
+          fadeOpacity: fadeOpacity * envelope,
           hueDegrees: hue,
-          angleRadians: cycle * 2 * math.pi,
+          angleRadians: progress * 2 * math.pi,
         );
       case BeamVariant.line:
-        final cycle = (t / config.cycleSeconds) % 1.0;
-        final breathe = (t / (config.cycleSeconds * 1.3)) % 1.0;
-        final spikeT = (t / (config.cycleSeconds * 1.33)) % 1.0;
-        final spike2T = (t / (config.cycleSeconds * 1.7)) % 1.0;
+        final (progress, envelope) = _travel(t);
+        final cs = config.cycleSeconds;
+        final breathe = (t / (cs * config.breatheFactor)) % 1.0;
+        final spikeT = (t / (cs * config.spikeFactor)) % 1.0;
+        final spike2T = (t / (cs * config.spike2Factor)) % 1.0;
         return BeamFramePhases(
-          fadeOpacity: fadeOpacity,
+          fadeOpacity: fadeOpacity * envelope,
           hueDegrees: hue,
           bloomHueDegrees: _pingPongHue(
             t + hueTimeOffset,
-            bloomHuePeriodSeconds,
+            config.bloomHuePeriodSeconds,
             config.hueRange + 10,
           ),
-          lineX: sampleKeyframes(lineTravelX, cycle),
-          lineW: sampleKeyframes(lineTravelW, cycle),
-          edge: sampleKeyframes(lineEdgeFade, cycle),
+          lineX: sampleKeyframes(lineTravelX, progress),
+          lineW: sampleKeyframes(lineTravelW, progress),
+          edge: sampleKeyframes(lineEdgeFade, progress),
           lineH: sampleKeyframes(lineBreatheH, breathe, easedSegments: true),
           spike: sampleKeyframes(lineSpike, spikeT, easedSegments: true),
           spike2: sampleKeyframes(lineSpike2, spike2T, easedSegments: true),
@@ -196,15 +190,45 @@ class BeamPhaseResolver {
     );
   }
 
+  /// Travel progress through one sweep (0–1) and the gap envelope that
+  /// multiplies into the fade at [t].
+  ///
+  /// Without a gap this is the plain `t / cycle` wrap. With one, the sweep
+  /// runs over the first `cycleSeconds` of each `cycle + gap` period and then
+  /// parks at progress 1 while the envelope eases out and back in over
+  /// `min(0.25s, gap / 2)` at each end of the rest.
+  (double progress, double envelope) _travel(double t) {
+    final cycle = config.cycleSeconds;
+    final gap = config.gapSeconds;
+    if (gap <= 0) return ((t / cycle) % 1.0, 1.0);
+    final local = t % (cycle + gap);
+    if (local < cycle) return (local / cycle, 1.0);
+    final intoGap = local - cycle;
+    final fade = math.min(0.25, gap / 2);
+    if (fade <= 0) return (1.0, 0.0);
+    if (intoGap < fade) return (1.0, 1 - _smoothstep(intoGap / fade));
+    final outFrom = gap - fade;
+    if (intoGap > outFrom) {
+      return (1.0, _smoothstep((intoGap - outFrom) / fade));
+    }
+    return (1.0, 0.0);
+  }
+
+  // Smoothstep: zero slope at both ends, so the rest opens and closes without
+  // a visible corner.
+  static double _smoothstep(double x) {
+    final c = x.clamp(0.0, 1.0);
+    return c * c * (3 - 2 * c);
+  }
+
   double _hue(double t) {
     if (config.staticColors) return 0;
     final hueT = t + hueTimeOffset;
     if (config.variant.isPulse) {
       // Continuous full revolution (sawtooth 0→360°).
-      final period = _pulseParams!.huePeriod;
-      return ((hueT / period) % 1.0) * 360;
+      return ((hueT / config.huePeriodSeconds) % 1.0) * 360;
     }
-    return _pingPongHue(hueT, huePeriodSeconds, config.hueRange);
+    return _pingPongHue(hueT, config.huePeriodSeconds, config.hueRange);
   }
 
   // CSS `beam-hue-shift`: keyframes −range @0%, +range @50%, −range @100%,

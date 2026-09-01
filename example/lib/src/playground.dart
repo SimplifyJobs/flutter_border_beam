@@ -63,49 +63,18 @@ class _PlaygroundSectionState extends State<PlaygroundSection> {
             ),
     );
 
-    final beam = switch (_variant) {
-      BeamVariant.rotate => BorderBeam.rotate(
-        colors: palette.colors,
-        theme: beamTheme,
-        strength: _strength,
-        active: _active,
-        useSuperellipse: _superellipse,
-        child: preview,
-      ),
-      BeamVariant.small => BorderBeam.small(
-        colors: palette.colors,
-        theme: beamTheme,
-        strength: _strength,
-        active: _active,
-        useSuperellipse: _superellipse,
-        borderRadius: 16,
-        child: preview,
-      ),
-      BeamVariant.line => BorderBeam.line(
-        colors: palette.colors,
-        theme: beamTheme,
-        strength: _strength,
-        active: _active,
-        useSuperellipse: _superellipse,
-        child: preview,
-      ),
-      BeamVariant.pulseInside => BorderBeam.pulseInside(
-        colors: palette.colors,
-        theme: beamTheme,
-        strength: _strength,
-        active: _active,
-        useSuperellipse: _superellipse,
-        child: preview,
-      ),
-      BeamVariant.pulseOutside => BorderBeam.pulseOutside(
-        colors: palette.colors,
-        theme: beamTheme,
-        strength: _strength,
-        active: _active,
-        useSuperellipse: _superellipse,
-        child: preview,
-      ),
-    };
+    // One call for every variant: the generic constructor takes the variant
+    // as a value, so the playground needs no switch.
+    final beam = BorderBeam(
+      variant: _variant,
+      colors: palette.colors,
+      active: _active,
+      // The small variant's 32px preset would overshoot the 350×140 preview.
+      borderRadius: _variant == BeamVariant.small ? 16 : null,
+      style: BeamStyle(theme: beamTheme, strength: _strength),
+      shape: BeamShape(superellipse: _superellipse),
+      child: preview,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -208,11 +177,14 @@ class _PlaygroundSectionState extends State<PlaygroundSection> {
       BeamVariant.pulseInside => 'pulseInside',
       BeamVariant.pulseOutside => 'pulseOutside',
     };
+    final style = [
+      if (_strength < 1) 'strength: ${_strength.toStringAsFixed(2)}',
+    ];
     final args = [
       if (paletteName != 'colorful') 'colors: BeamColors.$paletteName,',
-      if (_strength < 1) 'strength: ${_strength.toStringAsFixed(2)},',
-      if (_superellipse) 'useSuperellipse: true,',
       if (!_active) 'active: false,',
+      if (style.isNotEmpty) 'style: const BeamStyle(${style.join(', ')}),',
+      if (_superellipse) 'shape: const BeamShape(superellipse: true),',
       'child: child,',
     ];
     return 'BorderBeam.$constructor(\n  ${args.join('\n  ')}\n)';

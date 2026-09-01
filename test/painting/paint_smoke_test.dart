@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter_border_beam/src/animation/beam_phases.dart';
 import 'package:flutter_border_beam/src/models/beam_colors.dart';
 import 'package:flutter_border_beam/src/models/beam_config.dart';
+import 'package:flutter_border_beam/src/models/beam_shape.dart';
 import 'package:flutter_border_beam/src/models/beam_variant.dart';
 import 'package:flutter_border_beam/src/painting/beam_painter.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -31,7 +32,7 @@ void main() {
               variant: variant,
               palette: colors.resolve(),
               brightness: brightness,
-              useSuperellipse: superellipse,
+              shape: BeamShape(superellipse: superellipse),
             );
             final resolver = BeamPhaseResolver(config);
             final strategy = strategyFor(variant);

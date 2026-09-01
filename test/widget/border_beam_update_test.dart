@@ -43,7 +43,10 @@ void main() {
   group('cycleDuration change', () {
     testWidgets('retimes the rotate beam without a phase jump', (tester) async {
       Widget build(Duration cycle) => _host(
-        BorderBeam.rotate(cycleDuration: cycle, child: const SizedBox.expand()),
+        BorderBeam.rotate(
+          timing: BeamTiming(cycle: cycle),
+          child: const SizedBox.expand(),
+        ),
       );
 
       await tester.pumpWidget(build(const Duration(seconds: 2)));
@@ -74,7 +77,10 @@ void main() {
 
     testWidgets('retimes the line beam without a phase jump', (tester) async {
       Widget build(Duration cycle) => _host(
-        BorderBeam.line(cycleDuration: cycle, child: const SizedBox.expand()),
+        BorderBeam.line(
+          timing: BeamTiming(cycle: cycle),
+          child: const SizedBox.expand(),
+        ),
       );
 
       await tester.pumpWidget(build(const Duration(seconds: 3)));
@@ -100,7 +106,7 @@ void main() {
     testWidgets('keeps every pulse oscillator continuous', (tester) async {
       Widget build(Duration cycle) => _host(
         BorderBeam.pulseInside(
-          cycleDuration: cycle,
+          timing: BeamTiming(cycle: cycle),
           child: const SizedBox.expand(),
         ),
       );
@@ -149,7 +155,7 @@ void main() {
       var activated = 0;
       Widget build(Duration cycle) => _host(
         BorderBeam.rotate(
-          cycleDuration: cycle,
+          timing: BeamTiming(cycle: cycle),
           onActivate: () => activated++,
           child: const SizedBox.expand(),
         ),
@@ -181,8 +187,8 @@ void main() {
     testWidgets('an unchanged cycle leaves the timeline alone', (tester) async {
       Widget build(double strength) => _host(
         BorderBeam.rotate(
-          strength: strength,
-          cycleDuration: const Duration(seconds: 2),
+          style: BeamStyle(strength: strength),
+          timing: const BeamTiming(cycle: Duration(seconds: 2)),
           child: const SizedBox.expand(),
         ),
       );
@@ -222,7 +228,7 @@ void main() {
       Widget build(bool reduced) => _host(
         disableAnimations: reduced,
         const BorderBeam.rotate(
-          startAfter: Duration(seconds: 2),
+          playback: BeamPlayback(startAfter: Duration(seconds: 2)),
           child: SizedBox.expand(),
         ),
       );
@@ -276,7 +282,7 @@ void main() {
       Widget build(bool reduced) => _host(
         disableAnimations: reduced,
         BorderBeam.rotate(
-          duration: const Duration(seconds: 1),
+          playback: const BeamPlayback(duration: Duration(seconds: 1)),
           onDeactivate: () => deactivated++,
           child: const SizedBox.expand(),
         ),

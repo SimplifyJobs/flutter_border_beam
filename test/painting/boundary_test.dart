@@ -30,12 +30,16 @@ void main() {
     variant: variant,
     palette: BeamColors.colorful.resolve(),
     brightness: brightness,
-    borderRadius: borderRadius,
-    borderWidth: borderWidth,
-    strength: strength,
-    hueRange: hueRange,
-    staticColors: staticColors,
-    cycleDuration: cycleDuration,
+    style: BeamStyle(
+      strength: strength,
+      hueRange: hueRange,
+      staticColors: staticColors,
+    ),
+    shape: BeamShape(
+      radius: borderRadius == null ? null : BorderRadius.circular(borderRadius),
+      borderWidth: borderWidth,
+    ),
+    timing: BeamTiming(cycle: cycleDuration),
   );
 
   /// Runs both passes across the samples, letting any exception escape.

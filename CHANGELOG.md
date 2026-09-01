@@ -7,6 +7,36 @@
 - The package is named `flutter_border_beam`; the barrel is
   `package:flutter_border_beam/flutter_border_beam.dart`.
 - The canonical repository is https://github.com/SimplifyJobs/flutter_border_beam.
+- `BorderBeam` takes four value objects instead of a flat parameter list:
+  `BeamStyle` (colors, theme, filters, layer-opacity hooks, and a
+  `themeConfig` that replaces the whole variant×brightness preset),
+  `BeamShape` (per-corner radius, border width, superellipse), `BeamTiming`
+  (cycle, rest, speed, hue periods, line track factors), and `BeamPlayback`
+  (active, autoPlay, startAfter, duration, reduced motion). Every field is
+  nullable and means *inherit*; `controller`, `onActivate`, and `onDeactivate`
+  stay flat on the widget.
+- `colors`, `active`, and `borderRadius` remain on the widget as shorthands
+  for `style.colors`, `playback.active`, and a uniform `shape.radius`; a
+  non-null shorthand wins over the same field in its object.
+- `BorderBeam` has a public generic constructor taking a `BeamVariant`, so a
+  variant chosen at runtime no longer needs a switch over the five named ones.
+- `BorderBeamTheme` supplies `BorderBeamThemeData` defaults to the beams below
+  it. Resolution order is widget → theme → variant preset, and nested themes
+  merge inner over outer.
+- Shapes are per-corner: `BeamShape.radius` is a `BorderRadiusGeometry`
+  resolved against the ambient `Directionality`, clamped per corner the way
+  `RRect.scaleRadii` clamps. `BeamShape.circular(r)` and `BeamShape.stadium()`
+  cover the uniform and pill cases; a stadium rounds to half the shortest side,
+  so a square box comes out a circle.
+- `BeamTiming.cycleGap` rests the traveling beam between sweeps: the sweep
+  still takes `cycle`, then the beam parks at the end of its travel while its
+  fade envelope eases out and back in over `min(0.25s, gap / 2)` at each end.
+  The pulse variants ignore it. `BeamTiming.speed` sets the playback rate when
+  no controller is attached; `huePeriod`, `bloomHuePeriod`, `breatheFactor`,
+  `spikeFactor`, and `spike2Factor` expose the timings that were fixed in the
+  phase resolver.
+- `BeamThemeConfig` is public, with `copyWith`, value equality, and
+  `BeamThemeConfig.presetFor(variant, brightness)` to start from a preset.
 
 ### Removed
 

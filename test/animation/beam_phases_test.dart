@@ -5,6 +5,8 @@ import 'package:flutter_border_beam/src/animation/beam_phases.dart';
 import 'package:flutter_border_beam/src/constants/line_keyframes.dart';
 import 'package:flutter_border_beam/src/models/beam_colors.dart';
 import 'package:flutter_border_beam/src/models/beam_config.dart';
+import 'package:flutter_border_beam/src/models/beam_style.dart';
+import 'package:flutter_border_beam/src/models/beam_timing.dart';
 import 'package:flutter_border_beam/src/models/beam_variant.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -17,9 +19,8 @@ BeamConfig _config(
   variant: v,
   palette: BeamColors.colorful.resolve(),
   brightness: Brightness.dark,
-  staticColors: staticColors,
-  hueRange: hueRange,
-  cycleDuration: cycleDuration,
+  style: BeamStyle(staticColors: staticColors, hueRange: hueRange),
+  timing: BeamTiming(cycle: cycleDuration),
 );
 
 // The retime a widget performs when its cycle duration changes mid-run:
@@ -223,10 +224,10 @@ void main() {
         variant: BeamVariant.small,
         palette: BeamColors.colorful.resolve(),
         brightness: Brightness.dark,
-        strength: 1.7,
+        style: const BeamStyle(strength: 1.7),
       );
       expect(c.strength, 1);
-      expect(c.borderRadius, 32);
+      expect(c.borderRadius.topLeft.x, 32);
       expect(c.cycleSeconds, closeTo(1.96, 1e-9));
       expect(c.brightnessFactor, 1.3);
       expect(c.saturation, 1.2);

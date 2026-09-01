@@ -33,9 +33,11 @@ Run the example app for the full animated gallery (`cd example && flutter run`);
 
 ## Highlights
 
-- **Five variants**, each a named constructor with tuned defaults: `rotate`, `small`, `line`, `pulseInside`, `pulseOutside`.
+- **Five variants**, each a named constructor with tuned defaults: `rotate`, `small`, `line`, `pulseInside`, `pulseOutside` — plus a generic `BorderBeam(variant: ...)` for a runtime choice.
+- **Four value objects** — `BeamStyle`, `BeamShape`, `BeamTiming`, `BeamPlayback` — whose fields are all nullable, so anything you leave out is inherited.
+- **App-wide defaults** through `BorderBeamTheme`; nested themes merge, inner over outer.
 - **Four palettes** from the original (`colorful`, `mono`, `ocean`, `sunset`), plus `BeamColors.custom(...)` for your own colors and `BeamColors.spec(...)` for per-blob control.
-- **Superellipse borders** — one flag switches the beam to an Apple-style squircle.
+- **Per-corner shapes** — a full `BorderRadius` (direction-aware), an Apple-style squircle contour, or a stadium that tracks the box.
 - **Playback control** — declarative `active` toggling with spring-eased fades, `autoPlay`/`startAfter`/`duration` scheduling, or a full `BorderBeamController`.
 - **Dark & light themes** per variant, following your app theme automatically.
 - **Decorative-only** — beam layers never intercept pointers; your child lays out and hit-tests normally.
@@ -74,6 +76,9 @@ BorderBeam.small(child: iconButton)   // compact — buttons, chips (32px radius
 BorderBeam.line(child: searchBar)     // travels the bottom edge — inputs
 BorderBeam.pulseInside(child: card)   // contained breathing glow
 BorderBeam.pulseOutside(child: card)  // halo blooming outward behind the child
+
+// Picked at runtime — same parameters, no switch:
+BorderBeam(variant: variant, child: card)
 ```
 
 > **pulse-outside contract** (same as the original): the child must be opaque
@@ -109,30 +114,73 @@ BorderBeam.rotate(
 
 ```dart
 BorderBeam.rotate(
-  borderRadius: 24,          // match your child's decoration radius
-  useSuperellipse: true,     // Apple-style squircle contour
+  borderRadius: 24,                                 // uniform radius shorthand
+  shape: const BeamShape(superellipse: true),       // Apple-style squircle contour
   child: card,
 )
+
+// Per-corner radii, direction-aware:
+BorderBeam.rotate(
+  shape: const BeamShape(
+    radius: BorderRadiusDirectional.only(topStart: Radius.circular(28)),
+  ),
+  child: card,
+)
+
+// A pill (or a circle, on a square box) that tracks the box as it resizes:
+BorderBeam.small(shape: const BeamShape.stadium(), child: chip)
 ```
 
-`borderRadius` defaults to the variant preset (16, or 32 for `small`). There is no auto-detection of the child's radius — pass the same value your child uses.
+The radius defaults to the variant preset (16, or 32 for `small`). There is no auto-detection of the child's radius — pass the same value your child uses.
 
 ### Scheduling (no controller)
 
 ```dart
 BorderBeam.pulseInside(
-  active: isLoading,                        // fades in 0.6s / out 0.5s (spring-eased)
-  startAfter: Duration(milliseconds: 500),  // delay before autoplay
-  duration: Duration(seconds: 10),          // total play time; null = loop forever
-  onActivate: () => print('visible'),       // fires when the fade-in completes
+  active: isLoading,                    // fades in 0.6s / out 0.5s (spring-eased)
+  playback: const BeamPlayback(
+    startAfter: Duration(milliseconds: 500),  // delay before autoplay
+    duration: Duration(seconds: 10),          // total play time; null = loop forever
+  ),
+  onActivate: () => print('visible'),   // fires when the fade-in completes
   onDeactivate: () => print('hidden'),
   child: card,
 )
 ```
 
+### Timing
+
+```dart
+BorderBeam.rotate(
+  timing: const BeamTiming(
+    cycle: Duration(seconds: 3),        // one sweep
+    cycleGap: Duration(seconds: 1),     // rest between sweeps
+    speed: 1.5,                         // playback rate
+  ),
+  child: card,
+)
+```
+
+Changing `cycle` while the beam runs retimes it in place — every track keeps its phase, so the beam just speeds up or slows down.
+
+### Theming
+
+`BorderBeamTheme` supplies defaults to every beam below it. Anything a beam sets itself wins; nested themes merge, inner over outer:
+
+```dart
+BorderBeamTheme(
+  data: const BorderBeamThemeData(
+    style: BeamStyle(colors: BeamColors.ocean, strength: 0.8),
+    shape: BeamShape(superellipse: true),
+    timing: BeamTiming(cycle: Duration(seconds: 3)),
+  ),
+  child: MaterialApp(home: home),
+)
+```
+
 ### Controller
 
-Attach a `BorderBeamController` for programmatic playback. The controller takes **full ownership** — `startAfter`/`duration` must not be set, and the beam starts hidden until you `start()`:
+Attach a `BorderBeamController` for programmatic playback. The controller takes **full ownership** — `playback.startAfter`/`duration` must not be set, its `speed` replaces `timing.speed`, and the beam starts hidden until you `start()`:
 
 ```dart
 final controller = BorderBeamController();
@@ -149,21 +197,52 @@ controller.stop();      // fade out, halt
 
 ### Fine tuning
 
-Every tuning hook of the original is a parameter:
+Every tuning hook of the original is a field on one of the four value objects. Each is nullable: leave it out and it inherits the theme, then the variant preset.
 
-| Parameter | Default | Purpose |
+`BeamStyle`:
+
+| Field | Default | Purpose |
 |---|---|---|
-| `strength` | `1.0` | Overall effect opacity (0–1); only affects beam layers |
-| `cycleDuration` | 1.96s / 3.1s / 2.3s | One animation cycle (rotate·small / line / pulse) |
+| `colors` | `BeamColors.colorful` | Palette (shorthand: `colors:` on the widget) |
 | `theme` | `BeamTheme.auto` | `dark`, `light`, or follow `Theme.of(context)` |
+| `strength` | `1.0` | Overall effect opacity (0–1); only affects beam layers |
 | `brightness`, `saturation` | per variant/theme | Glow filter multipliers |
 | `hueRange` | `30` (line caps at 13) | Hue animation amplitude in degrees |
 | `hueBase` | `0` | Static hue offset for the whole palette |
 | `staticColors` | `false` | Disable the hue animation |
-| `respectReducedMotion` | `true` | Static frame under `MediaQuery.disableAnimations` |
 | `strokeOpacityFactor`, `innerOpacityFactor`, `bloomOpacityFactor` | `1` | Per-layer opacity multipliers |
 | `glowBoost` (pulse) | `1` | Halo prominence |
 | `coreBlur`, `bloomBlur`, `glowBrightness`, `glowSaturation` (pulse-outside) | preset | Glow tuning overrides |
+| `themeConfig` | per variant/theme | Replace the whole preset — start from `BeamThemeConfig.presetFor(...)` |
+
+`BeamShape`:
+
+| Field | Default | Purpose |
+|---|---|---|
+| `radius` | 16 (32 for `small`) | Per-corner `BorderRadiusGeometry` (shorthand: `borderRadius:` on the widget) |
+| `borderWidth` | `1` | Stroke ring thickness |
+| `superellipse` | `false` | Squircle contour instead of circular corner arcs |
+
+`BeamTiming`:
+
+| Field | Default | Purpose |
+|---|---|---|
+| `cycle` | 1.96s / 3.1s / 2.3s | One animation cycle (rotate·small / line / pulse) |
+| `cycleGap` | `Duration.zero` | Rest between sweeps (ignored by the pulse variants) |
+| `speed` | `1` | Playback rate (a controller's `speed` wins) |
+| `huePeriod` | 12s (14s/16s pulse) | One full period of the hue track |
+| `bloomHuePeriod` | 8s | The line bloom's own hue period |
+| `breatheFactor`, `spikeFactor`, `spike2Factor` | `1.3`, `1.33`, `1.7` | The line beam's tracks, as multiples of `cycle` |
+
+`BeamPlayback`:
+
+| Field | Default | Purpose |
+|---|---|---|
+| `active` | `true` | Play state (shorthand: `active:` on the widget) |
+| `autoPlay` | `true` | Whether the beam starts by itself |
+| `startAfter` | none | Delay before autoplay |
+| `duration` | none (loops) | Total play time |
+| `respectReducedMotion` | `true` | Static frame under `MediaQuery.disableAnimations` |
 
 ## Example app
 
