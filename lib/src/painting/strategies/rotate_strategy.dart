@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import '../../animation/beam_phases.dart';
+import '../../constants/rotate_stops.dart';
 import '../../models/beam_config.dart';
 import '../color_matrix.dart';
 import '../gradient_builders.dart';
@@ -12,42 +13,22 @@ import '../variant_strategy.dart';
 const Color _white = Color(0xFFFFFFFF);
 const Color _black = Color(0xFF000000);
 
-// Conic stop tables transcribed from the source's generated CSS
-// (generateBorderVariantCSS / generateSmallVariantCSS — identical for both).
+// How far past the ring the comet halo reaches at glowSpread 1, and how much
+// wider its band runs than the plain bloom's — the halo is the same layer,
+// re-clipped and stretched, so it has to read as a trail rather than as an
+// edge highlight.
+const double _cometReach = 12;
+const double _cometBandFactor = 1.6;
 
-// The rotating soft window revealing the stroke/inner layers.
-const _windowStops = [0.0, 0.30, 0.36, 0.44, 0.52, 0.80, 0.86, 0.92, 0.95, 1.0];
-const _windowAlphas = [0.0, 0.0, 0.1, 0.35, 1.0, 1.0, 0.35, 0.1, 0.0, 0.0];
+// The stop the rotate window's bright core ends at: the beam's head, and so
+// where the sparkles gather.
+const double _windowHeadStop = 0.80;
 
-// The wider window used by the small variant's inner layer (`smallMask`).
-const _smallWindowStops = [
-  0.0, 0.22, 0.28, 0.36, 0.46, 0.82, 0.88, 0.94, 0.97, 1.0, //
-];
-const _smallWindowAlphas = [0.0, 0.0, 0.12, 0.4, 1.0, 1.0, 0.4, 0.12, 0.0, 0.0];
-
-// The white (dark theme) / black (light theme) highlight sweep of the stroke.
-const _highlightStops = [
-  0.0, 0.54, 0.57, 0.60, 0.63, 0.66, 0.69, 0.72, 0.75, 0.78, 1.0, //
-];
-const _highlightAlphasDark = [
-  0.0, 0.0, 0.1, 0.3, 0.6, 0.75, 0.6, 0.3, 0.1, 0.0, 0.0, //
-];
-const _highlightAlphasLight = [
-  0.0, 0.0, 0.08, 0.2, 0.4, 0.55, 0.4, 0.2, 0.08, 0.0, 0.0, //
-];
-
-// The sharp bloom band, blurred 8px.
-const _bloomStops = [
-  0.0, 0.58, 0.62, 0.65, 0.67, 0.69, 0.70, 0.705, 0.715, 0.73, 0.75, 0.78,
-  0.82, 1.0, //
-];
-const _bloomAlphasDark = [
-  0.0, 0.0, 0.03, 0.08, 0.2, 0.45, 0.85, 0.85, 0.45, 0.2, 0.08, 0.03, 0.0,
-  0.0, //
-];
-const _bloomAlphasLight = [
-  0.0, 0.0, 0.02, 0.08, 0.2, 0.4, 0.6, 0.6, 0.4, 0.2, 0.08, 0.02, 0.0, 0.0, //
-];
+// The sparkle scatter's radius around the head, and how finely travel
+// progress is quantised into its seed (higher re-rolls the twinkles more
+// often).
+const double _sparkleSpread = 14;
+const int _sparkleSeedSteps = 16;
 
 /// The traveling-beam strategy shared by [BeamVariant.rotate] (React `md`)
 /// and [BeamVariant.small] (React `sm`) — a conic highlight and color blobs
@@ -68,13 +49,8 @@ class RotateStrategy extends BeamVariantStrategy {
     BeamFramePhases phases,
   ) {
     if (phases.fadeOpacity <= 0) return;
-    final rect = Offset.zero & size;
-    final geometry = BeamRingGeometry(
-      rect: rect,
-      radius: config.borderRadius,
-      borderWidth: config.borderWidth,
-      useSuperellipse: config.useSuperellipse,
-    );
+    final rect = beamRect(size, config);
+    final geometry = beamGeometry(rect, config);
     final isDark = config.brightness == Brightness.dark;
 
     // CPU color folding: when hue animation runs, the whole
@@ -129,13 +105,15 @@ class RotateStrategy extends BeamVariantStrategy {
     } else {
       // md derives its inner blobs from the border table: 0.9× size and a
       // fixed alpha (0.45, or 0.225 for mono).
-      final alpha = config.palette.monoTreatment ? 0.225 : 0.45;
+      final alpha = config.palette.monoTreatment
+          ? rotateInnerBlobAlphaMono
+          : rotateInnerBlobAlpha;
       for (final blob in config.palette.data.border) {
         BeamGradients.paintBlob(
           canvas,
           center: _blobCenter(rect, blob.position),
-          radiusX: (blob.size.width * 0.9).roundToDouble(),
-          radiusY: (blob.size.height * 0.9).roundToDouble(),
+          radiusX: (blob.size.width * rotateInnerBlobScale).roundToDouble(),
+          radiusY: (blob.size.height * rotateInnerBlobScale).roundToDouble(),
           color: fold(blob.color.withValues(alpha: alpha)),
         );
       }
@@ -144,7 +122,7 @@ class RotateStrategy extends BeamVariantStrategy {
       canvas,
       contour: geometry.outer,
       color: fold(config.theme.innerShadow),
-      blur: compact ? 5 : 9,
+      blur: compact ? smallInnerShadowBlur : rotateInnerShadowBlur,
     );
 
     // Mask pass.
@@ -156,9 +134,10 @@ class RotateStrategy extends BeamVariantStrategy {
           ..blendMode = BlendMode.dstIn
           ..shader = _window(
             rect,
-            phases.angleRadians,
-            stops: _smallWindowStops,
-            alphas: _smallWindowAlphas,
+            config,
+            phases,
+            stops: smallWindowStops,
+            alphas: smallWindowAlphas,
           ),
       );
     } else {
@@ -180,9 +159,10 @@ class RotateStrategy extends BeamVariantStrategy {
           ..blendMode = BlendMode.dstIn
           ..shader = _window(
             rect,
-            phases.angleRadians,
-            stops: _windowStops,
-            alphas: _windowAlphas,
+            config,
+            phases,
+            stops: rotateWindowStops,
+            alphas: rotateWindowAlphas,
           ),
       );
       canvas.restore();
@@ -208,13 +188,20 @@ class RotateStrategy extends BeamVariantStrategy {
       hookFactor: config.strokeOpacityFactor,
     );
     if (opacity <= 0) return;
+    final highlightBase = isDark ? _white : _black;
 
     canvas.save();
     canvas.clipPath(geometry.ring);
     canvas.saveLayer(rect, Paint()..color = _white.withValues(alpha: opacity));
 
     // Highlight sweep (white on dark, black on light).
-    final highlightBase = isDark ? _white : _black;
+    final highlight = BeamConicWindow.resolve(
+      rotateHighlightStops,
+      isDark ? rotateHighlightAlphasDark : rotateHighlightAlphasLight,
+      reversed: phases.reversedNow,
+      tailLength: config.tailLength,
+      beamCount: config.beamCount,
+    );
     canvas.drawRect(
       rect,
       Paint()
@@ -222,11 +209,10 @@ class RotateStrategy extends BeamVariantStrategy {
           rect: rect,
           cssFromRadians: phases.angleRadians,
           colors: [
-            for (final a
-                in isDark ? _highlightAlphasDark : _highlightAlphasLight)
+            for (final a in highlight.alphas)
               fold(highlightBase.withValues(alpha: a)),
           ],
-          stops: _highlightStops,
+          stops: highlight.stops,
         ),
     );
     final blobs = compact
@@ -247,14 +233,18 @@ class RotateStrategy extends BeamVariantStrategy {
         ..blendMode = BlendMode.dstIn
         ..shader = _window(
           rect,
-          phases.angleRadians,
-          stops: _windowStops,
-          alphas: _windowAlphas,
+          config,
+          phases,
+          stops: rotateWindowStops,
+          alphas: rotateWindowAlphas,
         ),
     );
+    _applySegments(canvas, rect, config);
 
     canvas.restore();
     canvas.restore();
+
+    _paintSparkles(canvas, rect, config, phases, opacity, highlightBase);
   }
 
   void _paintBloom(
@@ -273,7 +263,8 @@ class RotateStrategy extends BeamVariantStrategy {
     );
     if (opacity <= 0) return;
 
-    // Bloom filter chain: blur(8px) brightness saturate (no hue).
+    // Bloom filter chain: blur(8px · glowSpread) brightness saturate (no
+    // hue).
     final matrix = BeamColorMatrix.beamFilter(
       hueDegrees: 0,
       brightness: config.brightnessFactor,
@@ -281,49 +272,134 @@ class RotateStrategy extends BeamVariantStrategy {
     );
     final base = isDark ? _white : _black;
 
+    // The comet is this same layer, re-aimed: instead of the thin ring it
+    // fills a halo reaching past the border, and its band runs wider so the
+    // glow trails the head. One clip swapped and one band stretched — no
+    // second layer.
+    final reach = _cometReach * config.glowSpread;
+    final region = config.comet ? geometry.halo(reach) : geometry.outer;
+    final band = config.comet ? region : geometry.ring;
+    final bounds = config.comet ? rect.inflate(reach) : rect;
+    final table = BeamConicWindow.resolve(
+      rotateBloomStops,
+      isDark ? rotateBloomAlphasDark : rotateBloomAlphasLight,
+      reversed: phases.reversedNow,
+      tailLength: config.tailLength * (config.comet ? _cometBandFactor : 1.0),
+      beamCount: config.beamCount,
+    );
+
     canvas.save();
-    canvas.clipPath(geometry.outer);
+    canvas.clipPath(region);
     canvas.saveLayer(
-      rect,
+      bounds,
       Paint()
         ..color = _white.withValues(alpha: opacity)
         ..imageFilter = ImageFilter.blur(
-          sigmaX: 8,
-          sigmaY: 8,
+          sigmaX: rotateBloomBlurSigma * config.glowSpread,
+          sigmaY: rotateBloomBlurSigma * config.glowSpread,
           tileMode: TileMode.decal,
         ),
     );
     canvas.save();
-    canvas.clipPath(geometry.ring);
+    canvas.clipPath(band);
     canvas.drawRect(
-      rect,
+      bounds,
       Paint()
         ..shader = BeamGradients.conic(
           rect: rect,
           cssFromRadians: phases.angleRadians,
           colors: [
-            for (final a in isDark ? _bloomAlphasDark : _bloomAlphasLight)
+            for (final a in table.alphas)
               matrix.transform(base.withValues(alpha: a)),
           ],
-          stops: _bloomStops,
+          stops: table.stops,
         ),
     );
     canvas.restore();
+    _applySegments(canvas, bounds, config);
     canvas.restore();
     canvas.restore();
   }
 
+  // The dashed-ring mask: one repeating conic multiplied into a layer that
+  // exists anyway, so a dashed ring costs no more than a solid one.
+  void _applySegments(Canvas canvas, Rect rect, BeamConfig config) {
+    final segments = config.segments;
+    if (segments == null || segments < 2) return;
+    canvas.drawRect(
+      rect,
+      Paint()
+        ..blendMode = BlendMode.dstIn
+        ..shader = BeamGradients.segmentMask(rect, segments),
+    );
+  }
+
+  // Twinkles at each beam head, drawn over the stroke without a layer of
+  // their own. They live in the foreground pass, so nothing about them
+  // touches the child.
+  void _paintSparkles(
+    Canvas canvas,
+    Rect rect,
+    BeamConfig config,
+    BeamFramePhases phases,
+    double opacity,
+    Color color,
+  ) {
+    if (config.sparkle <= 0 || rect.isEmpty) return;
+    final turn = phases.angleRadians / (2 * math.pi);
+    final seed = (turn * _sparkleSeedSteps).floor();
+    final head = phases.reversedNow ? 1 - _windowHeadStop : _windowHeadStop;
+    canvas.save();
+    canvas.clipPath(_sparkleBand(rect, config));
+    for (var k = 0; k < config.beamCount; k++) {
+      final stop = (head + k) / config.beamCount;
+      BeamLayerUtils.paintSparkles(
+        canvas,
+        center: BeamLayerUtils.edgePointAt(
+          rect,
+          phases.angleRadians + stop * 2 * math.pi,
+        ),
+        density: config.sparkle,
+        color: color,
+        opacity: opacity,
+        spread: _sparkleSpread,
+        seed: seed * 7 + k,
+      );
+    }
+    canvas.restore();
+  }
+
+  // Sparkles scatter around the border, so they are held to a band straddling
+  // it rather than allowed to drift into the middle of the child.
+  Path _sparkleBand(Rect rect, BeamConfig config) {
+    final outside = beamGeometry(rect.inflate(_sparkleSpread), config).outer;
+    final inside = rect.deflate(_sparkleSpread).isEmpty
+        ? Path()
+        : beamGeometry(rect.deflate(_sparkleSpread), config).outer;
+    return Path.combine(PathOperation.difference, outside, inside);
+  }
+
   Shader _window(
     Rect rect,
-    double angle, {
+    BeamConfig config,
+    BeamFramePhases phases, {
     required List<double> stops,
     required List<double> alphas,
-  }) => BeamGradients.conic(
-    rect: rect,
-    cssFromRadians: angle,
-    colors: [for (final a in alphas) _white.withValues(alpha: a)],
-    stops: stops,
-  );
+  }) {
+    final table = BeamConicWindow.resolve(
+      stops,
+      alphas,
+      reversed: phases.reversedNow,
+      tailLength: config.tailLength,
+      beamCount: config.beamCount,
+    );
+    return BeamGradients.conic(
+      rect: rect,
+      cssFromRadians: phases.angleRadians,
+      colors: [for (final a in table.alphas) _white.withValues(alpha: a)],
+      stops: table.stops,
+    );
+  }
 
   static Offset _blobCenter(Rect rect, Offset fractional) => Offset(
     rect.left + fractional.dx * rect.width,

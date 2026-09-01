@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import '../../animation/beam_phases.dart';
+import '../../constants/pulse_constants.dart';
 import '../../constants/pulse_params.dart';
 import '../../constants/pulse_tables.dart';
 import '../../models/beam_config.dart';
@@ -8,7 +9,6 @@ import '../../models/beam_variant.dart';
 import '../color_matrix.dart';
 import '../gradient_builders.dart';
 import '../layer_utils.dart';
-import '../ring_geometry.dart';
 import '../variant_strategy.dart';
 import 'pulse_common.dart';
 
@@ -32,13 +32,8 @@ class PulseInnerStrategy extends BeamVariantStrategy {
     BeamFramePhases phases,
   ) {
     if (phases.fadeOpacity <= 0) return;
-    final rect = Offset.zero & size;
-    final geometry = BeamRingGeometry(
-      rect: rect,
-      radius: config.borderRadius,
-      borderWidth: config.borderWidth,
-      useSuperellipse: config.useSuperellipse,
-    );
+    final rect = beamRect(size, config);
+    final geometry = beamGeometry(rect, config);
     final isDark = config.brightness == Brightness.dark;
     final params = PulseParams.resolve(
       BeamVariant.pulseInside,
@@ -94,7 +89,9 @@ class PulseInnerStrategy extends BeamVariantStrategy {
       // Corner accents: fixed 60×60 ellipses whose alpha breathes with the
       // corner's quadrant oscillator.
       final cornerBase = isDark ? _white : const Color(0xFF000000);
-      final cornerAlpha = isDark ? 0.18 : 0.08;
+      final cornerAlpha = isDark
+          ? pulseInnerCornerAlphaDark
+          : pulseInnerCornerAlphaLight;
       final corners = [
         (pos: rect.topLeft, quad: pulseRingMap[0].quad),
         (pos: rect.topRight, quad: pulseRingMap[6].quad),
@@ -106,13 +103,13 @@ class PulseInnerStrategy extends BeamVariantStrategy {
         BeamLayerUtils.paintRadial(
           canvas,
           center: corner.pos,
-          radiusX: 60,
-          radiusY: 60,
+          radiusX: pulseInnerCornerRadius,
+          radiusY: pulseInnerCornerRadius,
           colors: [
             fold(cornerBase.withValues(alpha: a)),
             fold(cornerBase.withValues(alpha: 0)),
           ],
-          stops: const [0, 0.70],
+          stops: const [0, pulseInnerCornerEndStop],
         );
       }
 
@@ -166,6 +163,18 @@ class PulseInnerStrategy extends BeamVariantStrategy {
           fold: fold,
         );
       }
+      // The dashed-ring mask rides inside the ring layer, the one layer a
+      // pulse beam draws its border in; the inner glow and the bloom stay
+      // continuous, since dashing a breathing wash reads as banding.
+      final segments = config.segments;
+      if (segments != null && segments >= 2) {
+        canvas.drawRect(
+          rect,
+          Paint()
+            ..blendMode = BlendMode.dstIn
+            ..shader = BeamGradients.segmentMask(rect, segments),
+        );
+      }
       canvas.restore();
       canvas.restore();
     }
@@ -186,8 +195,8 @@ class PulseInnerStrategy extends BeamVariantStrategy {
         Paint()
           ..color = _white.withValues(alpha: bloomOpacity)
           ..imageFilter = ImageFilter.blur(
-            sigmaX: 8,
-            sigmaY: 8,
+            sigmaX: pulseInnerBloomBlurSigma * config.glowSpread,
+            sigmaY: pulseInnerBloomBlurSigma * config.glowSpread,
             tileMode: TileMode.decal,
           ),
       );

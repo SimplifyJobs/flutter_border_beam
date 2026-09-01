@@ -329,7 +329,7 @@ void main() {
       const rect = Rect.fromLTWH(0, 0, 200, 100);
       final ring = geometry(rect, BorderRadius.circular(16));
       const other = Rect.fromLTWH(10, 10, 100, 60);
-      final path = ring.contour(other, BorderRadius.circular(20));
+      final path = ring.shapeContour(other, BorderRadius.circular(20));
       expectBounds(path, other);
       final corners = cornersOf(other);
       final (point, inward) = corners['topLeft']!;

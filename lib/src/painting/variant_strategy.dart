@@ -2,6 +2,26 @@ import 'dart:ui';
 
 import '../animation/beam_phases.dart';
 import '../models/beam_config.dart';
+import 'ring_geometry.dart';
+
+/// The rect the beam's geometry occupies: the child's bounds, pushed outward
+/// or pulled inward by `BeamShape.ringOffset`.
+///
+/// A positive offset paints outside [size]; nothing in the beam's own render
+/// tree clips that away (the `CustomPaint` clips neither painter), so the
+/// ring can orbit at a distance as long as the surrounding layout leaves it
+/// room.
+Rect beamRect(Size size, BeamConfig config) =>
+    (Offset.zero & size).inflate(config.ringOffset);
+
+/// The ring geometry [config] describes over [rect].
+BeamRingGeometry beamGeometry(Rect rect, BeamConfig config) => BeamRingGeometry(
+  rect: rect,
+  radius: config.borderRadius,
+  borderWidth: config.borderWidth,
+  useSuperellipse: config.useSuperellipse,
+  contour: config.contour,
+);
 
 /// Paints one beam variant.
 ///

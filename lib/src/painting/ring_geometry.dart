@@ -2,8 +2,11 @@ import 'dart:math' as math;
 
 import 'package:flutter/painting.dart';
 
-/// Path builders for the beam's shape: rounded rect or rounded superellipse,
-/// plus the "ring" region every stroke layer is clipped to.
+import '../models/beam_options.dart';
+
+/// Path builders for the beam's shape: rounded rect, rounded superellipse, or
+/// an arbitrary [BeamContour], plus the "ring" region every stroke layer is
+/// clipped to.
 ///
 /// The React library paints stroke layers into a CSS mask ring —
 /// padding-box minus content-box. Here that is the [ring] path: the outer
@@ -13,11 +16,15 @@ import 'package:flutter/painting.dart';
 class BeamRingGeometry {
   /// Creates geometry for [rect] with the given corner [radius],
   /// [borderWidth], and shape family.
+  ///
+  /// A non-null [contour] replaces the rounded-rect family entirely: it
+  /// builds [outer], and [radius]/[useSuperellipse] go unread.
   BeamRingGeometry({
     required this.rect,
     required this.radius,
     required this.borderWidth,
     required this.useSuperellipse,
+    this.contour,
   });
 
   /// The layer bounds.
@@ -33,18 +40,30 @@ class BeamRingGeometry {
   /// circular-arc rounded rects.
   final bool useSuperellipse;
 
+  /// An arbitrary outer contour replacing the rounded-rect family, or null.
+  final BeamContour? contour;
+
   /// Outer contour of the shape.
-  late final Path outer = _shapePath(rect, radius);
+  late final Path outer = rect.isEmpty
+      ? Path()
+      : (contour?.build(rect) ?? _shapePath(rect, radius));
 
   /// Inner contour (the content box: deflated by [borderWidth], every corner
   /// radius reduced by the same amount).
   ///
   /// A box thinner than twice the border width has no content box left, and
-  /// the contour is empty — the ring is then the whole shape.
-  late final Path inner = _shapePath(
-    rect.deflate(borderWidth),
-    _deflateRadius(radius, borderWidth),
-  );
+  /// the contour is empty — the ring is then the whole shape. Under a custom
+  /// [contour] the inner path is [outer] offset inward along its own normals
+  /// by [borderWidth] (see [insetPath]), since an arbitrary path has no
+  /// corner radii to shrink.
+  late final Path inner = rect.isEmpty
+      ? Path()
+      : contour != null
+      ? insetPath(outer, borderWidth)
+      : _shapePath(
+          rect.deflate(borderWidth),
+          _deflateRadius(radius, borderWidth),
+        );
 
   /// The border ring: [outer] minus [inner].
   late final Path ring = rect.isEmpty
@@ -80,7 +99,72 @@ class BeamRingGeometry {
 
   /// A standalone contour for an arbitrary rect/radius in the same shape
   /// family (used by pulse-outside's outward layers).
-  Path contour(Rect r, BorderRadius cornerRadii) => _shapePath(r, cornerRadii);
+  Path shapeContour(Rect r, BorderRadius cornerRadii) =>
+      _shapePath(r, cornerRadii);
+
+  /// The halo a comet bloom fills: the shape grown by [reach], minus the
+  /// content box, so the glow hugs the border and spills outward instead of
+  /// washing across the child.
+  Path halo(double reach) => rect.isEmpty
+      ? Path()
+      : Path.combine(PathOperation.difference, grown(reach), inner);
+
+  /// [outer] grown outward by [reach], in the shape's own family.
+  Path grown(double reach) => contour != null
+      ? insetPath(outer, -reach)
+      : _shapePath(rect.inflate(reach), _inflateRadius(radius, reach));
+
+  /// [source] offset inward by [inset] along its own normals — a true
+  /// polygonal offset, not a scale about the centre, so a lobed contour keeps
+  /// an even border width all the way round.
+  ///
+  /// Each closed subpath is resampled at ~1px, its orientation read from the
+  /// signed area (so a path drawn either way offsets inward), and every
+  /// sample moved along the inward normal. A concave notch tighter than
+  /// [inset] folds the offset over itself; the fold is a hairline at the
+  /// border widths this is used at, and the non-zero fill rule swallows it.
+  ///
+  /// A negative [inset] offsets outward instead, which is how the comet halo
+  /// grows an arbitrary contour.
+  static Path insetPath(Path source, double inset) {
+    final result = Path();
+    if (inset == 0) return result..addPath(source, Offset.zero);
+    for (final metric in source.computeMetrics()) {
+      final length = metric.length;
+      if (length <= 0) continue;
+      final steps = math.max(8, length.round());
+      final points = <Offset>[];
+      final normals = <Offset>[];
+      for (var i = 0; i < steps; i++) {
+        final tangent = metric.getTangentForOffset(length * i / steps);
+        if (tangent == null) continue;
+        points.add(tangent.position);
+        normals.add(Offset(tangent.vector.dx, tangent.vector.dy));
+      }
+      if (points.length < 3) continue;
+      // Shoelace sign: positive for a path wound so that rotating the tangent
+      // a quarter turn one way points inward, negative for the other.
+      var area = 0.0;
+      for (var i = 0; i < points.length; i++) {
+        final a = points[i];
+        final b = points[(i + 1) % points.length];
+        area += a.dx * b.dy - b.dx * a.dy;
+      }
+      final sign = area >= 0 ? 1.0 : -1.0;
+      for (var i = 0; i < points.length; i++) {
+        final t = normals[i];
+        final inward = Offset(-t.dy, t.dx) * sign;
+        final p = points[i] + inward * inset;
+        if (i == 0) {
+          result.moveTo(p.dx, p.dy);
+        } else {
+          result.lineTo(p.dx, p.dy);
+        }
+      }
+      result.close();
+    }
+    return result;
+  }
 
   // Shrinks every corner by [amount], flooring each axis at zero — the
   // content box's corners are the padding box's minus the border width.
@@ -90,6 +174,16 @@ class BeamRingGeometry {
         topRight: _shrink(radii.topRight, amount),
         bottomLeft: _shrink(radii.bottomLeft, amount),
         bottomRight: _shrink(radii.bottomRight, amount),
+      );
+
+  // Grows every corner by [amount] — the mirror of [_deflateRadius], used by
+  // the comet halo.
+  static BorderRadius _inflateRadius(BorderRadius radii, double amount) =>
+      BorderRadius.only(
+        topLeft: _shrink(radii.topLeft, -amount),
+        topRight: _shrink(radii.topRight, -amount),
+        bottomLeft: _shrink(radii.bottomLeft, -amount),
+        bottomRight: _shrink(radii.bottomRight, -amount),
       );
 
   static Radius _shrink(Radius r, double amount) =>

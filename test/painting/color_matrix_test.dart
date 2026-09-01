@@ -147,7 +147,7 @@ void main() {
         expect(g.inner.getBounds().isEmpty, isTrue);
         expect(g.ring.getBounds().isEmpty, isTrue);
         expect(
-          g.contour(rect, BorderRadius.circular(16)).getBounds().isEmpty,
+          g.shapeContour(rect, BorderRadius.circular(16)).getBounds().isEmpty,
           isTrue,
         );
       }
