@@ -244,7 +244,7 @@ void main() {
       expect(deactivated, 1);
     });
 
-    testWidgets('a theme respectReducedMotion: false keeps the beam moving', (
+    testWidgets('a theme reducedMotion: animate keeps the beam moving', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -252,7 +252,7 @@ void main() {
           disableAnimations: true,
           const BorderBeamTheme(
             data: BorderBeamThemeData(
-              playback: BeamPlayback(respectReducedMotion: false),
+              playback: BeamPlayback(reducedMotion: BeamReducedMotion.animate),
             ),
             child: BorderBeam.rotate(child: SizedBox.expand()),
           ),

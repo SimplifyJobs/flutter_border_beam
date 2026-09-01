@@ -242,7 +242,8 @@ Every tuning hook of the original is a field on one of the four value objects. E
 | `autoPlay` | `true` | Whether the beam starts by itself |
 | `startAfter` | none | Delay before autoplay |
 | `duration` | none (loops) | Total play time |
-| `respectReducedMotion` | `true` | Static frame under `MediaQuery.disableAnimations` |
+| `repeat` | `BeamRepeat.forever()` | How many cycles to run before stopping |
+| `reducedMotion` | `staticFrame` | What to do under `MediaQuery.disableAnimations` (`animate`, `staticFrame`, `hide`, `slow`) |
 
 ## Example app
 

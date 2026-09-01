@@ -2,18 +2,13 @@ import 'dart:ui';
 
 import 'package:flutter/painting.dart';
 
-import '../constants/pulse_params.dart';
+import 'beam_options.dart';
 import 'beam_palette.dart';
 import 'beam_shape.dart';
 import 'beam_style.dart';
 import 'beam_theme_config.dart';
 import 'beam_timing.dart';
 import 'beam_variant.dart';
-
-// The hue ping-pong period of the traveling variants (React
-// `beam-hue-shift`, 12s) and the line bloom's own hue period (8s).
-const double _defaultHuePeriodSeconds = 12;
-const double _defaultBloomHuePeriodSeconds = 8;
 
 // The line variant's breathe/spike tracks run at multiples of the cycle.
 const double _defaultBreatheFactor = 1.3;
@@ -44,9 +39,10 @@ class BeamConfig {
     required this.hueBase,
     required this.staticColors,
     required this.cycleSeconds,
+    required this.hueMode,
+    required this.huePeriodSeconds,
+    required this.bloomHuePeriodSeconds,
     this.gapSeconds = 0,
-    this.huePeriodSeconds = _defaultHuePeriodSeconds,
-    this.bloomHuePeriodSeconds = _defaultBloomHuePeriodSeconds,
     this.breatheFactor = _defaultBreatheFactor,
     this.spikeFactor = _defaultSpikeFactor,
     this.spike2Factor = _defaultSpike2Factor,
@@ -58,6 +54,17 @@ class BeamConfig {
     this.bloomBlur,
     this.glowBrightness,
     this.glowSaturation,
+    this.tailLength = 1,
+    this.glowSpread = 1,
+    this.comet = false,
+    this.sparkle = 0,
+    this.segments,
+    this.edge = BeamEdge.bottom,
+    this.ringOffset = 0,
+    this.contour,
+    this.direction = BeamDirection.forward,
+    this.phaseOffset = 0,
+    this.beamCount = 1,
   });
 
   /// Resolves the beam value objects against the variant/theme presets,
@@ -96,16 +103,17 @@ class BeamConfig {
       hueRange: variant == BeamVariant.line
           ? (hueRange > 13 ? 13.0 : hueRange)
           : hueRange,
+      hueMode:
+          style.hueMode ??
+          (variant.isPulse ? BeamHueMode.continuous : BeamHueMode.pingPong),
       hueBase: style.hueBase ?? 0,
       staticColors: (style.staticColors ?? false) || palette.forcesStaticColors,
       cycleSeconds: cycleSeconds,
       gapSeconds: _seconds(timing.cycleGap ?? Duration.zero),
-      huePeriodSeconds: timing.huePeriod != null
-          ? _seconds(timing.huePeriod!)
-          : _defaultHuePeriod(variant, brightness, cycleSeconds),
-      bloomHuePeriodSeconds: timing.bloomHuePeriod != null
-          ? _seconds(timing.bloomHuePeriod!)
-          : _defaultBloomHuePeriodSeconds,
+      huePeriodSeconds: _seconds(timing.huePeriod ?? variant.defaultHuePeriod),
+      bloomHuePeriodSeconds: _seconds(
+        timing.bloomHuePeriod ?? variant.defaultBloomHuePeriod,
+      ),
       breatheFactor: timing.breatheFactor ?? _defaultBreatheFactor,
       spikeFactor: timing.spikeFactor ?? _defaultSpikeFactor,
       spike2Factor: timing.spike2Factor ?? _defaultSpike2Factor,
@@ -117,18 +125,19 @@ class BeamConfig {
       bloomBlur: style.bloomBlur,
       glowBrightness: style.glowBrightness,
       glowSaturation: style.glowSaturation,
+      tailLength: style.tailLength ?? 1,
+      glowSpread: style.glowSpread ?? 1,
+      comet: style.comet ?? false,
+      sparkle: (style.sparkle ?? 0).clamp(0.0, 1.0),
+      segments: style.segments,
+      edge: shape.edge ?? BeamEdge.bottom,
+      ringOffset: shape.ringOffset ?? 0,
+      contour: shape.contour,
+      direction: timing.direction ?? BeamDirection.forward,
+      phaseOffset: timing.phaseOffset ?? 0,
+      beamCount: timing.beamCount ?? 1,
     );
   }
-
-  // The traveling variants ping-pong their hue over a fixed 12s; the pulse
-  // variants revolve over the period their own preset carries.
-  static double _defaultHuePeriod(
-    BeamVariant variant,
-    Brightness brightness,
-    double cycleSeconds,
-  ) => variant.isPulse
-      ? PulseParams.resolve(variant, brightness, cycleSeconds).huePeriod
-      : _defaultHuePeriodSeconds;
 
   /// Which effect to paint.
   final BeamVariant variant;
@@ -163,6 +172,9 @@ class BeamConfig {
 
   /// Hue animation amplitude in degrees (rotate/small/line ping-pong).
   final double hueRange;
+
+  /// Whether the hue swings across ±[hueRange] or revolves continuously.
+  final BeamHueMode hueMode;
 
   /// Static hue offset in degrees added to the animated hue.
   final double hueBase;
@@ -215,6 +227,42 @@ class BeamConfig {
   /// Pulse-outside glow saturation override (React `--beam-glow-saturate`).
   final double? glowSaturation;
 
+  /// Multiplier on the angular width of the traveling window — the length of
+  /// the beam's tail.
+  final double tailLength;
+
+  /// Multiplier on how far the bloom and halo layers reach past the ring.
+  final double glowSpread;
+
+  /// Whether a soft halo trails the traveling head outside the ring.
+  final bool comet;
+
+  /// Density 0–1 of the twinkles scattered at the traveling beam's head.
+  final double sparkle;
+
+  /// Number of dashes the ring is broken into, or null for a solid ring.
+  final int? segments;
+
+  /// Which edge the line variant's beam travels along.
+  final BeamEdge edge;
+
+  /// Logical px the ring sits outside (+) or inside (−) the child's bounds.
+  final double ringOffset;
+
+  /// An arbitrary contour replacing the rounded rectangle, or null to build
+  /// the contour from [borderRadius] and [useSuperellipse].
+  final BeamContour? contour;
+
+  /// Which way the beam travels around the contour.
+  final BeamDirection direction;
+
+  /// Fraction of a cycle, 0–1, the timeline starts at.
+  final double phaseOffset;
+
+  /// How many beams travel the contour at once, spaced equally along the
+  /// cycle.
+  final int beamCount;
+
   /// Two configs are equal when every painted value is, which is what lets
   /// `BeamPainter.shouldRepaint` compare configs rather than identities.
   ///
@@ -236,6 +284,7 @@ class BeamConfig {
           other.brightnessFactor == brightnessFactor &&
           other.saturation == saturation &&
           other.hueRange == hueRange &&
+          other.hueMode == hueMode &&
           other.hueBase == hueBase &&
           other.staticColors == staticColors &&
           other.cycleSeconds == cycleSeconds &&
@@ -252,7 +301,18 @@ class BeamConfig {
           other.coreBlur == coreBlur &&
           other.bloomBlur == bloomBlur &&
           other.glowBrightness == glowBrightness &&
-          other.glowSaturation == glowSaturation;
+          other.glowSaturation == glowSaturation &&
+          other.tailLength == tailLength &&
+          other.glowSpread == glowSpread &&
+          other.comet == comet &&
+          other.sparkle == sparkle &&
+          other.segments == segments &&
+          other.edge == edge &&
+          other.ringOffset == ringOffset &&
+          other.contour == contour &&
+          other.direction == direction &&
+          other.phaseOffset == phaseOffset &&
+          other.beamCount == beamCount;
 
   @override
   int get hashCode => Object.hashAll([
@@ -267,6 +327,7 @@ class BeamConfig {
     brightnessFactor,
     saturation,
     hueRange,
+    hueMode,
     hueBase,
     staticColors,
     cycleSeconds,
@@ -284,6 +345,17 @@ class BeamConfig {
     bloomBlur,
     glowBrightness,
     glowSaturation,
+    tailLength,
+    glowSpread,
+    comet,
+    sparkle,
+    segments,
+    edge,
+    ringOffset,
+    contour,
+    direction,
+    phaseOffset,
+    beamCount,
   ]);
 
   @override

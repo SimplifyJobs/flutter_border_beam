@@ -1,7 +1,10 @@
 import 'package:flutter/foundation.dart';
 
+import 'beam_options.dart';
+
 /// How fast a beam moves: cycle length, the rest between sweeps, playback
-/// rate, and the periods of the tracks that do not ride the cycle.
+/// rate, travel direction, and the periods of the tracks that do not ride
+/// the cycle.
 ///
 /// Every field is nullable and means *inherit*. A field is resolved in this
 /// order: the value set on the widget, then the nearest `BorderBeamTheme`,
@@ -23,6 +26,9 @@ class BeamTiming {
     this.cycle,
     this.cycleGap,
     this.speed,
+    this.direction,
+    this.phaseOffset,
+    this.beamCount,
     this.huePeriod,
     this.bloomHuePeriod,
     this.breatheFactor,
@@ -57,6 +63,20 @@ class BeamTiming {
   /// own `speed` owns the rate then.
   final double? speed;
 
+  /// Which way the beam travels: clockwise (or left-to-right for the line
+  /// variant), mirrored, or alternating each cycle. Default
+  /// [BeamDirection.forward]. The pulse variants have no travel to direct.
+  final BeamDirection? direction;
+
+  /// Fraction of a cycle, 0–1, the timeline starts at, so two beams on the
+  /// same cycle can run out of step. Default 0 — the cycle starts at its
+  /// beginning.
+  final double? phaseOffset;
+
+  /// How many beams travel the contour at once, spaced equally along the
+  /// cycle. Must be at least 1; default 1.
+  final int? beamCount;
+
   /// One full period of the hue track.
   ///
   /// Defaults to 12s for rotate, small, and line (a ping-pong across
@@ -88,6 +108,9 @@ class BeamTiming {
     Duration? cycle,
     Duration? cycleGap,
     double? speed,
+    BeamDirection? direction,
+    double? phaseOffset,
+    int? beamCount,
     Duration? huePeriod,
     Duration? bloomHuePeriod,
     double? breatheFactor,
@@ -97,6 +120,9 @@ class BeamTiming {
     cycle: cycle ?? this.cycle,
     cycleGap: cycleGap ?? this.cycleGap,
     speed: speed ?? this.speed,
+    direction: direction ?? this.direction,
+    phaseOffset: phaseOffset ?? this.phaseOffset,
+    beamCount: beamCount ?? this.beamCount,
     huePeriod: huePeriod ?? this.huePeriod,
     bloomHuePeriod: bloomHuePeriod ?? this.bloomHuePeriod,
     breatheFactor: breatheFactor ?? this.breatheFactor,
@@ -112,6 +138,9 @@ class BeamTiming {
           cycle: other.cycle,
           cycleGap: other.cycleGap,
           speed: other.speed,
+          direction: other.direction,
+          phaseOffset: other.phaseOffset,
+          beamCount: other.beamCount,
           huePeriod: other.huePeriod,
           bloomHuePeriod: other.bloomHuePeriod,
           breatheFactor: other.breatheFactor,
@@ -126,6 +155,9 @@ class BeamTiming {
           other.cycle == cycle &&
           other.cycleGap == cycleGap &&
           other.speed == speed &&
+          other.direction == direction &&
+          other.phaseOffset == phaseOffset &&
+          other.beamCount == beamCount &&
           other.huePeriod == huePeriod &&
           other.bloomHuePeriod == bloomHuePeriod &&
           other.breatheFactor == breatheFactor &&
@@ -133,16 +165,19 @@ class BeamTiming {
           other.spike2Factor == spike2Factor;
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     cycle,
     cycleGap,
     speed,
+    direction,
+    phaseOffset,
+    beamCount,
     huePeriod,
     bloomHuePeriod,
     breatheFactor,
     spikeFactor,
     spike2Factor,
-  );
+  ]);
 
   @override
   String toString() {
@@ -150,6 +185,9 @@ class BeamTiming {
       if (cycle != null) 'cycle: $cycle',
       if (cycleGap != null) 'cycleGap: $cycleGap',
       if (speed != null) 'speed: $speed',
+      if (direction != null) 'direction: $direction',
+      if (phaseOffset != null) 'phaseOffset: $phaseOffset',
+      if (beamCount != null) 'beamCount: $beamCount',
       if (huePeriod != null) 'huePeriod: $huePeriod',
       if (bloomHuePeriod != null) 'bloomHuePeriod: $bloomHuePeriod',
       if (breatheFactor != null) 'breatheFactor: $breatheFactor',

@@ -1,7 +1,10 @@
 import 'package:flutter/foundation.dart';
 
-/// When a beam plays: whether it is on, whether it starts by itself, and how
-/// long it runs.
+import 'beam_options.dart';
+
+/// When a beam plays: whether it is on, whether it starts by itself, how
+/// long it runs, how many cycles it repeats, and what it does under reduced
+/// motion.
 ///
 /// Every field is nullable and means *inherit*. A field is resolved in this
 /// order: the value set on the widget (the `active:` shorthand wins over
@@ -28,7 +31,8 @@ class BeamPlayback {
     this.autoPlay,
     this.startAfter,
     this.duration,
-    this.respectReducedMotion,
+    this.repeat,
+    this.reducedMotion,
   });
 
   /// Declarative play state: toggling fades the beam in (0.6s) and out
@@ -44,9 +48,14 @@ class BeamPlayback {
   /// Total play time before the beam fades out by itself. Null plays forever.
   final Duration? duration;
 
-  /// Whether `MediaQuery.disableAnimationsOf` is honored by painting a single
-  /// static frame instead of animating. Default true.
-  final bool? respectReducedMotion;
+  /// How many cycles the beam runs before it fades out by itself. Default
+  /// [BeamRepeat.forever].
+  final BeamRepeat? repeat;
+
+  /// What the beam does when `MediaQuery.disableAnimationsOf` asks for
+  /// reduced motion: a single static frame (the default), nothing at all,
+  /// quarter-speed motion, or full motion regardless.
+  final BeamReducedMotion? reducedMotion;
 
   /// Returns a copy with the given fields replaced. A null argument keeps the
   /// current value; build a new [BeamPlayback] to clear a field back to
@@ -56,13 +65,15 @@ class BeamPlayback {
     bool? autoPlay,
     Duration? startAfter,
     Duration? duration,
-    bool? respectReducedMotion,
+    BeamRepeat? repeat,
+    BeamReducedMotion? reducedMotion,
   }) => BeamPlayback(
     active: active ?? this.active,
     autoPlay: autoPlay ?? this.autoPlay,
     startAfter: startAfter ?? this.startAfter,
     duration: duration ?? this.duration,
-    respectReducedMotion: respectReducedMotion ?? this.respectReducedMotion,
+    repeat: repeat ?? this.repeat,
+    reducedMotion: reducedMotion ?? this.reducedMotion,
   );
 
   /// Layers [other] over this playback: every non-null field of [other] wins,
@@ -74,7 +85,8 @@ class BeamPlayback {
           autoPlay: other.autoPlay,
           startAfter: other.startAfter,
           duration: other.duration,
-          respectReducedMotion: other.respectReducedMotion,
+          repeat: other.repeat,
+          reducedMotion: other.reducedMotion,
         );
 
   @override
@@ -85,11 +97,18 @@ class BeamPlayback {
           other.autoPlay == autoPlay &&
           other.startAfter == startAfter &&
           other.duration == duration &&
-          other.respectReducedMotion == respectReducedMotion;
+          other.repeat == repeat &&
+          other.reducedMotion == reducedMotion;
 
   @override
-  int get hashCode =>
-      Object.hash(active, autoPlay, startAfter, duration, respectReducedMotion);
+  int get hashCode => Object.hash(
+    active,
+    autoPlay,
+    startAfter,
+    duration,
+    repeat,
+    reducedMotion,
+  );
 
   @override
   String toString() {
@@ -98,8 +117,8 @@ class BeamPlayback {
       if (autoPlay != null) 'autoPlay: $autoPlay',
       if (startAfter != null) 'startAfter: $startAfter',
       if (duration != null) 'duration: $duration',
-      if (respectReducedMotion != null)
-        'respectReducedMotion: $respectReducedMotion',
+      if (repeat != null) 'repeat: $repeat',
+      if (reducedMotion != null) 'reducedMotion: $reducedMotion',
     ];
     return 'BeamPlayback(${fields.join(', ')})';
   }

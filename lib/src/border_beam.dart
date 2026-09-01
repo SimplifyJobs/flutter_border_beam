@@ -9,6 +9,7 @@ import 'border_beam_controller.dart';
 import 'border_beam_theme.dart';
 import 'models/beam_colors.dart';
 import 'models/beam_config.dart';
+import 'models/beam_options.dart';
 import 'models/beam_playback.dart';
 import 'models/beam_shape.dart';
 import 'models/beam_style.dart';
@@ -45,7 +46,7 @@ import 'painting/variant_strategy.dart';
 /// BorderBeam(
 ///   variant: variant,
 ///   style: const BeamStyle(colors: BeamColors.sunset, strength: 0.8),
-///   shape: const BeamShape.circular(24, superellipse: true),
+///   shape: const BeamShape.all(24, superellipse: true),
 ///   timing: const BeamTiming(cycleGap: Duration(seconds: 1)),
 ///   child: card,
 /// )
@@ -516,7 +517,8 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
   }
 
   bool get _reducedMotion =>
-      (_playback.respectReducedMotion ?? true) &&
+      (_playback.reducedMotion ?? BeamReducedMotion.staticFrame) !=
+          BeamReducedMotion.animate &&
       (MediaQuery.maybeDisableAnimationsOf(context) ?? false);
 
   @override

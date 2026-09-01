@@ -1,12 +1,13 @@
 import 'package:flutter/foundation.dart';
 
 import 'beam_colors.dart';
+import 'beam_options.dart';
 import 'beam_theme.dart';
 import 'beam_theme_config.dart';
 
-/// How a beam looks: its colors, how it adapts to the background, and every
-/// filter and layer-opacity hook ported from the source's CSS custom
-/// properties.
+/// How a beam looks: its colors, how it adapts to the background, the shape
+/// of its beam and glow, and every filter and layer-opacity hook ported from
+/// the source's CSS custom properties.
 ///
 /// Every field is nullable and means *inherit*. A field is resolved in this
 /// order: the value set on the widget (a shorthand such as `colors:` wins
@@ -29,6 +30,7 @@ class BeamStyle {
     this.brightness,
     this.saturation,
     this.hueRange,
+    this.hueMode,
     this.hueBase,
     this.staticColors,
     this.strokeOpacityFactor,
@@ -39,6 +41,11 @@ class BeamStyle {
     this.bloomBlur,
     this.glowBrightness,
     this.glowSaturation,
+    this.tailLength,
+    this.glowSpread,
+    this.comet,
+    this.sparkle,
+    this.segments,
     this.themeConfig,
   });
 
@@ -62,6 +69,13 @@ class BeamStyle {
   /// Hue animation amplitude in degrees (default 30; the line variant caps it
   /// at 13). Not used by pulse variants, whose hue cycles continuously.
   final double? hueRange;
+
+  /// Whether the hue swings back and forth across ±[hueRange] or advances
+  /// through one continuous 360° revolution.
+  ///
+  /// Defaults to [BeamHueMode.pingPong] for the traveling variants and
+  /// [BeamHueMode.continuous] for the pulse variants, matching the source.
+  final BeamHueMode? hueMode;
 
   /// Static hue offset in degrees added to the whole palette. Default 0.
   final double? hueBase;
@@ -97,6 +111,28 @@ class BeamStyle {
   /// pulse-outside glow saturation override (React `--beam-glow-saturate`).
   final double? glowSaturation;
 
+  /// Multiplier on the angular width of the rotate/small traveling window:
+  /// above 1 the beam drags a longer tail behind its head, below 1 it
+  /// shortens to a point. Default 1.
+  final double? tailLength;
+
+  /// Multiplier on how far the bloom and halo layers reach past the stroke
+  /// ring: above 1 the glow spreads wider and softer, below 1 it hugs the
+  /// border. Default 1.
+  final double? glowSpread;
+
+  /// Whether a soft halo trails the traveling head outside the ring, giving
+  /// the rotate and small beams a comet tail. Default false.
+  final bool? comet;
+
+  /// Density 0–1 (clamped) of the twinkles scattered at the traveling beam's
+  /// head. Default 0 — no sparkle.
+  final double? sparkle;
+
+  /// Number of dashes the ring is broken into, spaced evenly around the
+  /// contour. Null (the default) keeps the ring solid.
+  final int? segments;
+
   /// Replaces the whole variant×brightness preset (layer opacities, inset
   /// shadow, and the default brightness/saturation) with your own.
   ///
@@ -113,6 +149,7 @@ class BeamStyle {
     double? brightness,
     double? saturation,
     double? hueRange,
+    BeamHueMode? hueMode,
     double? hueBase,
     bool? staticColors,
     double? strokeOpacityFactor,
@@ -123,6 +160,11 @@ class BeamStyle {
     double? bloomBlur,
     double? glowBrightness,
     double? glowSaturation,
+    double? tailLength,
+    double? glowSpread,
+    bool? comet,
+    double? sparkle,
+    int? segments,
     BeamThemeConfig? themeConfig,
   }) => BeamStyle(
     colors: colors ?? this.colors,
@@ -131,6 +173,7 @@ class BeamStyle {
     brightness: brightness ?? this.brightness,
     saturation: saturation ?? this.saturation,
     hueRange: hueRange ?? this.hueRange,
+    hueMode: hueMode ?? this.hueMode,
     hueBase: hueBase ?? this.hueBase,
     staticColors: staticColors ?? this.staticColors,
     strokeOpacityFactor: strokeOpacityFactor ?? this.strokeOpacityFactor,
@@ -141,6 +184,11 @@ class BeamStyle {
     bloomBlur: bloomBlur ?? this.bloomBlur,
     glowBrightness: glowBrightness ?? this.glowBrightness,
     glowSaturation: glowSaturation ?? this.glowSaturation,
+    tailLength: tailLength ?? this.tailLength,
+    glowSpread: glowSpread ?? this.glowSpread,
+    comet: comet ?? this.comet,
+    sparkle: sparkle ?? this.sparkle,
+    segments: segments ?? this.segments,
     themeConfig: themeConfig ?? this.themeConfig,
   );
 
@@ -155,6 +203,7 @@ class BeamStyle {
           brightness: other.brightness,
           saturation: other.saturation,
           hueRange: other.hueRange,
+          hueMode: other.hueMode,
           hueBase: other.hueBase,
           staticColors: other.staticColors,
           strokeOpacityFactor: other.strokeOpacityFactor,
@@ -165,6 +214,11 @@ class BeamStyle {
           bloomBlur: other.bloomBlur,
           glowBrightness: other.glowBrightness,
           glowSaturation: other.glowSaturation,
+          tailLength: other.tailLength,
+          glowSpread: other.glowSpread,
+          comet: other.comet,
+          sparkle: other.sparkle,
+          segments: other.segments,
           themeConfig: other.themeConfig,
         );
 
@@ -178,6 +232,7 @@ class BeamStyle {
           other.brightness == brightness &&
           other.saturation == saturation &&
           other.hueRange == hueRange &&
+          other.hueMode == hueMode &&
           other.hueBase == hueBase &&
           other.staticColors == staticColors &&
           other.strokeOpacityFactor == strokeOpacityFactor &&
@@ -188,6 +243,11 @@ class BeamStyle {
           other.bloomBlur == bloomBlur &&
           other.glowBrightness == glowBrightness &&
           other.glowSaturation == glowSaturation &&
+          other.tailLength == tailLength &&
+          other.glowSpread == glowSpread &&
+          other.comet == comet &&
+          other.sparkle == sparkle &&
+          other.segments == segments &&
           other.themeConfig == themeConfig;
 
   @override
@@ -198,6 +258,7 @@ class BeamStyle {
     brightness,
     saturation,
     hueRange,
+    hueMode,
     hueBase,
     staticColors,
     strokeOpacityFactor,
@@ -208,6 +269,11 @@ class BeamStyle {
     bloomBlur,
     glowBrightness,
     glowSaturation,
+    tailLength,
+    glowSpread,
+    comet,
+    sparkle,
+    segments,
     themeConfig,
   ]);
 
@@ -220,6 +286,7 @@ class BeamStyle {
       if (brightness != null) 'brightness: $brightness',
       if (saturation != null) 'saturation: $saturation',
       if (hueRange != null) 'hueRange: $hueRange',
+      if (hueMode != null) 'hueMode: $hueMode',
       if (hueBase != null) 'hueBase: $hueBase',
       if (staticColors != null) 'staticColors: $staticColors',
       if (strokeOpacityFactor != null)
@@ -231,6 +298,11 @@ class BeamStyle {
       if (bloomBlur != null) 'bloomBlur: $bloomBlur',
       if (glowBrightness != null) 'glowBrightness: $glowBrightness',
       if (glowSaturation != null) 'glowSaturation: $glowSaturation',
+      if (tailLength != null) 'tailLength: $tailLength',
+      if (glowSpread != null) 'glowSpread: $glowSpread',
+      if (comet != null) 'comet: $comet',
+      if (sparkle != null) 'sparkle: $sparkle',
+      if (segments != null) 'segments: $segments',
       if (themeConfig != null) 'themeConfig: $themeConfig',
     ];
     return 'BeamStyle(${fields.join(', ')})';

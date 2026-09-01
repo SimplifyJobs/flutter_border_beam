@@ -154,6 +154,31 @@ void main() {
           _resolve(timing: _timing.copyWith(spikeFactor: 1.25)),
       'timing.spike2Factor': () =>
           _resolve(timing: _timing.copyWith(spike2Factor: 1.35)),
+      'style.hueMode': () =>
+          _resolve(style: _style.copyWith(hueMode: BeamHueMode.continuous)),
+      'style.tailLength': () =>
+          _resolve(style: _style.copyWith(tailLength: 1.5)),
+      'style.glowSpread': () =>
+          _resolve(style: _style.copyWith(glowSpread: 1.5)),
+      'style.comet': () => _resolve(style: _style.copyWith(comet: true)),
+      'style.sparkle': () => _resolve(style: _style.copyWith(sparkle: 0.5)),
+      'style.segments': () => _resolve(style: _style.copyWith(segments: 6)),
+      'shape.edge': () => _resolve(shape: _shape.copyWith(edge: BeamEdge.top)),
+      'shape.ringOffset': () => _resolve(shape: _shape.copyWith(ringOffset: 4)),
+      'shape.contour': () => _resolve(
+        shape: _shape.copyWith(
+          contour: BeamPathContour(
+            (rect) => Path()..addOval(rect),
+            key: 'oval',
+          ),
+        ),
+      ),
+      'timing.direction': () =>
+          _resolve(timing: _timing.copyWith(direction: BeamDirection.reverse)),
+      'timing.phaseOffset': () =>
+          _resolve(timing: _timing.copyWith(phaseOffset: 0.5)),
+      'timing.beamCount': () =>
+          _resolve(timing: _timing.copyWith(beamCount: 2)),
     };
 
     for (final MapEntry(key: name, value: mutate) in mutations.entries) {
@@ -180,12 +205,100 @@ void main() {
       );
     });
 
+    test('two contours with the same key resolve equal', () {
+      BeamShape shaped(String key) => _shape.copyWith(
+        contour: BeamPathContour((rect) => Path()..addOval(rect), key: key),
+      );
+      expect(_resolve(shape: shaped('oval')), _resolve(shape: shaped('oval')));
+      expect(
+        _resolve(shape: shaped('oval')),
+        isNot(_resolve(shape: shaped('notch'))),
+      );
+    });
+
     test('speed is not part of the painted value', () {
       expect(
         _resolve(timing: _timing.copyWith(speed: 4)),
         _resolve(),
         reason: 'the clock owns the rate; the painter never reads it',
       );
+    });
+  });
+
+  group('defaults', () {
+    BeamConfig bare(BeamVariant variant) => BeamConfig.resolve(
+      variant: variant,
+      palette: BeamColors.colorful.resolve(),
+      brightness: Brightness.dark,
+    );
+
+    test('the hue mode follows the variant family', () {
+      for (final variant in BeamVariant.values) {
+        expect(
+          bare(variant).hueMode,
+          variant.isPulse ? BeamHueMode.continuous : BeamHueMode.pingPong,
+          reason: '$variant',
+        );
+      }
+    });
+
+    test('an explicit hue mode overrides the family default', () {
+      expect(
+        BeamConfig.resolve(
+          variant: BeamVariant.rotate,
+          palette: BeamColors.colorful.resolve(),
+          brightness: Brightness.dark,
+          style: const BeamStyle(hueMode: BeamHueMode.continuous),
+        ).hueMode,
+        BeamHueMode.continuous,
+      );
+    });
+
+    test('the hue periods come from the variant accessors', () {
+      for (final variant in BeamVariant.values) {
+        final config = bare(variant);
+        expect(
+          config.huePeriodSeconds,
+          variant.defaultHuePeriod.inMicroseconds /
+              Duration.microsecondsPerSecond,
+          reason: '$variant',
+        );
+        expect(
+          config.bloomHuePeriodSeconds,
+          variant.defaultBloomHuePeriod.inMicroseconds /
+              Duration.microsecondsPerSecond,
+          reason: '$variant',
+        );
+      }
+    });
+
+    test('every new field resolves to a render-neutral default', () {
+      for (final variant in BeamVariant.values) {
+        final config = bare(variant);
+        expect(config.tailLength, 1, reason: '$variant');
+        expect(config.glowSpread, 1, reason: '$variant');
+        expect(config.comet, isFalse, reason: '$variant');
+        expect(config.sparkle, 0, reason: '$variant');
+        expect(config.segments, isNull, reason: '$variant');
+        expect(config.edge, BeamEdge.bottom, reason: '$variant');
+        expect(config.ringOffset, 0, reason: '$variant');
+        expect(config.contour, isNull, reason: '$variant');
+        expect(config.direction, BeamDirection.forward, reason: '$variant');
+        expect(config.phaseOffset, 0, reason: '$variant');
+        expect(config.beamCount, 1, reason: '$variant');
+      }
+    });
+
+    test('sparkle is clamped to 0-1', () {
+      BeamConfig withSparkle(double sparkle) => BeamConfig.resolve(
+        variant: BeamVariant.rotate,
+        palette: BeamColors.colorful.resolve(),
+        brightness: Brightness.dark,
+        style: BeamStyle(sparkle: sparkle),
+      );
+      expect(withSparkle(-1).sparkle, 0);
+      expect(withSparkle(2).sparkle, 1);
+      expect(withSparkle(0.5).sparkle, 0.5);
     });
   });
 

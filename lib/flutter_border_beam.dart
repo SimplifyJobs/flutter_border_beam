@@ -11,6 +11,15 @@ export 'src/border_beam_controller.dart' show BorderBeamController;
 export 'src/border_beam_theme.dart' show BorderBeamTheme, BorderBeamThemeData;
 export 'src/models/beam_blob.dart' show BeamBlob, LineBlob;
 export 'src/models/beam_colors.dart' show BeamColors;
+export 'src/models/beam_options.dart'
+    show
+        BeamContour,
+        BeamDirection,
+        BeamEdge,
+        BeamHueMode,
+        BeamPathContour,
+        BeamReducedMotion,
+        BeamRepeat;
 export 'src/models/beam_playback.dart' show BeamPlayback;
 export 'src/models/beam_shape.dart' show BeamShape;
 export 'src/models/beam_style.dart' show BeamStyle;

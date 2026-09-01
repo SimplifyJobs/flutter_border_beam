@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+### Added
+
+- `BeamStyle.hueMode` picks the shape of the hue track: `BeamHueMode.pingPong`
+  swings across ±`hueRange`, `BeamHueMode.continuous` revolves a full 360°.
+  Traveling variants ping-pong, pulse variants revolve, as before.
+- `BeamStyle.tailLength` stretches or shortens the traveling window's tail,
+  and `BeamStyle.glowSpread` scales how far the bloom and halo layers reach
+  past the ring.
+- `BeamStyle.comet` trails a soft halo outside the ring behind the rotate and
+  small beams' head; `BeamStyle.sparkle` scatters twinkles at that head, at a
+  density of 0–1.
+- `BeamStyle.segments` breaks the ring into that many evenly spaced dashes;
+  null keeps it solid.
+- `BeamShape.all(radius)` is the const path to a uniform radius — it stores
+  the number instead of building a `BorderRadius`, so a theme or a widget can
+  hold one in a `const` expression. It compares equal to
+  `BeamShape.circular(radius)`.
+- `BeamShape.edge` moves the line variant's beam to any `BeamEdge` (top,
+  right, bottom, left); `BeamShape.ringOffset` pushes the ring outward or
+  pulls it inward from the child's bounds.
+- `BeamShape.contour` takes a `BeamContour` — an arbitrary closed path for the
+  beam to travel, replacing the rounded rectangle. `BeamPathContour` wraps a
+  `Path Function(Rect)` with an explicit equality key.
+- `BeamTiming.direction` runs the beam forward, reversed, or alternating each
+  cycle (`BeamDirection`); `BeamTiming.phaseOffset` starts the timeline part
+  way through a cycle; `BeamTiming.beamCount` sends several beams around the
+  contour at once, equally spaced.
+- `BeamPlayback.repeat` stops the beam after a set number of cycles
+  (`BeamRepeat.forever()`, `.once()`, `.count(n)`).
+- `BeamPlayback.reducedMotion` chooses what happens under
+  `MediaQuery.disableAnimations`: `staticFrame` (the default), `hide`, `slow`
+  (quarter speed), or `animate` to ignore the request.
+- `BeamVariant.defaultHuePeriod` and `BeamVariant.defaultBloomHuePeriod`
+  expose the per-variant hue timings the config resolves against.
+
 ### Changed
 
 - The package is named `flutter_border_beam`; the barrel is
@@ -40,6 +75,9 @@
 
 ### Removed
 
+- `BeamPlayback.respectReducedMotion`, replaced by
+  `BeamPlayback.reducedMotion`; `reducedMotion: BeamReducedMotion.animate` is
+  what `respectReducedMotion: false` used to say.
 - The `sprung` dependency. The fade envelope is eased by the in-package
   `FadeSpringCurve` (mass 1, stiffness 180, damping 20 — the same spring),
   so the package depends on the Flutter SDK alone.
