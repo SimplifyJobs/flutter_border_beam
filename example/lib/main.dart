@@ -64,11 +64,11 @@ class _DemoPageState extends State<_DemoPage> {
           ).copyWith(scrollbars: false, overscroll: false),
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 560),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _CenteredColumn(
+                  maxWidth: 560,
                   children: [
                     _Header(onToggleTheme: theme.toggle, isDark: theme.isDark),
                     const SizedBox(height: 36),
@@ -87,15 +87,38 @@ class _DemoPageState extends State<_DemoPage> {
                           : const _RotateExamples(key: ValueKey('rotate')),
                     ),
                     const SizedBox(height: 56),
-                    const _SectionTitle('Playground'),
+                    const _SectionTitle('Themed'),
+                    const _SectionCaption(
+                      'One BorderBeamTheme above all three — each card sets '
+                      'only its variant and inherits ocean + squircle 20.',
+                    ),
                     const SizedBox(height: 16),
-                    const PlaygroundSection(),
-                    const SizedBox(height: 56),
-                    const _Footer(),
-                    const SizedBox(height: 24),
+                    const _ThemedExamples(),
+                    const SizedBox(height: 40),
+                    const _SectionTitle('Rest between sweeps'),
+                    const _SectionCaption(
+                      'cycleGap parks the beam at the end of its travel and '
+                      'fades it away before the next sweep starts.',
+                    ),
+                    const SizedBox(height: 16),
+                    const _CycleGapExample(),
                   ],
                 ),
-              ),
+                const SizedBox(height: 56),
+                const _CenteredColumn(
+                  maxWidth: 1040,
+                  children: [
+                    _SectionTitle('Playground'),
+                    SizedBox(height: 16),
+                    PlaygroundSection(),
+                  ],
+                ),
+                const SizedBox(height: 56),
+                const _CenteredColumn(
+                  maxWidth: 560,
+                  children: [_Footer(), SizedBox(height: 24)],
+                ),
+              ],
             ),
           ),
         ),
@@ -149,6 +172,26 @@ class _Header extends StatelessWidget {
   }
 }
 
+/// A page section held to [maxWidth] and centered — the gallery reads at
+/// 560, the playground needs room for two previews beside its controls.
+class _CenteredColumn extends StatelessWidget {
+  const _CenteredColumn({required this.maxWidth, required this.children});
+
+  final double maxWidth;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: children,
+      ),
+    ),
+  );
+}
+
 class _SectionTitle extends StatelessWidget {
   const _SectionTitle(this.text);
 
@@ -164,6 +207,29 @@ class _SectionTitle extends StatelessWidget {
         fontWeight: FontWeight.w600,
         color: t.heading,
         decoration: TextDecoration.none,
+      ),
+    );
+  }
+}
+
+class _SectionCaption extends StatelessWidget {
+  const _SectionCaption(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = DemoTheme.of(context).tokens;
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 12,
+          height: 1.5,
+          color: t.muted,
+          decoration: TextDecoration.none,
+        ),
       ),
     );
   }
@@ -300,6 +366,106 @@ class _PulseExamples extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+// Defaults handed to the Themed section's three cards. Not const: building a
+// BorderRadius from a number is a runtime construction, so BeamShape.circular
+// cannot be const either.
+final BorderBeamThemeData _galleryThemeData = BorderBeamThemeData(
+  style: const BeamStyle(colors: BeamColors.ocean),
+  shape: BeamShape.circular(20, superellipse: true),
+  timing: const BeamTiming(cycle: Duration(milliseconds: 2600)),
+);
+
+/// Three variants under one [BorderBeamTheme]: each beam sets nothing but
+/// its own variant, so colors, shape, and cycle all come from the theme.
+class _ThemedExamples extends StatelessWidget {
+  const _ThemedExamples();
+
+  @override
+  Widget build(BuildContext context) {
+    return BorderBeamTheme(
+      data: _galleryThemeData,
+      child: Row(
+        children: [
+          for (final entry in const [
+            (label: 'rotate', variant: BeamVariant.rotate),
+            (label: 'small', variant: BeamVariant.small),
+            (label: 'pulseInside', variant: BeamVariant.pulseInside),
+          ]) ...[
+            if (entry.label != 'rotate') const SizedBox(width: 16),
+            Expanded(
+              child: ExampleFrame(
+                height: 150,
+                clip: false,
+                child: SizedBox(
+                  height: 84,
+                  child: BorderBeam(
+                    variant: entry.variant,
+                    child: _ThemedCard(label: entry.label),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// The surface the themed cards wrap — squircle 20, matching the theme's
+/// shape, since a beam never reads its child's decoration.
+class _ThemedCard extends StatelessWidget {
+  const _ThemedCard({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = DemoTheme.of(context).tokens;
+    return Container(
+      decoration: ShapeDecoration(
+        color: t.mockBg,
+        shape: RoundedSuperellipseBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: t.mockBorder),
+        ),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          color: t.mockText,
+          fontFamily: 'Menlo',
+          fontFamilyFallback: const ['Courier New', 'monospace'],
+          decoration: TextDecoration.none,
+        ),
+      ),
+    );
+  }
+}
+
+/// A beam that rests between sweeps instead of running one straight into the
+/// next.
+class _CycleGapExample extends StatelessWidget {
+  const _CycleGapExample();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = DemoTheme.of(context);
+    return ExampleFrame(
+      child: BorderBeam.rotate(
+        style: BeamStyle(
+          theme: theme.isDark ? BeamTheme.dark : BeamTheme.light,
+        ),
+        borderRadius: 20,
+        timing: const BeamTiming(cycleGap: Duration(milliseconds: 900)),
+        child: const MockChatInput(),
+      ),
     );
   }
 }
