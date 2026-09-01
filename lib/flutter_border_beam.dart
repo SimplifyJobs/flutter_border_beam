@@ -28,3 +28,7 @@ export 'src/models/beam_theme.dart' show BeamTheme;
 export 'src/models/beam_theme_config.dart' show BeamThemeConfig;
 export 'src/models/beam_timing.dart' show BeamTiming;
 export 'src/models/beam_variant.dart' show BeamVariant;
+export 'src/widgets/beam_decoration.dart' show BeamDecoration;
+export 'src/widgets/beam_focus_ring.dart' show BeamFocusRing;
+export 'src/widgets/beam_hover.dart' show BeamHover;
+export 'src/widgets/beam_press.dart' show BeamPress;
