@@ -1,0 +1,195 @@
+# Publish flutter_border_beam to pub.dev and cut a GitHub Release.
+#
+# Trigger: pushing a `vX.Y.Z` tag (a `-suffix` prerelease tag is allowed).
+#
+# ── ONE-TIME SETUP THE MAINTAINER MUST DO ────────────────────────────────────
+#
+#  1. Publish the FIRST version by hand from a workstation:
+#         flutter pub publish
+#     pub.dev can only automate publishing of packages that already exist —
+#     "Today, you can only automate publishing of existing packages. To create
+#     a new package, you must publish the first version using `dart pub
+#     publish`." (https://dart.dev/tools/pub/automated-publishing). Until
+#     0.1.0 is on pub.dev there is nothing to attach automated publishing to.
+#  2. On pub.dev, open
+#         https://pub.dev/packages/flutter_border_beam/admin
+#     → "Automated publishing" → "Enable publishing from GitHub Actions", and
+#     set:
+#         Repository:   SimplifyJobs/flutter_border_beam
+#         Tag pattern:  v{{version}}
+#     (You must be an uploader on the package to see the Admin tab.)
+#  3. Nothing else. There is no PUB_CREDENTIALS / CREDENTIAL_JSON secret to
+#     create — authentication is a short-lived GitHub-signed OIDC token, which
+#     is why this workflow needs `id-token: write`.
+#
+# ── WHY THIS JOB IS WRITTEN OUT INSTEAD OF CALLING THE REUSABLE WORKFLOW ─────
+#
+# The sanctioned shortcut is
+#     uses: dart-lang/setup-dart/.github/workflows/publish.yml@v1
+# but it runs a fixed pipeline (`dart pub get` → dry run → `dart pub publish
+# -f`) with no hook for the tag/CHANGELOG verification, the quality gate, or
+# the GitHub Release this repo wants. So the steps are inlined here, following
+# the same SDK layout that reusable workflow uses — checkout, then
+# `dart-lang/setup-dart`, then a Flutter SDK:
+# https://github.com/dart-lang/setup-dart/blob/main/.github/workflows/publish.yml
+#
+# `dart-lang/setup-dart` is the step that mints the credential: it requests a
+# GitHub OIDC token for the `https://pub.dev` audience, exports it as
+# `PUB_TOKEN`, and runs `dart pub token add https://pub.dev --env-var
+# PUB_TOKEN`. That writes the pub client's shared token store, so any later
+# pub invocation — including the Flutter SDK's bundled one — is authenticated.
+# Per the docs: "The workflow authenticates to pub.dev using a temporary
+# GitHub-signed OIDC token, the token is created and configured in the
+# `dart-lang/setup-dart` step. To publish to pub.dev, subsequent steps can run
+# `dart pub publish --force`."
+# (https://dart.dev/tools/pub/automated-publishing)
+#
+# `subosito/flutter-action` runs after setup-dart so the Flutter SDK's own
+# Dart is the one on PATH for the gate and the publish — this package depends
+# on the Flutter SDK, which a Dart-only SDK cannot resolve.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+*"
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  # Must match ci.yaml's pin.
+  FLUTTER_VERSION: 3.44.2
+
+jobs:
+  publish:
+    name: Publish to pub.dev
+    runs-on: ubuntu-latest
+    permissions:
+      # Mints the pub.dev OIDC credential.
+      id-token: write
+      # Lets `gh release create` write the GitHub Release.
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # Order matters — see the header. This step configures the pub.dev
+      # credential; the Flutter SDK installed next provides the toolchain.
+      - uses: dart-lang/setup-dart@v1
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Verify the tag matches pubspec.yaml
+        id: version
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          PUBSPEC_VERSION="$(sed -n 's/^version:[[:space:]]*//p' pubspec.yaml \
+            | head -n 1 | tr -d "\"' ")"
+
+          if [ -z "$PUBSPEC_VERSION" ]; then
+            echo "::error::Could not read a 'version:' from pubspec.yaml."
+            exit 1
+          fi
+          if [ "$VERSION" != "$PUBSPEC_VERSION" ]; then
+            echo "::error::Tag ${TAG} implies version ${VERSION}, but pubspec.yaml declares ${PUBSPEC_VERSION}. Bump one of them and re-tag."
+            exit 1
+          fi
+
+          {
+            echo "tag=${TAG}"
+            echo "version=${VERSION}"
+          } >> "$GITHUB_OUTPUT"
+
+          if [[ "$VERSION" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "Publishing ${PUBSPEC_VERSION} from tag ${TAG}."
+
+      - name: Extract the CHANGELOG section
+        id: changelog
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          VERSION_RE="${VERSION//./\\.}"
+          if ! grep -qE "^## +${VERSION_RE}( |\$)" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no '## ${VERSION}' heading. Every published version needs release notes."
+            exit 1
+          fi
+
+          NOTES_FILE="${RUNNER_TEMP}/release-notes.md"
+          # Capture everything between the `## <version>` heading (optionally
+          # followed by a date) and the next `## ` heading.
+          awk -v heading="## ${VERSION}" '
+            index($0, "## ") == 1 {
+              if ($0 == heading || index($0, heading " ") == 1) {
+                found = 1
+                next
+              }
+              if (found) { exit }
+              next
+            }
+            found { print }
+          ' CHANGELOG.md > "$NOTES_FILE"
+
+          if ! grep -q '[^[:space:]]' "$NOTES_FILE"; then
+            echo "::error::The '## ${VERSION}' section of CHANGELOG.md is empty."
+            exit 1
+          fi
+
+          echo "notes-file=${NOTES_FILE}" >> "$GITHUB_OUTPUT"
+          echo "--- release notes ---"
+          cat "$NOTES_FILE"
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Verify formatting
+        run: dart format --set-exit-if-changed --output=none .
+
+      - name: Analyze
+        run: flutter analyze --fatal-infos
+
+      # Goldens are excluded here: they are pinned to macOS rendering and this
+      # job runs on ubuntu, where they would fail on renderer differences
+      # alone. The `goldens` job in ci.yaml (macos-latest) is the golden gate,
+      # and it runs on every push to `main` — so the commit being tagged has
+      # already had its goldens verified.
+      - name: Test
+        run: flutter test --exclude-tags golden
+
+      - name: Publish to pub.dev
+        run: flutter pub publish --force
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          NOTES_FILE: ${{ steps.changelog.outputs.notes-file }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          if [ "$PRERELEASE" = "true" ]; then
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --notes-file "$NOTES_FILE" \
+              --prerelease
+          else
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --notes-file "$NOTES_FILE"
+          fi

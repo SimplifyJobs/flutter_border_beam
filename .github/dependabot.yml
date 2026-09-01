@@ -1,0 +1,34 @@
+# Weekly dependency updates, grouped so each ecosystem lands as a single PR
+# rather than one PR per bump.
+version: 2
+
+updates:
+  # GitHub Actions used by ci.yaml and release.yaml.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+    commit-message:
+      prefix: ci
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  # Dart/Flutter dependencies for the package and the example gallery.
+  - package-ecosystem: pub
+    directories:
+      - /
+      - /example
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+    commit-message:
+      prefix: chore
+    groups:
+      pub:
+        patterns:
+          - "*"

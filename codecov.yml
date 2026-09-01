@@ -1,0 +1,15 @@
+# Coverage is a signal, not a gate, while the suite is being built out.
+# Nothing here may turn a pull request red.
+coverage:
+  status:
+    project:
+      default:
+        # Tolerate small dips; a real drop still shows up in the check.
+        threshold: 1%
+        informational: true
+    patch:
+      default:
+        informational: true
+
+# Keep pull requests quiet — the check status carries the number.
+comment: false
