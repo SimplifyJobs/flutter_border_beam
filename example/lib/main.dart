@@ -1,4 +1,4 @@
-import 'package:border_beam/border_beam.dart';
+import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter/material.dart';
 
 import 'src/demo_theme.dart';
@@ -7,7 +7,7 @@ import 'src/playground.dart';
 
 void main() => runApp(const BorderBeamDemoApp());
 
-/// The border_beam gallery — a Flutter recreation of the original React
+/// The flutter_border_beam gallery — a Flutter recreation of the original React
 /// demo (https://beam.jakubantalik.com): hero, Rotate/Pulse example tabs,
 /// and an interactive playground, styled with the demo's own tokens instead
 /// of Material defaults.
@@ -324,7 +324,7 @@ class _Footer extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          'Flutter port · border_beam package',
+          'Flutter port · flutter_border_beam package',
           textAlign: TextAlign.center,
           style: muted.copyWith(color: t.muted.withValues(alpha: 0.5)),
         ),

@@ -1,10 +1,10 @@
 import 'dart:ui' as ui;
 
-import 'package:border_beam/src/animation/beam_phases.dart';
-import 'package:border_beam/src/models/beam_colors.dart';
-import 'package:border_beam/src/models/beam_config.dart';
-import 'package:border_beam/src/models/beam_variant.dart';
-import 'package:border_beam/src/painting/beam_painter.dart';
+import 'package:flutter_border_beam/src/animation/beam_phases.dart';
+import 'package:flutter_border_beam/src/models/beam_colors.dart';
+import 'package:flutter_border_beam/src/models/beam_config.dart';
+import 'package:flutter_border_beam/src/models/beam_variant.dart';
+import 'package:flutter_border_beam/src/painting/beam_painter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

@@ -1,4 +1,4 @@
-# border_beam — agent guide
+# flutter_border_beam — agent guide
 
 Flutter package: animated border beam effects. A faithful port of the
 [border-beam](https://github.com/Jakubantalik/border-beam) React library
@@ -22,7 +22,7 @@ widget (`BeamClock`), mirroring the React library's single shared rAF loop.
 No `AnimationController`s; phases are recomputed from `elapsedSeconds` each
 frame.
 
-- `lib/border_beam.dart` — barrel; ONLY `BorderBeam`, `BorderBeamController`, `BeamVariant`, `BeamColors`, `BeamBlob`/`LineBlob`, `BeamTheme` are public.
+- `lib/flutter_border_beam.dart` — barrel; ONLY `BorderBeam`, `BorderBeamController`, `BeamVariant`, `BeamColors`, `BeamBlob`/`LineBlob`, `BeamTheme` are public.
 - `lib/src/border_beam.dart` — widget, 5 named constructors, scheduling/lifecycle. Controller attached ⇒ it owns playback exclusively (asserts `startAfter`/`duration` are null).
 - `lib/src/animation/` — `beam_clock.dart` (ticker, speed, pause, spring fades via `sprung`, optional fps cap), `oscillator.dart` (pingPong + the 17-oscillator pulse bank), `beam_phases.dart` (per-frame value object + keyframe sampling).
 - `lib/src/painting/` — `beam_painter.dart` (one `CustomPainter`, repaint driven by the clock, `behind`/`above` passes), `strategies/` (one per variant family), `ring_geometry.dart` (rrect + `RSuperellipse` ring via `Path.combine` difference), `gradient_builders.dart`, `color_matrix.dart` (hue/brightness/saturation matrices), `layer_utils.dart`.

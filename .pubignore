@@ -1,4 +1,6 @@
 # Repo-only files, excluded from the published pub package.
+# `screenshots/` stays in the archive — pub.dev renders the images the
+# pubspec's `screenshots:` section points at, so they must ship with the package.
 assets/
 tool/
 CLAUDE.md

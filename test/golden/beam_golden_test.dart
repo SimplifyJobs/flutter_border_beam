@@ -1,8 +1,8 @@
 @Tags(['golden'])
 library;
 
-import 'package:border_beam/border_beam.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Golden scenes freeze the (fake) test clock at 1.3s after activation —

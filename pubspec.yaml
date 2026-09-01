@@ -1,17 +1,28 @@
-name: border_beam
+name: flutter_border_beam
 description: >-
   Animated border beam effects for Flutter. Traveling and breathing glow
   animations around any widget — cards, buttons, inputs — with rotate, line,
   and pulse variants, custom palettes, superellipse borders, and an optional
   playback controller. A faithful port of the border-beam React library.
 version: 0.1.0
-repository: https://github.com/rehmatsg/border-beam
+repository: https://github.com/SimplifyJobs/flutter_border_beam
+issue_tracker: https://github.com/SimplifyJobs/flutter_border_beam/issues
+homepage: https://github.com/SimplifyJobs/flutter_border_beam
 topics:
   - animation
   - border
   - glow
   - effect
   - ui
+screenshots:
+  - path: screenshots/rotate.png
+    description: Rotate variant — a beam travels around the full border of a card.
+  - path: screenshots/pulse_outside.png
+    description: Pulse-outside variant — a breathing halo blooms behind the child.
+  - path: screenshots/line.png
+    description: Line variant — the beam rides the bottom edge of an input.
+  - path: screenshots/squircle.png
+    description: Superellipse borders in the ocean palette — Apple-style squircle contour.
 
 environment:
   sdk: ^3.9.0

@@ -1,9 +1,9 @@
-import 'package:border_beam/src/constants/palettes.dart';
-import 'package:border_beam/src/constants/pulse_tables.dart';
-import 'package:border_beam/src/constants/theme_presets.dart';
-import 'package:border_beam/src/models/beam_colors.dart';
-import 'package:border_beam/src/models/beam_variant.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_border_beam/src/constants/palettes.dart';
+import 'package:flutter_border_beam/src/constants/pulse_tables.dart';
+import 'package:flutter_border_beam/src/constants/theme_presets.dart';
+import 'package:flutter_border_beam/src/models/beam_colors.dart';
+import 'package:flutter_border_beam/src/models/beam_variant.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

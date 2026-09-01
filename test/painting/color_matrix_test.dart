@@ -1,7 +1,7 @@
 import 'dart:ui';
 
-import 'package:border_beam/src/painting/color_matrix.dart';
-import 'package:border_beam/src/painting/ring_geometry.dart';
+import 'package:flutter_border_beam/src/painting/color_matrix.dart';
+import 'package:flutter_border_beam/src/painting/ring_geometry.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

@@ -1,4 +1,4 @@
-# border_beam
+# flutter_border_beam
 
 Animated border beam effects for Flutter — a traveling or breathing glow around any widget: cards, buttons, inputs, or search bars.
 
@@ -9,21 +9,21 @@ A faithful Flutter port of the [border-beam](https://github.com/Jakubantalik/bor
 <table>
   <tr>
     <td width="50%" align="center">
-      <img src="assets/showcase/rotate.png" width="360" alt="Rotate beam" /><br/>
+      <img src="screenshots/rotate.png" width="360" alt="Rotate beam" /><br/>
       <sub><b>Rotate</b> — a beam travels around the border</sub>
     </td>
     <td width="50%" align="center">
-      <img src="assets/showcase/pulse_outside.png" width="360" alt="Pulse outside halo" /><br/>
+      <img src="screenshots/pulse_outside.png" width="360" alt="Pulse outside halo" /><br/>
       <sub><b>Pulse outside</b> — a breathing halo blooms behind the child</sub>
     </td>
   </tr>
   <tr>
     <td width="50%" align="center">
-      <img src="assets/showcase/line.png" width="360" alt="Line beam" /><br/>
+      <img src="screenshots/line.png" width="360" alt="Line beam" /><br/>
       <sub><b>Line</b> — the beam rides the bottom edge</sub>
     </td>
     <td width="50%" align="center">
-      <img src="assets/showcase/squircle.png" width="360" alt="Squircle beam" /><br/>
+      <img src="screenshots/squircle.png" width="360" alt="Squircle beam" /><br/>
       <sub><b>Superellipse</b> — Apple-style squircle borders, <code>ocean</code> palette</sub>
     </td>
   </tr>
@@ -51,7 +51,7 @@ Run the example app for the full animated gallery (`cd example && flutter run`);
 
 ```yaml
 dependencies:
-  border_beam: ^0.1.0
+  flutter_border_beam: ^0.1.0
 ```
 
 ## Usage
@@ -59,7 +59,7 @@ dependencies:
 Wrap any widget:
 
 ```dart
-import 'package:border_beam/border_beam.dart';
+import 'package:flutter_border_beam/flutter_border_beam.dart';
 
 BorderBeam.rotate(
   child: Card(child: content),

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- The package is named `flutter_border_beam`; the barrel is
+  `package:flutter_border_beam/flutter_border_beam.dart`.
+- The canonical repository is https://github.com/SimplifyJobs/flutter_border_beam.
+
 ## 0.1.0
 
 Initial release — a faithful Flutter port of the [border-beam](https://github.com/Jakubantalik/border-beam) React library (v1.3.0) by Jakub Antalik.

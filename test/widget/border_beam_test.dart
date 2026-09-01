@@ -1,5 +1,5 @@
-import 'package:border_beam/border_beam.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Widget _host(Widget child, {bool disableAnimations = false}) => MaterialApp(
