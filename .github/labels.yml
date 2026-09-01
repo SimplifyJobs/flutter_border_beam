@@ -1,0 +1,41 @@
+# The repository's label set, kept in version control so it is reviewable.
+#
+# Nothing syncs this automatically yet — applying it means either creating the
+# labels by hand or wiring a sync action (e.g. crazy-max/ghaction-github-labeler)
+# that reads this file. Until then, treat it as the source of truth a human
+# reconciles against.
+#
+# `dependencies` is the one label that is already load-bearing: dependabot.yml
+# applies it to every update PR it opens.
+
+- name: bug
+  color: d73a4a
+  description: Something renders, animates, or behaves incorrectly.
+
+- name: enhancement
+  color: a2eeef
+  description: A new variant, option, palette, or API.
+
+- name: documentation
+  color: 0075ca
+  description: README, doc comments, or the guides in this repo.
+
+- name: rendering
+  color: 8a63d2
+  description: Painting, geometry, gradients, goldens — anything about the pixels.
+
+- name: performance
+  color: fbca04
+  description: Frame cost, saveLayer budget, repaint churn, memory.
+
+- name: good first issue
+  color: 7057ff
+  description: Self-contained and well-scoped — a good place to start.
+
+- name: help wanted
+  color: 008672
+  description: Maintainers would welcome a contributor picking this up.
+
+- name: dependencies
+  color: 0366d6
+  description: Dependency and GitHub Actions updates (applied by dependabot).

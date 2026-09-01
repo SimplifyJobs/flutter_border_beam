@@ -1,12 +1,12 @@
 {
-    "name": "border_beam_example",
-    "short_name": "border_beam_example",
+    "name": "flutter_border_beam playground",
+    "short_name": "border beam",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
-    "orientation": "portrait-primary",
+    "background_color": "#070707",
+    "theme_color": "#070707",
+    "description": "Interactive playground and gallery for flutter_border_beam — animated border beam effects for Flutter.",
+    "orientation": "any",
     "prefer_related_applications": false,
     "icons": [
         {
