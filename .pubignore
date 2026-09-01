@@ -3,6 +3,8 @@
 # pubspec's `screenshots:` section points at, so they must ship with the package.
 assets/
 tool/
+# The vendored upstream spec is parity-test input only (123 KB of JSON).
+test/fixtures/
 CLAUDE.md
 .demos/
 **/.dart_tool/

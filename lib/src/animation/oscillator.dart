@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
+
 import '../constants/pulse_params.dart';
 
 /// The cosine ping-pong easing of the source's pulse driver:
@@ -156,6 +158,33 @@ class PulseOscillatorBank {
   final List<PulseOscillator> _by;
   final PulseOscillator _bgh;
   final List<PulseOscillator> _bop;
+
+  /// The bank's 17 oscillators keyed by the source's CSS custom-property
+  /// name, in the source's declaration order.
+  ///
+  /// Exposed so `test/constants/spec_parity_test.dart` can assert the whole
+  /// table against `pulse.<variant>.<theme>.oscillators` in the upstream
+  /// spec, which carries the same names.
+  @visibleForTesting
+  Map<String, PulseOscillator> get oscillators => {
+    'bw1': _bw[0],
+    'bh1': _bh[0],
+    'bx1': _bx[0],
+    'by1': _by[0],
+    'bw2': _bw[1],
+    'bh2': _bh[1],
+    'bx2': _bx[1],
+    'by2': _by[1],
+    'bw3': _bw[2],
+    'bh3': _bh[2],
+    'bx3': _bx[2],
+    'by3': _by[2],
+    'bgh': _bgh,
+    'bop-tl': _bop[0],
+    'bop-tr': _bop[1],
+    'bop-bl': _bop[2],
+    'bop-br': _bop[3],
+  };
 
   /// Samples every oscillator at [t] seconds.
   PulsePhaseSet sample(double t) => PulsePhaseSet(
