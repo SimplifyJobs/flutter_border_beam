@@ -182,7 +182,7 @@ jobs:
 
       - name: Analyze
         working-directory: example
-        run: flutter analyze
+        run: flutter analyze --fatal-infos
 
       - name: Test
         working-directory: example

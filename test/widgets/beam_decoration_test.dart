@@ -297,6 +297,66 @@ void main() {
           ),
         ),
       );
+      expect(
+        base,
+        isNot(
+          const BeamDecoration(
+            variant: BeamVariant.rotate,
+            brightness: Brightness.dark,
+            colors: BeamColors.ocean,
+            borderRadius: 16,
+            theme: BorderBeamThemeData(style: BeamStyle(strength: 0.5)),
+          ),
+        ),
+      );
+      expect(
+        base,
+        isNot(
+          const BeamDecoration(
+            variant: BeamVariant.rotate,
+            brightness: Brightness.dark,
+            colors: BeamColors.ocean,
+            borderRadius: 16,
+            active: false,
+          ),
+        ),
+      );
+      expect(
+        base,
+        isNot(
+          const BeamDecoration(
+            variant: BeamVariant.rotate,
+            brightness: Brightness.dark,
+            colors: BeamColors.ocean,
+            borderRadius: 16,
+            style: BeamStyle(sparkle: 0.5),
+          ),
+        ),
+      );
+      expect(
+        base,
+        isNot(
+          const BeamDecoration(
+            variant: BeamVariant.rotate,
+            brightness: Brightness.dark,
+            colors: BeamColors.ocean,
+            borderRadius: 16,
+            shape: BeamShape(borderWidth: 2),
+          ),
+        ),
+      );
+      expect(
+        base,
+        isNot(
+          const BeamDecoration(
+            variant: BeamVariant.rotate,
+            brightness: Brightness.dark,
+            colors: BeamColors.ocean,
+            borderRadius: 16,
+            playback: BeamPlayback(autoPlay: false),
+          ),
+        ),
+      );
     });
 
     test('does not interpolate between two beam decorations', () {

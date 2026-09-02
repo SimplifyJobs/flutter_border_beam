@@ -15,6 +15,7 @@ import '../models/beam_style.dart';
 import '../models/beam_theme.dart';
 import '../models/beam_timing.dart';
 import '../models/beam_variant.dart';
+import '../models/model_validation.dart';
 import '../painting/beam_painter.dart';
 import '../painting/variant_strategy.dart';
 
@@ -235,6 +236,8 @@ class BeamDecoration extends Decoration {
 class _BeamBoxPainter extends BoxPainter {
   _BeamBoxPainter(this._decoration, super.onChanged)
     : _strategy = strategyFor(_decoration.variant) {
+    validateBeamTiming(_decoration._timing);
+    validateRepeat(_decoration._playback.repeat);
     _clock = BeamClock(
       createTicker: Ticker.new,
       maxFps: _strategy.preferredFps,

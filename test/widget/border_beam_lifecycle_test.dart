@@ -147,6 +147,22 @@ void main() {
     expect(tester.binding.hasScheduledFrame, isTrue);
   });
 
+  testWidgets('reduced-motion static frames dispose without a ticker', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      host(beamFor(BeamVariant.rotate), disableAnimations: true),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 700));
+    expect(tester.takeException(), isNull);
+    expect(tester.binding.transientCallbackCount, 0);
+
+    await tester.pumpWidget(const SizedBox());
+    expect(tester.takeException(), isNull);
+    expect(tester.binding.transientCallbackCount, 0);
+  });
+
   testWidgets('a controller outliving its beam is an inert no-op', (
     tester,
   ) async {

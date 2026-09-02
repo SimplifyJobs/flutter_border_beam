@@ -119,7 +119,7 @@ BeamSync(
 
 The group owns playback: `active`, `autoPlay`, `startAfter`, `duration`, and `repeat` are ignored below it, and a `BorderBeamController` asserts rather than fighting for the clock. Everything visual stays per beam — palette, variant, shape — as does `phaseOffset`, which is what lets a synced group be evenly spaced rather than perfectly stacked.
 
-Reduced motion pauses the shared clock for the whole group; each beam still paints according to its own `reducedMotion`.
+Reduced motion is group-owned because every beam shares one clock. Set `BeamSync.reducedMotion` to `staticFrame` (the default), `hide`, `slow`, or `animate`; per-beam settings are ignored while synchronized.
 
 ## Driving the sweep yourself
 

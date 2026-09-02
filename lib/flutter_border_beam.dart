@@ -2,7 +2,7 @@
 ///
 /// A faithful port of the border-beam React library: traveling and breathing
 /// glow animations around any widget, with rotate, line, and pulse variants,
-/// four color presets plus custom palettes, superellipse borders, and an
+/// eleven color presets plus custom palettes, superellipse borders, and an
 /// optional playback controller.
 library;
 

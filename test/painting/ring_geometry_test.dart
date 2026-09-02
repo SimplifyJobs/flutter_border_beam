@@ -67,9 +67,9 @@ void main() {
   // How far a flattened `RSuperellipse` contour may sit from the rect it was
   // built on. The engine approximates the squircle with curves rather than
   // tracing it exactly, and that approximation differs between Flutter 3.35
-  // (this package's floor) and current stable by up to 0.12px. Half a pixel
-  // covers both; the rrect family stays pinned to a hundredth.
-  const superellipseSlack = 0.5;
+  // (this package's floor) and current stable by up to 0.12px. Two tenths
+  // covers that variation; the rrect family stays pinned to a hundredth.
+  const superellipseSlack = 0.2;
 
   void expectBounds(Path path, Rect rect, {double tolerance = 0.01}) {
     final bounds = path.getBounds();

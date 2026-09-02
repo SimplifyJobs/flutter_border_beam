@@ -633,8 +633,10 @@ Future<_Pixels> _rasterize(ui.PictureRecorder recorder, ui.Size size) async {
     size.height.toInt(),
   );
   final bytes = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+  final width = image.width;
+  final height = image.height;
   image.dispose();
-  return _Pixels(bytes!.buffer.asUint8List(), image.width, image.height);
+  return _Pixels(bytes!.buffer.asUint8List(), width, height);
 }
 
 /// The alpha channel of a rendered frame.

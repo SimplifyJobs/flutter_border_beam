@@ -554,7 +554,7 @@ BeamSync(
 );
 ```
 
-Beams stay individually configurable — palette, variant, shape, and `phaseOffset` are per beam — but **the group owns playback**: `active`, `autoPlay`, `startAfter`, `duration`, and `repeat` are ignored below a `BeamSync`. Use its own `active` and `speed` instead. Reduced motion pauses the shared clock for the whole group, and each beam still paints according to its own `reducedMotion`.
+Beams stay individually configurable — palette, variant, shape, and `phaseOffset` are per beam — but **the group owns playback**: `active`, `autoPlay`, `startAfter`, `duration`, and `repeat` are ignored below a `BeamSync`. Use its own `active` and `speed` instead. Reduced motion is group-owned too: set `BeamSync.reducedMotion` to `staticFrame` (the default), `hide`, `slow`, or `animate`; per-beam reduced-motion settings are ignored while synchronized.
 
 ## Surfaces & interactions
 

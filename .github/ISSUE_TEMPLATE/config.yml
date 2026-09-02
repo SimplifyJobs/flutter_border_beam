@@ -5,7 +5,7 @@ contact_links:
     about: Ask how to do something, or float an idea before it becomes a proposal.
   - name: Live playground
     url: https://simplifyjobs.github.io/flutter_border_beam/
-    about: Try every variant, palette, and timing knob in the browser — and grab a share link for your bug report.
+    about: Try variants and palettes in the browser, then share the exact configuration.
   - name: Security vulnerability
     url: https://github.com/SimplifyJobs/flutter_border_beam/security/advisories/new
     about: Report privately. Never in a public issue.

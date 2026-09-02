@@ -28,7 +28,7 @@ Two details worth knowing:
 - **All five variants honor it.** The original applies reduced motion to the pulse variants only; this package applies it everywhere, which is why `staticFrame` — a frame that still communicates — is the default rather than `hide`. See [parity](parity.md).
 - **A frozen beam stops ticking.** `staticFrame` and `hide` pause the clock rather than animating invisibly, so respecting the setting also saves the battery it was meant to save.
 
-Under a [`BeamSync`](motion.md#beamsync), reduced motion pauses the shared clock for the whole group, and each beam still paints according to its own setting.
+Under a [`BeamSync`](motion.md#beamsync), reduced motion is group-owned because every beam shares one clock. Set `BeamSync.reducedMotion` to `staticFrame` (the default), `hide`, `slow`, or `animate`; per-beam settings are ignored while synchronized.
 
 `BeamDecoration` **cannot** observe reduced motion — a `BoxPainter` has no `BuildContext` — so `reducedMotion` is inert there. If a surface must honor the setting, use the widget.
 

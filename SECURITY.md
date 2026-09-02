@@ -20,7 +20,7 @@ Use GitHub's private vulnerability reporting: go to the
 of the repository and press **Report a vulnerability**. That opens a private
 advisory visible only to you and the maintainers.
 
-If you cannot use that form, email **opensource@simplify.jobs** instead.
+If you cannot use that form, email **support@simplify.jobs** instead.
 
 Helpful things to include: the package version, the Flutter version and
 platform, a minimal reproduction, and what an attacker gains.
