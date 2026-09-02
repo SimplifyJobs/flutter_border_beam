@@ -23,6 +23,7 @@ export 'src/models/beam_options.dart'
         BeamReducedMotion,
         BeamRepeat;
 export 'src/models/beam_playback.dart' show BeamPlayback;
+export 'src/models/beam_segment.dart' show BeamAnchor, BeamCorner, BeamSegment;
 export 'src/models/beam_shape.dart' show BeamShape;
 export 'src/models/beam_style.dart' show BeamStyle;
 export 'src/models/beam_theme.dart' show BeamTheme;

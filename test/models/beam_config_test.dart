@@ -165,6 +165,10 @@ void main() {
       'style.segments': () => _resolve(style: _style.copyWith(segments: 6)),
       'shape.edge': () => _resolve(shape: _shape.copyWith(edge: BeamEdge.top)),
       'shape.ringOffset': () => _resolve(shape: _shape.copyWith(ringOffset: 4)),
+      'shape.segment': () =>
+          _resolve(shape: _shape.copyWith(segment: BeamSegment.bottomHalf)),
+      'shape.wrapCorners': () =>
+          _resolve(shape: _shape.copyWith(wrapCorners: true)),
       'shape.contour': () => _resolve(
         shape: _shape.copyWith(
           contour: BeamPathContour(
@@ -292,6 +296,8 @@ void main() {
         expect(config.edge, BeamEdge.bottom, reason: '$variant');
         expect(config.ringOffset, 0, reason: '$variant');
         expect(config.contour, isNull, reason: '$variant');
+        expect(config.segment, isNull, reason: '$variant');
+        expect(config.wrapCorners, isFalse, reason: '$variant');
         expect(config.direction, BeamDirection.forward, reason: '$variant');
         expect(config.phaseOffset, 0, reason: '$variant');
         expect(config.beamCount, 1, reason: '$variant');
@@ -327,6 +333,25 @@ void main() {
       expect(withSparkle(-1).sparkle, 0);
       expect(withSparkle(2).sparkle, 1);
       expect(withSparkle(0.5).sparkle, 0.5);
+    });
+
+    test('scaledBy scales segment feather with other geometry lengths', () {
+      final config = _resolve(
+        shape: const BeamShape(
+          ringOffset: 6,
+          segment: BeamSegment(
+            start: BeamAnchor.topCenter,
+            end: BeamAnchor.bottomCenter,
+            feather: 20,
+          ),
+          wrapCorners: true,
+        ),
+      );
+      final scaled = config.scaledBy(0.5);
+      expect(scaled.ringOffset, 3);
+      expect(scaled.segment?.feather, 10);
+      expect(scaled.segment?.start, BeamAnchor.topCenter);
+      expect(scaled.wrapCorners, isTrue);
     });
   });
 

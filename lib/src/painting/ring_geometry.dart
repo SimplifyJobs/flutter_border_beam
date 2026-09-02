@@ -1,8 +1,292 @@
 import 'dart:math' as math;
+import 'dart:ui' show PathMetric, Tangent;
 
 import 'package:flutter/painting.dart';
 
 import '../models/beam_options.dart';
+import '../models/beam_segment.dart';
+
+/// Arc-length geometry for a closed beam contour.
+///
+/// Public fractions increase clockwise from the point nearest [Rect.topCenter]
+/// regardless of the source path's winding direction.
+class BeamPerimeter {
+  /// Measures [outer] and aligns its coordinates to [rect].
+  BeamPerimeter(Path outer, this.rect, {this.radii}) {
+    final metrics = outer.computeMetrics().toList(growable: false);
+    _metric = metrics.isEmpty ? null : metrics.first;
+    length = _metric?.length ?? 0;
+    if (length <= 0) {
+      _s0 = 0;
+      _clockwiseSource = true;
+      return;
+    }
+
+    const samples = 128;
+    var best = 0.0;
+    var bestDistance = double.infinity;
+    for (var i = 0; i < samples; i++) {
+      final offset = length * i / samples;
+      final distance =
+          (_rawTangent(offset)!.position - rect.topCenter).distanceSquared;
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = offset;
+      }
+    }
+    var low = best - length / samples;
+    var high = best + length / samples;
+    for (var i = 0; i < 8; i++) {
+      final left = (2 * low + high) / 3;
+      final right = (low + 2 * high) / 3;
+      final leftDistance =
+          (_rawTangent(left)!.position - rect.topCenter).distanceSquared;
+      final rightDistance =
+          (_rawTangent(right)!.position - rect.topCenter).distanceSquared;
+      if (leftDistance <= rightDistance) {
+        high = right;
+      } else {
+        low = left;
+      }
+    }
+    _s0 = _wrapOffset((low + high) / 2);
+    _clockwiseSource = _rawTangent(_s0)!.vector.dx >= 0;
+  }
+
+  /// The bounds used to identify top-center and rectangular edge anchors.
+  final Rect rect;
+
+  /// Resolved corner radii, or null for an arbitrary contour.
+  final BorderRadius? radii;
+
+  late final PathMetric? _metric;
+
+  /// Total length of the first contour in logical pixels.
+  late final double length;
+
+  late final double _s0;
+  late final bool _clockwiseSource;
+
+  static double _fraction(double value) {
+    final result = value % 1;
+    return result < 0 ? result + 1 : result;
+  }
+
+  double _wrapOffset(double value) {
+    if (length <= 0) return 0;
+    final result = value % length;
+    return result < 0 ? result + length : result;
+  }
+
+  Tangent? _rawTangent(double offset) =>
+      _metric?.getTangentForOffset(_wrapOffset(offset));
+
+  Tangent? _tangent(double fraction) {
+    if (length <= 0) return null;
+    final distance = _fraction(fraction) * length;
+    return _rawTangent(_s0 + (_clockwiseSource ? distance : -distance));
+  }
+
+  /// The point at clockwise arc-length fraction [f].
+  Offset pointAt(double f) => _tangent(f)?.position ?? rect.topCenter;
+
+  /// The clockwise unit tangent at fraction [f].
+  Offset tangentAt(double f) {
+    final vector = _tangent(f)?.vector ?? Offset.zero;
+    return _clockwiseSource ? vector : -vector;
+  }
+
+  /// The outward unit normal at fraction [f].
+  Offset normalAt(double f) {
+    final tangent = tangentAt(f);
+    return Offset(tangent.dy, -tangent.dx);
+  }
+
+  /// The perimeter point moved [inward] logical pixels toward the interior.
+  Offset offsetPointAt(double f, double inward) =>
+      pointAt(f) - normalAt(f) * inward;
+
+  /// Finds the clockwise fraction whose perimeter point is nearest [point].
+  double nearestFraction(Offset point) {
+    if (length <= 0) return 0;
+    const samples = 64;
+    var best = 0.0;
+    var bestDistance = double.infinity;
+    for (var i = 0; i < samples; i++) {
+      final fraction = i / samples;
+      final distance = (pointAt(fraction) - point).distanceSquared;
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = fraction;
+      }
+    }
+    var low = best - 1 / samples;
+    var high = best + 1 / samples;
+    for (var i = 0; i < 12; i++) {
+      final left = (2 * low + high) / 3;
+      final right = (low + 2 * high) / 3;
+      if ((pointAt(left) - point).distanceSquared <=
+          (pointAt(right) - point).distanceSquared) {
+        high = right;
+      } else {
+        low = left;
+      }
+    }
+    return _fraction((low + high) / 2);
+  }
+
+  BorderRadius get _scaledRadii {
+    final source = radii;
+    if (source == null) return BorderRadius.zero;
+    final half = rect.shortestSide / 2;
+    Radius normalized(Radius radius) => Radius.elliptical(
+      radius.x.isFinite ? math.max(0, radius.x) : half,
+      radius.y.isFinite ? math.max(0, radius.y) : half,
+    );
+    final topLeft = normalized(source.topLeft);
+    final topRight = normalized(source.topRight);
+    final bottomRight = normalized(source.bottomRight);
+    final bottomLeft = normalized(source.bottomLeft);
+    var scale = 1.0;
+    double limit(double side, double sum) =>
+        sum <= 0 ? scale : math.min(scale, side / sum);
+    scale = limit(rect.width, topLeft.x + topRight.x);
+    scale = limit(rect.height, topRight.y + bottomRight.y);
+    scale = limit(rect.width, bottomLeft.x + bottomRight.x);
+    scale = limit(rect.height, topLeft.y + bottomLeft.y);
+    Radius scaled(Radius radius) => radius * scale;
+    return BorderRadius.only(
+      topLeft: scaled(topLeft),
+      topRight: scaled(topRight),
+      bottomRight: scaled(bottomRight),
+      bottomLeft: scaled(bottomLeft),
+    );
+  }
+
+  (Offset, Offset) _cornerPoints(BeamCorner corner) {
+    final r = _scaledRadii;
+    return switch (corner) {
+      BeamCorner.topLeft => (
+        Offset(rect.left, rect.top + r.topLeft.y),
+        Offset(rect.left + r.topLeft.x, rect.top),
+      ),
+      BeamCorner.topRight => (
+        Offset(rect.right - r.topRight.x, rect.top),
+        Offset(rect.right, rect.top + r.topRight.y),
+      ),
+      BeamCorner.bottomRight => (
+        Offset(rect.right, rect.bottom - r.bottomRight.y),
+        Offset(rect.right - r.bottomRight.x, rect.bottom),
+      ),
+      BeamCorner.bottomLeft => (
+        Offset(rect.left + r.bottomLeft.x, rect.bottom),
+        Offset(rect.left, rect.bottom - r.bottomLeft.y),
+      ),
+    };
+  }
+
+  (double, double) _cornerRange(BeamCorner corner) {
+    final (start, end) = _cornerPoints(corner);
+    return (nearestFraction(start), nearestFraction(end));
+  }
+
+  static double _clockwiseSpan(double from, double to) => _fraction(to - from);
+
+  /// Resolves [t] along the straight part of [edge] in clockwise direction.
+  double fractionOfEdge(BeamEdge edge, double t) {
+    final (from, to) = switch (edge) {
+      BeamEdge.top => (
+        _cornerRange(BeamCorner.topLeft).$2,
+        _cornerRange(BeamCorner.topRight).$1,
+      ),
+      BeamEdge.right => (
+        _cornerRange(BeamCorner.topRight).$2,
+        _cornerRange(BeamCorner.bottomRight).$1,
+      ),
+      BeamEdge.bottom => (
+        _cornerRange(BeamCorner.bottomRight).$2,
+        _cornerRange(BeamCorner.bottomLeft).$1,
+      ),
+      BeamEdge.left => (
+        _cornerRange(BeamCorner.bottomLeft).$2,
+        _cornerRange(BeamCorner.topLeft).$1,
+      ),
+    };
+    return _fraction(from + _clockwiseSpan(from, to) * t.clamp(0.0, 1.0));
+  }
+
+  /// Resolves [t] through [corner]'s arc in clockwise direction.
+  double fractionOfCorner(BeamCorner corner, double t) {
+    final (from, to) = _cornerRange(corner);
+    return _fraction(from + _clockwiseSpan(from, to) * t.clamp(0.0, 1.0));
+  }
+
+  /// Builds a closed sampled band from [from] clockwise to [to].
+  ///
+  /// Equal endpoints cover the full perimeter. [samplesPerUnit] is the
+  /// approximate number of logical pixels between adjacent samples.
+  Path band({
+    required double from,
+    required double to,
+    required double inward,
+    required double outward,
+    int samplesPerUnit = 2,
+  }) {
+    final result = Path();
+    if (length <= 0) return result;
+    final start = _fraction(from);
+    var span = _clockwiseSpan(start, _fraction(to));
+    if (span == 0) span = 1;
+    final spacing = math.max(1, samplesPerUnit);
+    final steps = math.max(8, (span * length / spacing).ceil());
+    final outside = <Offset>[];
+    final inside = <Offset>[];
+    for (var i = 0; i <= steps; i++) {
+      final fraction = start + span * i / steps;
+      final point = pointAt(fraction);
+      final normal = normalAt(fraction);
+      outside.add(point + normal * outward);
+      inside.add(point - normal * inward);
+    }
+    result.moveTo(outside.first.dx, outside.first.dy);
+    for (final point in outside.skip(1)) {
+      result.lineTo(point.dx, point.dy);
+    }
+    for (final point in inside.reversed) {
+      result.lineTo(point.dx, point.dy);
+    }
+    return result..close();
+  }
+
+  /// Returns the segment mask weight at [f].
+  double weightAt(
+    double f, {
+    required double from,
+    required double to,
+    required double featherFraction,
+  }) {
+    final start = _fraction(from);
+    var span = _clockwiseSpan(start, _fraction(to));
+    if (span == 0) return 1;
+    final position = _clockwiseSpan(start, _fraction(f));
+    if (position > span) return 0;
+    final feather = featherFraction.clamp(0.0, span / 2);
+    if (feather == 0) return 1;
+    double smoothstep(double value) => value * value * (3 - 2 * value);
+    if (position < feather) return smoothstep(position / feather);
+    final remaining = span - position;
+    if (remaining < feather) return smoothstep(remaining / feather);
+    return 1;
+  }
+
+  /// Converts a logical-pixel feather length into a perimeter fraction.
+  double featherFractionFor(double featherPx) =>
+      length <= 0 ? 0 : featherPx / length;
+
+  /// Resolves [segment]'s anchors against this perimeter.
+  ({double from, double to}) resolveSegment(BeamSegment segment) =>
+      (from: segment.start.resolve(this), to: segment.end.resolve(this));
+}
 
 /// Path builders for the beam's shape: rounded rect, rounded superellipse, or
 /// an arbitrary [BeamContour], plus the "ring" region every stroke layer is
@@ -25,6 +309,7 @@ class BeamRingGeometry {
     required this.borderWidth,
     required this.useSuperellipse,
     this.contour,
+    this.segment,
   });
 
   /// The layer bounds.
@@ -43,10 +328,53 @@ class BeamRingGeometry {
   /// An arbitrary outer contour replacing the rounded-rect family, or null.
   final BeamContour? contour;
 
+  /// The visible clockwise portion of the contour, or null for the full ring.
+  final BeamSegment? segment;
+
   /// Outer contour of the shape.
   late final Path outer = rect.isEmpty
       ? Path()
       : (contour?.build(rect) ?? _shapePath(rect, radius));
+
+  /// Arc-length coordinates for [outer].
+  late final BeamPerimeter perimeter = BeamPerimeter(
+    outer,
+    rect,
+    radii: contour == null ? radius : null,
+  );
+
+  /// Resolved segment endpoints, or null when the complete ring is visible.
+  late final ({double from, double to})? segmentRange = segment == null
+      ? null
+      : perimeter.resolveSegment(segment!);
+
+  /// A sampled band covering the configured segment at the given offsets.
+  ///
+  /// With no segment, a bounds-covering path keeps masking neutral.
+  Path segmentBand({required double inward, required double outward}) {
+    final range = segmentRange;
+    return range == null
+        ? (Path()..addRect(outer.getBounds()))
+        : perimeter.band(
+            from: range.from,
+            to: range.to,
+            inward: inward,
+            outward: outward,
+          );
+  }
+
+  /// The configured segment's feathered visibility at perimeter fraction [f].
+  double segmentWeightAt(double f) {
+    final range = segmentRange;
+    final configured = segment;
+    if (range == null || configured == null) return 1;
+    return perimeter.weightAt(
+      f,
+      from: range.from,
+      to: range.to,
+      featherFraction: perimeter.featherFractionFor(configured.feather),
+    );
+  }
 
   /// Inner contour (the content box: deflated by [borderWidth], every corner
   /// radius reduced by the same amount).

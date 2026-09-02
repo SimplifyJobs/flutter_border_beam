@@ -289,11 +289,15 @@ void main() {
         edge: BeamEdge.top,
         ringOffset: 4,
         contour: contour,
+        segment: BeamSegment.bottomHalf,
+        wrapCorners: true,
       );
       final merged = base.merge(const BeamShape(edge: BeamEdge.left));
       expect(merged.edge, BeamEdge.left, reason: 'argument wins');
       expect(merged.ringOffset, 4, reason: 'null inherits');
       expect(merged.contour, contour);
+      expect(merged.segment, BeamSegment.bottomHalf);
+      expect(merged.wrapCorners, isTrue);
       expect(base.copyWith(ringOffset: -2).edge, BeamEdge.top);
       expect(base.copyWith(ringOffset: -2).ringOffset, -2);
     });
@@ -303,6 +307,8 @@ void main() {
       final variants = <BeamShape>[
         const BeamShape(edge: BeamEdge.top),
         const BeamShape(ringOffset: 3),
+        const BeamShape(segment: BeamSegment.bottomHalf),
+        const BeamShape(wrapCorners: true),
         BeamShape(
           contour: BeamPathContour(
             (rect) => Path()..addOval(rect),
@@ -318,8 +324,16 @@ void main() {
 
     test('toString lists only the fields that are set', () {
       expect(
-        const BeamShape(edge: BeamEdge.right, ringOffset: 2).toString(),
-        'BeamShape(edge: BeamEdge.right, ringOffset: 2.0)',
+        const BeamShape(
+          edge: BeamEdge.right,
+          ringOffset: 2,
+          segment: BeamSegment.bottomHalf,
+          wrapCorners: true,
+        ).toString(),
+        'BeamShape(edge: BeamEdge.right, ringOffset: 2.0, segment: '
+        'BeamSegment(start: BeamAnchor.edge(BeamEdge.right, 0.5), end: '
+        'BeamAnchor.edge(BeamEdge.left, 0.5), feather: 32.0), '
+        'wrapCorners: true)',
       );
       expect(const BeamShape().toString(), 'BeamShape()');
     });

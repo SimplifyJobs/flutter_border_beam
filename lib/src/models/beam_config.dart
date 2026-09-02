@@ -4,6 +4,7 @@ import 'package:flutter/painting.dart';
 
 import 'beam_options.dart';
 import 'beam_palette.dart';
+import 'beam_segment.dart';
 import 'beam_shape.dart';
 import 'beam_style.dart';
 import 'beam_theme_config.dart';
@@ -71,6 +72,8 @@ class BeamConfig {
     this.edge = BeamEdge.bottom,
     this.ringOffset = 0,
     this.contour,
+    this.segment,
+    this.wrapCorners = false,
     this.direction = BeamDirection.forward,
     this.phaseOffset = 0,
     this.beamCount = 1,
@@ -149,6 +152,8 @@ class BeamConfig {
       edge: shape.edge ?? BeamEdge.bottom,
       ringOffset: shape.ringOffset ?? 0,
       contour: shape.contour,
+      segment: shape.segment,
+      wrapCorners: shape.wrapCorners ?? false,
       direction: timing.direction ?? BeamDirection.forward,
       phaseOffset: timing.phaseOffset ?? 0,
       beamCount: timing.beamCount ?? 1,
@@ -279,6 +284,12 @@ class BeamConfig {
   /// the contour from [borderRadius] and [useSuperellipse].
   final BeamContour? contour;
 
+  /// The visible clockwise portion of the contour, or null for the full ring.
+  final BeamSegment? segment;
+
+  /// Whether line blobs bend through corners in border-path space.
+  final bool wrapCorners;
+
   /// Which way the beam travels around the contour.
   final BeamDirection direction;
 
@@ -339,6 +350,8 @@ class BeamConfig {
     edge: edge,
     ringOffset: ringOffset * factor,
     contour: contour,
+    segment: segment?.scaledBy(factor),
+    wrapCorners: wrapCorners,
     direction: direction,
     phaseOffset: phaseOffset,
     beamCount: beamCount,
@@ -394,6 +407,8 @@ class BeamConfig {
           other.edge == edge &&
           other.ringOffset == ringOffset &&
           other.contour == contour &&
+          other.segment == segment &&
+          other.wrapCorners == wrapCorners &&
           other.direction == direction &&
           other.phaseOffset == phaseOffset &&
           other.beamCount == beamCount;
@@ -440,6 +455,8 @@ class BeamConfig {
     edge,
     ringOffset,
     contour,
+    segment,
+    wrapCorners,
     direction,
     phaseOffset,
     beamCount,

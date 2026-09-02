@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 
 import 'beam_options.dart';
+import 'beam_segment.dart';
 
 /// The geometry of a beam: its corner radii, ring thickness, corner family
 /// (circular arcs or superellipse), how far the ring sits from the child,
@@ -29,6 +30,8 @@ class BeamShape {
     this.edge,
     this.ringOffset,
     this.contour,
+    this.segment,
+    this.wrapCorners,
   }) : _radius = radius,
        _uniformRadius = null;
 
@@ -45,6 +48,8 @@ class BeamShape {
     this.edge,
     this.ringOffset,
     this.contour,
+    this.segment,
+    this.wrapCorners,
   }) : _uniformRadius = radius,
        _radius = null;
 
@@ -61,6 +66,8 @@ class BeamShape {
     this.edge,
     this.ringOffset,
     this.contour,
+    this.segment,
+    this.wrapCorners,
   }) : _radius = BorderRadius.circular(radius),
        _uniformRadius = null;
 
@@ -75,6 +82,8 @@ class BeamShape {
     this.edge,
     this.ringOffset,
     this.contour,
+    this.segment,
+    this.wrapCorners,
   }) : _radius = const BorderRadius.all(Radius.circular(double.infinity)),
        _uniformRadius = null;
 
@@ -122,6 +131,17 @@ class BeamShape {
   /// path the contour builds is the whole geometry.
   final BeamContour? contour;
 
+  /// The clockwise portion of the contour on which the beam is visible.
+  ///
+  /// Null inherits, resolving to the full ring.
+  final BeamSegment? segment;
+
+  /// Whether line-variant blobs use border-path space and bend around
+  /// corners instead of continuing straight past an edge.
+  ///
+  /// Null inherits, resolving to false.
+  final bool? wrapCorners;
+
   /// Returns a copy with the given fields replaced. A null argument keeps the
   /// current value; build a new [BeamShape] to clear a field back to inherit.
   BeamShape copyWith({
@@ -131,6 +151,8 @@ class BeamShape {
     BeamEdge? edge,
     double? ringOffset,
     BeamContour? contour,
+    BeamSegment? segment,
+    bool? wrapCorners,
   }) => BeamShape(
     radius: radius ?? this.radius,
     borderWidth: borderWidth ?? this.borderWidth,
@@ -138,6 +160,8 @@ class BeamShape {
     edge: edge ?? this.edge,
     ringOffset: ringOffset ?? this.ringOffset,
     contour: contour ?? this.contour,
+    segment: segment ?? this.segment,
+    wrapCorners: wrapCorners ?? this.wrapCorners,
   );
 
   /// Layers [other] over this shape: every non-null field of [other] wins,
@@ -151,6 +175,8 @@ class BeamShape {
           edge: other.edge,
           ringOffset: other.ringOffset,
           contour: other.contour,
+          segment: other.segment,
+          wrapCorners: other.wrapCorners,
         );
 
   @override
@@ -162,11 +188,21 @@ class BeamShape {
           other.superellipse == superellipse &&
           other.edge == edge &&
           other.ringOffset == ringOffset &&
-          other.contour == contour;
+          other.contour == contour &&
+          other.segment == segment &&
+          other.wrapCorners == wrapCorners;
 
   @override
-  int get hashCode =>
-      Object.hash(radius, borderWidth, superellipse, edge, ringOffset, contour);
+  int get hashCode => Object.hash(
+    radius,
+    borderWidth,
+    superellipse,
+    edge,
+    ringOffset,
+    contour,
+    segment,
+    wrapCorners,
+  );
 
   @override
   String toString() {
@@ -177,6 +213,8 @@ class BeamShape {
       if (edge != null) 'edge: $edge',
       if (ringOffset != null) 'ringOffset: $ringOffset',
       if (contour != null) 'contour: $contour',
+      if (segment != null) 'segment: $segment',
+      if (wrapCorners != null) 'wrapCorners: $wrapCorners',
     ];
     return 'BeamShape(${fields.join(', ')})';
   }

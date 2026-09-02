@@ -1,7 +1,11 @@
 import 'dart:math' as math;
+import 'dart:ui' show Brightness;
 
 import 'package:flutter/painting.dart';
+import 'package:flutter_border_beam/flutter_border_beam.dart';
+import 'package:flutter_border_beam/src/models/beam_config.dart';
 import 'package:flutter_border_beam/src/painting/ring_geometry.dart';
+import 'package:flutter_border_beam/src/painting/variant_strategy.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Per-corner ring geometry: the beam contour takes a full [BorderRadius],
@@ -337,6 +341,72 @@ void main() {
         diagonalEntry(path, point, inward, 30),
         closeTo(circularEntry(20), 0.05),
       );
+    });
+  });
+
+  group('segment integration', () {
+    const rect = Rect.fromLTWH(0, 0, 200, 100);
+
+    for (final superellipse in [false, true]) {
+      test('${superellipse ? 'superellipse' : 'rrect'} band and weight', () {
+        final geometry = BeamRingGeometry(
+          rect: rect,
+          radius: BorderRadius.circular(20),
+          borderWidth: 2,
+          useSuperellipse: superellipse,
+          segment: BeamSegment.bottomHalf,
+        );
+        expect(geometry.segmentRange?.from, closeTo(0.25, 0.02));
+        expect(geometry.segmentRange?.to, closeTo(0.75, 0.02));
+        expect(
+          geometry.segmentBand(inward: 3, outward: 3).getBounds().top,
+          greaterThan(35),
+        );
+        expect(geometry.segmentWeightAt(0.5), 1);
+        expect(geometry.segmentWeightAt(0), 0);
+      });
+    }
+
+    test('no segment leaves band and weight neutral', () {
+      final geometry = BeamRingGeometry(
+        rect: rect,
+        radius: BorderRadius.circular(20),
+        borderWidth: 2,
+        useSuperellipse: false,
+      );
+      expect(geometry.segmentRange, isNull);
+      expect(geometry.segmentBand(inward: 2, outward: 2).getBounds(), rect);
+      expect(geometry.segmentWeightAt(0.9), 1);
+    });
+  });
+
+  group('beamGeometry memo', () {
+    BeamConfig config({double radius = 12}) => BeamConfig.resolve(
+      variant: BeamVariant.rotate,
+      palette: BeamColors.colorful.resolve(),
+      brightness: Brightness.dark,
+      shape: BeamShape.circular(radius, segment: BeamSegment.bottomHalf),
+    );
+
+    test('equal rect and config return the identical geometry', () {
+      const rect = Rect.fromLTWH(0, 0, 180, 80);
+      final first = beamGeometry(rect, config());
+      final second = beamGeometry(rect, config());
+      expect(identical(first, second), isTrue);
+    });
+
+    test('a changed rect or config returns new geometry', () {
+      const rect = Rect.fromLTWH(0, 0, 180, 80);
+      final baseConfig = config();
+      final first = beamGeometry(rect, baseConfig);
+      expect(
+        identical(
+          first,
+          beamGeometry(const Rect.fromLTWH(0, 0, 181, 80), baseConfig),
+        ),
+        isFalse,
+      );
+      expect(identical(first, beamGeometry(rect, config(radius: 13))), isFalse);
     });
   });
 }

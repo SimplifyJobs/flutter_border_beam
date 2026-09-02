@@ -14,14 +14,38 @@ import 'ring_geometry.dart';
 Rect beamRect(Size size, BeamConfig config) =>
     (Offset.zero & size).inflate(config.ringOffset);
 
+const int _geometryCacheCapacity = 16;
+final List<({Rect rect, BeamConfig config, BeamRingGeometry geometry})>
+_geometryCache = [];
+
 /// The ring geometry [config] describes over [rect].
-BeamRingGeometry beamGeometry(Rect rect, BeamConfig config) => BeamRingGeometry(
-  rect: rect,
-  radius: config.borderRadius,
-  borderWidth: config.borderWidth,
-  useSuperellipse: config.useSuperellipse,
-  contour: config.contour,
-);
+///
+/// Strategies request geometry on every paint. A tiny LRU retains the recent
+/// frame boundaries so path metrics and perimeter alignment are measured once
+/// for equal layout and resolved-config values.
+BeamRingGeometry beamGeometry(Rect rect, BeamConfig config) {
+  for (var i = 0; i < _geometryCache.length; i++) {
+    final entry = _geometryCache[i];
+    if (entry.rect == rect && entry.config == config) {
+      _geometryCache.removeAt(i);
+      _geometryCache.add(entry);
+      return entry.geometry;
+    }
+  }
+  final geometry = BeamRingGeometry(
+    rect: rect,
+    radius: config.borderRadius,
+    borderWidth: config.borderWidth,
+    useSuperellipse: config.useSuperellipse,
+    contour: config.contour,
+    segment: config.segment,
+  );
+  _geometryCache.add((rect: rect, config: config, geometry: geometry));
+  if (_geometryCache.length > _geometryCacheCapacity) {
+    _geometryCache.removeAt(0);
+  }
+  return geometry;
+}
 
 /// Paints one beam variant.
 ///
