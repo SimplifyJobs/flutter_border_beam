@@ -612,6 +612,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
   bool _offscreenCheckScheduled = false;
   double _hueTimeOffset = 0;
   double _travelTimeOffset = 0;
+  double _breatheTimeOffset = 0;
 
   @override
   void initState() {
@@ -895,6 +896,11 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     _resolver?.travelTimeOffset = seconds;
   }
 
+  void _setBreatheTimeOffset(double seconds) {
+    _breatheTimeOffset = seconds;
+    _resolver?.breatheTimeOffset = seconds;
+  }
+
   // A cycle-duration change mid-run must not snap the beam. Rescaling
   // elapsed time by the cycle ratio holds every cycle-derived track at its
   // current fraction; shifting the hue clock back by the same amount holds
@@ -945,7 +951,16 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     final factor = before == 0 ? newCycle / oldCycle : target / before;
     if (!factor.isFinite || factor <= 0) return;
     _clock.retime(factor);
-    _setHueTimeOffset(_hueTimeOffset + before - _clock.elapsedSeconds);
+    final after = _clock.elapsedSeconds;
+    // The fixed-period hue tracks keep the timeline they had.
+    _setHueTimeOffset(_hueTimeOffset + before - after);
+    // The line variant's breathe and spike tracks scale with the cycle, so
+    // what holds their phase is the pure ratio rescale — not the target
+    // above, which is bent by the gap, the phase offset, the hand-back, and
+    // any whole-period lift. Put them back on the rescaled timeline.
+    _setBreatheTimeOffset(
+      (before + _breatheTimeOffset) * newCycle / oldCycle - after,
+    );
   }
 
   void _armDurationBudget() {
@@ -1285,7 +1300,8 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
       // snap the hue back and throw away a follow hand-back.
       _resolver = BeamPhaseResolver(_config!)
         ..hueTimeOffset = _hueTimeOffset
-        ..travelTimeOffset = _travelTimeOffset;
+        ..travelTimeOffset = _travelTimeOffset
+        ..breatheTimeOffset = _breatheTimeOffset;
       _syncResolverPlayback();
     }
     return _config!;

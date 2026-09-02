@@ -151,6 +151,9 @@ class BeamPhaseResolver {
   /// tracks run on fixed periods ([BeamConfig.huePeriodSeconds],
   /// [BeamConfig.bloomHuePeriodSeconds]) and would jump under that rescale,
   /// so the widget shifts them back by the amount the timeline moved.
+  ///
+  /// See [breatheTimeOffset] for the cycle-derived tracks that still need a
+  /// correction, because the retime target is not always a pure rescale.
   double hueTimeOffset = 0;
 
   /// Cycles the beam is allowed to run before it reports
@@ -168,6 +171,17 @@ class BeamPhaseResolver {
   /// timed sweep picks up from wherever the pointer left the beam instead of
   /// snapping back to its own schedule.
   double travelTimeOffset = 0;
+
+  /// Seconds added to the sample time of the line variant's breathe and
+  /// spike tracks only.
+  ///
+  /// Those tracks scale with the cycle, so a *pure ratio* rescale of elapsed
+  /// time is what holds their phase. A retime does not always produce one:
+  /// once a cycle gap, a phase offset, or a [travelTimeOffset] hand-back is
+  /// in play, the clock is moved to put the *sweep* where it belongs, and
+  /// that target is not the pure rescale. The widget sets this to the
+  /// difference, so these tracks read the timeline they would have had.
+  double breatheTimeOffset = 0;
 
   /// Samples all phases at [t] seconds with the given [fadeOpacity].
   ///
@@ -195,9 +209,10 @@ class BeamPhaseResolver {
       case BeamVariant.line:
         final head = sweep.travellers.first;
         final cs = config.cycleSeconds;
-        final breathe = (t / (cs * config.breatheFactor)) % 1.0;
-        final spikeT = (t / (cs * config.spikeFactor)) % 1.0;
-        final spike2T = (t / (cs * config.spike2Factor)) % 1.0;
+        final bt = t + breatheTimeOffset;
+        final breathe = (bt / (cs * config.breatheFactor)) % 1.0;
+        final spikeT = (bt / (cs * config.spikeFactor)) % 1.0;
+        final spike2T = (bt / (cs * config.spike2Factor)) % 1.0;
         return BeamFramePhases(
           fadeOpacity: fadeOpacity * sweep.envelope,
           hueDegrees: hue,

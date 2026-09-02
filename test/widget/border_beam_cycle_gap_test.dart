@@ -279,6 +279,37 @@ void main() {
       );
     });
 
+    testWidgets('the line breathe and spike tracks survive a retime', (
+      tester,
+    ) async {
+      Widget build(Duration cycle) => _host(
+        BorderBeam.line(
+          timing: BeamTiming(
+            cycle: cycle,
+            cycleGap: const Duration(seconds: 1),
+          ),
+          child: const SizedBox.expand(),
+        ),
+      );
+
+      // A gap bends the retime target away from a pure ratio rescale, and
+      // these three tracks scale with the cycle, so only a rescaled timeline
+      // holds their phase.
+      await tester.pumpWidget(build(const Duration(seconds: 2)));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 2500));
+      final before = _painter(tester);
+      final was = before.resolver.sample(before.clock.elapsedSeconds, 1);
+
+      await tester.pumpWidget(build(const Duration(seconds: 4)));
+      final after = _painter(tester);
+      final now = after.resolver.sample(after.clock.elapsedSeconds, 1);
+
+      expect(now.lineH, closeTo(was.lineH, 1e-9));
+      expect(now.spike, closeTo(was.spike, 1e-9));
+      expect(now.spike2, closeTo(was.spike2, 1e-9));
+    });
+
     testWidgets('adding a gap to a running beam needs no retime either', (
       tester,
     ) async {
