@@ -397,17 +397,21 @@ void main() {
     testWidgets('a variant change rebuilds the clock and drops corrections', (
       tester,
     ) async {
-      Widget build({required BeamVariant variant, required Duration cycle}) =>
-          _host(
-            BorderBeam(
-              variant: variant,
-              timing: BeamTiming(
-                cycle: cycle,
-                cycleGap: const Duration(seconds: 1),
-              ),
-              child: const SizedBox.expand(),
-            ),
-          );
+      Widget build({
+        required BeamVariant variant,
+        required Duration cycle,
+        bool active = true,
+      }) => _host(
+        BorderBeam(
+          variant: variant,
+          active: active,
+          timing: BeamTiming(
+            cycle: cycle,
+            cycleGap: const Duration(seconds: 1),
+          ),
+          child: const SizedBox.expand(),
+        ),
+      );
 
       await tester.pumpWidget(
         build(variant: BeamVariant.line, cycle: const Duration(seconds: 2)),
@@ -434,9 +438,31 @@ void main() {
       expect(swapped.resolver.breatheTimeOffset, 0);
       expect(swapped.resolver.travelTimeOffset, 0);
 
-      // And the replacement clock is bound, so a later restart still clears.
-      await tester.pump(const Duration(milliseconds: 700));
-      expect(swapped.clock.isVisible, isTrue);
+      // The replacement clock is bound too, so a restart on *it* clears the
+      // corrections it accumulated after the swap. Retime again to put some
+      // there — the offsets are 0 right now, so a restart would prove
+      // nothing without this. From inside the gap, so the target is not a
+      // pure rescale and the breathe correction is non-zero as well.
+      await tester.pump(const Duration(milliseconds: 4500));
+      await tester.pumpWidget(
+        build(variant: BeamVariant.rotate, cycle: const Duration(seconds: 8)),
+      );
+      final again = _painter(tester);
+      expect(again.clock, same(swapped.clock));
+      expect(again.resolver.hueTimeOffset, isNot(0));
+      expect(again.resolver.breatheTimeOffset, isNot(0));
+
+      await tester.pumpWidget(
+        build(
+          variant: BeamVariant.rotate,
+          cycle: const Duration(seconds: 8),
+          active: false,
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(again.clock.isVisible, isFalse);
+      expect(again.resolver.hueTimeOffset, 0);
+      expect(again.resolver.breatheTimeOffset, 0);
     });
 
     testWidgets('a reduced-motion variant swap clears them without a restart', (
