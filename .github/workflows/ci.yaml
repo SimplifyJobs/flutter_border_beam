@@ -1,4 +1,4 @@
-# CI for flutter_border_beam.
+# CI for flutter_border_beam. (protection smoke test)
 #
 # Two things about this workflow are deliberate and easy to get wrong:
 #
