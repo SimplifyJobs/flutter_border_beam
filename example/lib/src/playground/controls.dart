@@ -472,6 +472,95 @@ String formatControlValue(double value) {
   return fixed.replaceFirst(RegExp(r'\.?0+$'), '');
 }
 
+/// The install line above the playground: the pub command with the same copy
+/// affordance the code panel uses, and a chip carrying the repository link.
+class InstallBlock extends StatelessWidget {
+  /// Creates the install line.
+  const InstallBlock({
+    super.key,
+    required this.command,
+    required this.repoLabel,
+    required this.onCopyCommand,
+    required this.onCopyRepo,
+    required this.copied,
+  });
+
+  /// The shell command shown, and copied by the Copy chip.
+  final String command;
+
+  /// Label of the repository chip.
+  final String repoLabel;
+
+  /// Copies [command].
+  final VoidCallback onCopyCommand;
+
+  /// Copies the repository link.
+  final VoidCallback onCopyRepo;
+
+  /// Whether either confirmation is showing.
+  final bool copied;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = DemoTheme.of(context).tokens;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+      decoration: BoxDecoration(
+        color: t.panel,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        alignment: WrapAlignment.spaceBetween,
+        spacing: 12,
+        runSpacing: 10,
+        children: [
+          Text(
+            command,
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.6,
+              fontFamily: 'Menlo',
+              fontFamilyFallback: const ['Courier New', 'monospace'],
+              color: t.codeText,
+              decoration: TextDecoration.none,
+            ),
+          ),
+          // A Wrap rather than a Row: the actions break onto their own line
+          // on a narrow layout instead of overflowing.
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 6,
+            runSpacing: 8,
+            children: [
+              AnimatedOpacity(
+                opacity: copied ? 1 : 0,
+                duration: const Duration(milliseconds: 150),
+                child: Text(
+                  'Copied',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: t.muted,
+                    decoration: TextDecoration.none,
+                  ),
+                ),
+              ),
+              DemoChip(label: 'Copy', selected: false, onTap: onCopyCommand),
+              DemoChip(
+                label: repoLabel,
+                selected: false,
+                onTap: onCopyRepo,
+                leading: Icon(Icons.link, size: 14, color: t.btnText),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// The playground's code panel: the generated snippet plus a
 /// copy-to-clipboard action that confirms in place.
 class CodeBlock extends StatelessWidget {

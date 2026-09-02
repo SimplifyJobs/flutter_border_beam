@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_border_beam/flutter_border_beam.dart';
 
 import '../demo_theme.dart';
@@ -16,6 +17,14 @@ final BorderBeamThemeData _demoThemeData = BorderBeamThemeData(
 const double _surfaceHeight = 128;
 const double _maxSurfaceWidth = 320;
 const double _frameHeight = 240;
+
+// The sync demo's three stacked cards.
+const int _syncBeams = 3;
+const double _syncSurfaceHeight = 52;
+const double _syncGap = 14;
+
+// One full swing of the strength signal.
+const Duration _signalPeriod = Duration(milliseconds: 2400);
 
 class PlaygroundPreviews extends StatelessWidget {
   /// Creates the preview area.
@@ -69,7 +78,7 @@ class PlaygroundPreviews extends StatelessWidget {
   }
 }
 
-class _Preview extends StatelessWidget {
+class _Preview extends StatefulWidget {
   const _Preview({
     required this.state,
     required this.brightness,
@@ -81,8 +90,73 @@ class _Preview extends StatelessWidget {
   final BorderBeamController controller;
 
   @override
+  State<_Preview> createState() => _PreviewState();
+}
+
+class _PreviewState extends State<_Preview>
+    with SingleTickerProviderStateMixin {
+  // Where the pointer is, in normalized box coordinates, while the Drive
+  // section's follow toggle is on.
+  Offset? _follow;
+
+  // The signal behind `strengthListenable`: a sine wave, so the beam breathes
+  // with something that is neither the clock nor a rebuild.
+  final ValueNotifier<double> _level = ValueNotifier<double>(1);
+  late final Ticker _ticker = createTicker(_tick);
+
+  @override
+  void initState() {
+    super.initState();
+    _syncSignal();
+  }
+
+  @override
+  void didUpdateWidget(_Preview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncSignal();
+    if (!widget.state.followsPointer) _follow = null;
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    _level.dispose();
+    super.dispose();
+  }
+
+  void _syncSignal() {
+    final wanted = widget.state.strengthSignal;
+    if (wanted == _ticker.isActive) return;
+    if (wanted) {
+      _ticker.start();
+    } else {
+      _ticker.stop();
+      _level.value = 1;
+    }
+  }
+
+  void _tick(Duration elapsed) {
+    final turns = elapsed.inMicroseconds / _signalPeriod.inMicroseconds;
+    // 0.15–1, so the bottom of the swing dims the beam rather than killing it.
+    _level.value = 0.575 + 0.425 * math.sin(turns * 2 * math.pi);
+  }
+
+  void _track(Offset local, Size size) {
+    if (!widget.state.followsPointer) return;
+    setState(() {
+      _follow = Offset(local.dx / size.width, local.dy / size.height);
+    });
+  }
+
+  void _release() {
+    if (_follow == null) return;
+    setState(() => _follow = null);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final dark = brightness == Brightness.dark;
+    final state = widget.state;
+    final dark = widget.brightness == Brightness.dark;
     final tokens = dark ? DemoTokens.dark : DemoTokens.light;
 
     Widget frame(Widget child) => Container(
@@ -101,32 +175,104 @@ class _Preview extends StatelessWidget {
           _maxSurfaceWidth,
           math.max(120.0, constraints.maxWidth - 56),
         );
-        final size = Size(width, _surfaceHeight);
-        Widget beam = SizedBox(
-          width: width,
-          height: _surfaceHeight,
-          child: BorderBeam(
-            variant: state.variant,
-            active: state.buildActive(),
-            style: state.buildStyle(),
-            shape: state.buildShape(),
-            timing: state.buildTiming(),
-            playback: state.buildPlayback(),
-            controller: state.controllerMode ? controller : null,
-            child: _MockSurface(state: state, tokens: tokens, size: size),
-          ),
-        );
+        Widget content = state.syncDemo
+            ? _syncGroup(state, tokens, width)
+            : _single(state, tokens, width);
         if (state.themeDemo) {
-          beam = BorderBeamTheme(data: _demoThemeData, child: beam);
+          content = BorderBeamTheme(data: _demoThemeData, child: content);
+        }
+        if (state.simulateReducedMotion) {
+          // The same signal the platform sends, so the reducedMotion chips
+          // can be watched without touching OS settings.
+          content = MediaQuery(
+            data: MediaQuery.of(context).copyWith(disableAnimations: true),
+            child: content,
+          );
         }
         // BeamTheme.auto reads the ambient brightness, so each preview only
         // needs the right Theme above it — no explicit `theme:` field, which
         // keeps the generated snippet faithful to what is on screen.
         return Theme(
-          data: ThemeData(brightness: brightness),
-          child: frame(beam),
+          data: ThemeData(brightness: widget.brightness),
+          child: frame(content),
         );
       },
+    );
+  }
+
+  // The single configured beam, wrapped in a pointer listener while the
+  // follow toggle is on.
+  Widget _single(PlaygroundState state, DemoTokens tokens, double width) {
+    final size = Size(width, _surfaceHeight);
+    final Widget beam = SizedBox(
+      width: width,
+      height: _surfaceHeight,
+      child: BorderBeam(
+        variant: state.variant,
+        active: state.buildActive(),
+        style: state.buildStyle(),
+        shape: state.buildShape(),
+        timing: state.buildTiming(),
+        playback: state.buildPlayback(),
+        progress: state.buildProgress(),
+        follow: state.followsPointer ? _follow : null,
+        strengthListenable: state.strengthSignal ? _level : null,
+        controller: state.controllerMode ? widget.controller : null,
+        child: _MockSurface(state: state, tokens: tokens, size: size),
+      ),
+    );
+    if (!state.followsPointer) return beam;
+    // The Listener carries touch drags; the MouseRegion adds plain hover,
+    // which sends no pointer events of its own.
+    return MouseRegion(
+      onHover: (event) => _track(event.localPosition, size),
+      onExit: (_) => _release(),
+      child: Listener(
+        onPointerDown: (event) => _track(event.localPosition, size),
+        onPointerMove: (event) => _track(event.localPosition, size),
+        onPointerUp: (_) => _release(),
+        onPointerCancel: (_) => _release(),
+        child: beam,
+      ),
+    );
+  }
+
+  // Three beams on one BeamSync clock, evenly spaced around the cycle.
+  //
+  // The group owns playback, and a BorderBeamController owns a clock of its
+  // own, so no controller is attached here.
+  Widget _syncGroup(PlaygroundState state, DemoTokens tokens, double width) {
+    final size = Size(width, _syncSurfaceHeight);
+    final base = state.buildTiming() ?? const BeamTiming();
+    return BeamSync(
+      active: state.active,
+      speed: state.speed,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < _syncBeams; i++) ...[
+            if (i > 0) const SizedBox(height: _syncGap),
+            SizedBox(
+              width: width,
+              height: _syncSurfaceHeight,
+              child: BorderBeam(
+                variant: state.variant,
+                style: state.buildStyle(),
+                shape: state.buildShape(),
+                timing: base.copyWith(phaseOffset: i / _syncBeams),
+                progress: state.buildProgress(),
+                strengthListenable: state.strengthSignal ? _level : null,
+                child: _MockSurface(
+                  state: state,
+                  tokens: tokens,
+                  size: size,
+                  label: 'phaseOffset ${(i / _syncBeams).toStringAsFixed(2)}',
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -138,11 +284,13 @@ class _MockSurface extends StatelessWidget {
     required this.state,
     required this.tokens,
     required this.size,
+    this.label = 'Build anything...',
   });
 
   final PlaygroundState state;
   final DemoTokens tokens;
   final Size size;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
@@ -163,7 +311,7 @@ class _MockSurface extends StatelessWidget {
       ),
       alignment: Alignment.center,
       child: Text(
-        'Build anything...',
+        label,
         style: TextStyle(
           fontSize: 13,
           color: tokens.mockPlaceholder,

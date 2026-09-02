@@ -7,30 +7,64 @@ import 'playground_state.dart';
 /// Only fields that differ from what the package resolves on its own are
 /// emitted, so the default configuration prints the one-liner. The result is
 /// paste-able as written: `const` sits on every value object that can carry
-/// it, and the two constructions that cannot be const ([BeamShape.circular],
-/// and a [BorderBeamThemeData] holding one) are emitted without it.
+/// it, and the two constructions that cannot be const (a runtime-built
+/// [BeamShape.circular], and a [BorderBeamThemeData] holding one) are
+/// emitted without it.
+///
+/// Two things a snippet cannot carry are named rather than pretended: a
+/// [BeamPathContour] takes a builder function, so it prints as a commented
+/// placeholder, and the values a pointer or a live signal supply print as
+/// the variables the surrounding widget would hold.
 String buildSnippet(PlaygroundState state) {
   final buffer = StringBuffer();
-  if (state.controllerMode) {
-    buffer
-      ..writeln('final controller = BorderBeamController();')
-      ..writeln('// controller.start() / .pause() / .resume() / .stop()')
-      ..writeln('// controller.speed = ${_num(state.controllerSpeed)};')
-      ..writeln();
+  for (final line in _preamble(state)) {
+    buffer.writeln(line);
   }
+  if (buffer.isNotEmpty) buffer.writeln();
 
-  final beam = _beam(state);
-  if (!state.themeDemo) return (buffer..write(beam)).toString();
+  var body = _beam(state);
+  if (state.syncDemo) {
+    body = _wrap('BeamSync', [
+      '// One clock for the group; each beam sets its own '
+          'timing.phaseOffset.',
+    ], body);
+  }
+  if (state.themeDemo) {
+    body = _wrap('BorderBeamTheme', [
+      'data: BorderBeamThemeData(',
+      '  style: const BeamStyle(colors: BeamColors.ocean),',
+      '  shape: BeamShape.circular(20, superellipse: true),',
+      '),',
+    ], body);
+  }
+  return (buffer..write(body)).toString();
+}
 
-  buffer
-    ..writeln('BorderBeamTheme(')
-    ..writeln('  data: BorderBeamThemeData(')
-    ..writeln('    style: const BeamStyle(colors: BeamColors.ocean),')
-    ..writeln('    shape: BeamShape.circular(20, superellipse: true),')
-    ..writeln('  ),')
-    ..writeln('  child: ${_indent(beam, '  ').trimLeft()},')
-    ..write(')');
-  return buffer.toString();
+// The declarations the beam's arguments refer to.
+List<String> _preamble(PlaygroundState state) => [
+  if (state.controllerMode) ...[
+    'final controller = BorderBeamController();',
+    '// controller.start() / .pause() / .resume() / .stop()',
+    '// controller.pulse() / .flash()',
+    '// controller.speed = ${_num(state.controllerSpeed)};',
+  ],
+  if (state.strengthSignal)
+    'final level = ValueNotifier<double>(1); // drive from your own signal',
+  if (state.followsPointer)
+    '// pointer: the normalized pointer position (0–1 on each axis), from a '
+        'MouseRegion or a Listener.',
+];
+
+// Wraps [child] in [name], with [header] lines above the `child:` argument.
+String _wrap(String name, List<String> header, String child) {
+  final buffer = StringBuffer('$name(\n');
+  for (final line in header) {
+    buffer.writeln('  $line');
+  }
+  return (buffer
+        ..writeln('  child: ${_indent(child, '  ').trimLeft()},')
+        ..write(')'))
+      .toString();
 }
 
 // The BorderBeam call itself.
@@ -44,7 +78,13 @@ String _beam(PlaygroundState state) {
   if (shape != null) args.add(shape);
 
   final style = _style(state);
-  if (style != null) args.add('style: const BeamStyle(\n$style\n  )');
+  if (style != null) {
+    args.add(
+      state.usesStockPulseOutside
+          ? 'style: $style'
+          : 'style: const BeamStyle(\n$style\n  )',
+    );
+  }
 
   final timing = _timing(state);
   if (timing != null) args.add('timing: const BeamTiming(\n$timing\n  )');
@@ -54,6 +94,12 @@ String _beam(PlaygroundState state) {
     args.add('playback: const BeamPlayback(\n$playback\n  )');
   }
 
+  if (state.buildProgress() case final double progress) {
+    args.add('progress: ${_num(progress)}');
+  }
+  if (state.followsPointer) args.add('follow: pointer');
+  if (state.strengthSignal) args.add('strengthListenable: level');
+
   if (state.controllerMode) args.add('controller: controller');
   args.add('child: child');
 
@@ -62,48 +108,97 @@ String _beam(PlaygroundState state) {
 }
 
 String _colors(PlaygroundState state) {
-  if (state.palette != PalettePreset.custom) {
-    return 'BeamColors.${state.palette.id}';
-  }
+  final base = switch (state.palette) {
+    PalettePreset.custom => _customColors(state),
+    PalettePreset.seed => _seedColors(state),
+    PalettePreset.lerp =>
+      'const BeamColors.lerp(${_preset(state.lerpFrom)}, '
+          '${_preset(state.lerpTo)}, ${_num(state.lerpT)})',
+    _ => _preset(state.palette),
+  };
+  return state.alphaScale == 1
+      ? base
+      : '$base.scaleAlpha(${_num(state.alphaScale)})';
+}
+
+String _preset(PalettePreset preset) =>
+    'BeamColors.'
+    '${preset.colors == null ? PalettePreset.colorful.id : preset.id}';
+
+String _customColors(PlaygroundState state) {
   final colors = [
     for (final i in state.customColors)
       _color(customSwatches[i].color.toARGB32()),
   ];
-  return 'const BeamColors.custom([${colors.join(', ')}])';
+  final base = state.customBase == PalettePreset.colorful
+      ? ''
+      : ', base: ${_preset(state.customBase)}';
+  return 'const BeamColors.custom([${colors.join(', ')}]$base)';
+}
+
+String _seedColors(PlaygroundState state) {
+  final harmony = state.seedHarmony == BeamSeedHarmony.analogous
+      ? ''
+      : ', harmony: BeamSeedHarmony.${state.seedHarmony.name}';
+  final seed = _color(customSwatches[state.seedColor].color.toARGB32());
+  return 'const BeamColors.fromSeed($seed$harmony)';
 }
 
 String _color(int argb) =>
     'Color(0x${argb.toRadixString(16).toUpperCase().padLeft(8, '0')})';
 
 // The `borderRadius:` shorthand when a plain radius is all that changed,
-// otherwise a full BeamShape.
+// otherwise a full BeamShape. `BeamShape.all` stores the radius as a number
+// instead of building a BorderRadius, which is what keeps it const.
 String? _shape(PlaygroundState state) {
   if (!state.hasShape) return null;
-  final extras = [
+  final isLine = state.variant == BeamVariant.line;
+  final extras = <String>[
     if (state.borderWidth != 1) 'borderWidth: ${_num(state.borderWidth)}',
     if (state.superellipse) 'superellipse: true',
+    if (isLine && state.edge != BeamEdge.bottom)
+      'edge: BeamEdge.${state.edge.name}',
+    if (state.ringOffset != 0) 'ringOffset: ${_num(state.ringOffset)}',
   ];
-  if (state.stadium) {
-    return 'shape: const BeamShape.stadium(${extras.join(', ')})';
-  }
-  if (state.perCorner) {
+  final contour = state.contour ? _contourPlaceholder : null;
+
+  if (state.perCorner && !state.stadium) {
     final radii = [
       'topLeft: Radius.circular(${_num(state.radiusTopLeft)})',
       'topRight: Radius.circular(${_num(state.radiusTopRight)})',
       'bottomRight: Radius.circular(${_num(state.radiusBottomRight)})',
       'bottomLeft: Radius.circular(${_num(state.radiusBottomLeft)})',
     ];
-    final fields = [
-      'radius: BorderRadius.only(\n      ${radii.join(',\n      ')},\n    )',
-      ...extras,
-    ];
-    return 'shape: const BeamShape(\n    ${fields.join(',\n    ')},\n  )';
+    return _shapeBlock('const BeamShape', [
+      'radius: BorderRadius.only(\n      ${radii.join(',\n      ')},\n    ),',
+      for (final field in extras) '$field,',
+      ?contour,
+    ]);
   }
-  if (extras.isEmpty) return 'borderRadius: ${_num(state.radius)}';
-  // BeamShape.circular builds a BorderRadius at runtime, so it is not const.
-  return 'shape: BeamShape.circular(${_num(state.radius)}, '
-      '${extras.join(', ')})';
+
+  final head = state.stadium
+      ? 'const BeamShape.stadium'
+      : 'const BeamShape.all';
+  final positional = state.stadium ? <String>[] : [_num(state.radius)];
+  if (contour != null) {
+    return _shapeBlock(head, [
+      for (final field in [...positional, ...extras]) '$field,',
+      contour,
+    ]);
+  }
+  if (!state.stadium && extras.isEmpty) {
+    return 'borderRadius: ${_num(state.radius)}';
+  }
+  return 'shape: $head(${[...positional, ...extras].join(', ')})';
 }
+
+// A BeamPathContour takes a builder, which a generated snippet cannot write
+// for you — the placeholder names the field and the key it compares on.
+const String _contourPlaceholder =
+    "// contour: BeamPathContour(builder: yourPath, key: 'star'),";
+
+String _shapeBlock(String head, List<String> lines) =>
+    'shape: $head(\n    ${lines.join('\n    ')}\n  )';
 
 String? _style(PlaygroundState state) {
   final isPulse = state.variant.isPulse;
@@ -113,11 +208,14 @@ String? _style(PlaygroundState state) {
   final bloomBlur = isOutside ? state.bloomBlur : null;
   final glowBrightness = isOutside ? state.glowBrightness : null;
   final glowSaturation = isOutside ? state.glowSaturation : null;
+  final segments = state.variant == BeamVariant.line ? null : state.segments;
   final fields = [
     if (state.strength != 1) 'strength: ${_num(state.strength)}',
     if (state.brightness case final double v) 'brightness: ${_num(v)}',
     if (state.saturation case final double v) 'saturation: ${_num(v)}',
     if (state.hueRange != 30) 'hueRange: ${_num(state.hueRange)}',
+    if (state.hueMode case final BeamHueMode v)
+      'hueMode: BeamHueMode.${v.name}',
     if (state.hueBase != 0) 'hueBase: ${_num(state.hueBase)}',
     if (state.staticColors) 'staticColors: true',
     if (state.strokeOpacityFactor != 1)
@@ -126,23 +224,49 @@ String? _style(PlaygroundState state) {
       'innerOpacityFactor: ${_num(state.innerOpacityFactor)}',
     if (state.bloomOpacityFactor != 1)
       'bloomOpacityFactor: ${_num(state.bloomOpacityFactor)}',
+    if (state.isRing && state.tailLength != 1)
+      'tailLength: ${_num(state.tailLength)}',
+    if (state.glowSpread != 1) 'glowSpread: ${_num(state.glowSpread)}',
+    if (state.isRing && state.comet) 'comet: true',
+    if (state.isTraveling && state.sparkle != 0)
+      'sparkle: ${_num(state.sparkle)}',
+    if (segments case final int v) 'segments: $v',
+    if (state.variant == BeamVariant.pulseInside && state.innerSizeScale != 1)
+      'innerSizeScale: ${_num(state.innerSizeScale)}',
+    if (state.renderScale != 1) 'renderScale: ${_num(state.renderScale)}',
     if (isPulse && state.glowBoost != 1) 'glowBoost: ${_num(state.glowBoost)}',
     if (coreBlur case final double v) 'coreBlur: ${_num(v)}',
     if (bloomBlur case final double v) 'bloomBlur: ${_num(v)}',
     if (glowBrightness case final double v) 'glowBrightness: ${_num(v)}',
     if (glowSaturation case final double v) 'glowSaturation: ${_num(v)}',
   ];
+  if (state.usesStockPulseOutside) {
+    // The stock look is a whole style; merge layers the fields set here
+    // over it, which is what the preview does too.
+    return fields.isEmpty
+        ? _stockStyle
+        : '$_stockStyle.merge(\n    const BeamStyle(\n      '
+              '${fields.join(',\n      ')},\n    ),\n  )';
+  }
   return fields.isEmpty ? null : '    ${fields.join(',\n    ')},';
 }
 
+const String _stockStyle = 'BeamStyle.pulseOutsideStock';
+
 String? _timing(PlaygroundState state) {
   final isLine = state.variant == BeamVariant.line;
+  final travels = state.isTraveling;
   final fields = [
     if (state.cycleSeconds case final double v) 'cycle: ${_duration(v)}',
     if (state.cycleGapSeconds != 0)
       'cycleGap: ${_duration(state.cycleGapSeconds)}',
     if (state.speed != 1 && !state.controllerMode)
       'speed: ${_num(state.speed)}',
+    if (travels && state.direction != BeamDirection.forward)
+      'direction: BeamDirection.${state.direction.name}',
+    if (travels && state.phaseOffset != 0)
+      'phaseOffset: ${_num(state.phaseOffset)}',
+    if (travels && state.beamCount != 1) 'beamCount: ${state.beamCount}',
     if (state.huePeriodSeconds case final double v)
       'huePeriod: ${_duration(v)}',
     if (isLine && state.breatheFactor != 1.3)
@@ -156,15 +280,25 @@ String? _timing(PlaygroundState state) {
 }
 
 String? _playback(PlaygroundState state) {
-  if (state.controllerMode) return null;
+  // A controller owns scheduling exclusively; repeat and reduced motion stay
+  // the beam's own either way.
+  final scheduled = !state.controllerMode;
   final fields = [
-    if (state.startAfterSeconds != 0)
+    if (scheduled && state.startAfterSeconds != 0)
       'startAfter: ${_duration(state.startAfterSeconds)}',
-    if (state.durationSeconds != 0)
+    if (scheduled && state.durationSeconds != 0)
       'duration: ${_duration(state.durationSeconds)}',
+    if (state.repeatCycles case final int cycles) 'repeat: ${_repeat(cycles)}',
+    if (state.reducedMotion case final BeamReducedMotion v)
+      'reducedMotion: BeamReducedMotion.${v.name}',
+    if (state.pauseWhenOffscreen) 'pauseWhenOffscreen: true',
+    if (state.cssFadeCurve) 'fadeCurve: BeamPlayback.cssEase',
   ];
   return fields.isEmpty ? null : '    ${fields.join(',\n    ')},';
 }
+
+String _repeat(int cycles) =>
+    cycles == 1 ? 'BeamRepeat.once()' : 'BeamRepeat.count($cycles)';
 
 String _duration(double seconds) {
   final ms = (seconds * 1000).round();

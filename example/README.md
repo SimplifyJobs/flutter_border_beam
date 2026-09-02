@@ -16,6 +16,16 @@ flutter run -d chrome
   nothing but its variant, so colors, shape, and cycle all come from the theme.
 - **Rest between sweeps** — a `cycleGap` beam that parks at the end of its
   travel and fades away before the next sweep.
+- **Palettes** — a card per preset: colorful, mono, ocean, sunset, aurora, neon,
+  candy, ember, ice, gold, holographic.
+- **Surfaces** — the beam reached without the wrapper: a `BeamDecoration` in a
+  `Container`'s `foregroundDecoration`, a `BeamFocusRing` around a focusable
+  field, and `BeamHover` / `BeamPress` cards.
+- **Motion** — one card each for `direction: reverse`, `direction: bounce`,
+  `beamCount: 3`, `segments: 8`, and the comet tail.
+- **Driven progress** — a rotate ring whose sweep is parked by a looping
+  `AnimationController` value instead of the clock.
+- **Sync** — four cards on one `BeamSync` clock, spaced by `phaseOffset`.
 - **Playground** — every meaningful field of the API, live (below).
 - A dark/light theme toggle. Styling comes from the demo's own design tokens
   (`lib/src/demo_theme.dart`), not Material defaults.
@@ -27,16 +37,20 @@ flutter run -d chrome
 snippet generator (`snippet.dart`), the control widgets (`controls.dart`), and
 the section itself (`playground_section.dart`).
 
+An install line sits above it: `flutter pub add flutter_border_beam` with a
+Copy chip, beside a chip that copies the repository link.
+
 Controls are grouped into collapsible sections:
 
 | Section | Controls |
 | --- | --- |
-| Variant & colors | variant; palette (colorful / mono / ocean / sunset / custom); custom colors — 2–4 swatches from a fixed preset list, fed to `BeamColors.custom` |
-| Shape | stadium, per-corner, and squircle toggles; a corner-radius slider (or four, in per-corner mode); border width |
-| Timing | cycle, cycle gap, speed, hue period; breathe / spike / spike 2 on the line variant; a static-colors toggle |
-| Style | strength, brightness, saturation, hue range, hue base, the three layer-opacity factors; `glowBoost` on the pulse variants; core blur, bloom blur, glow brightness, and glow saturation on pulse-outside |
-| Playback | active toggle; controller mode with start / pause / resume / stop and its own speed; `startAfter` and `duration` outside controller mode |
-| Theme | wraps the preview in a `BorderBeamTheme` carrying ocean colors and a squircle-20 shape |
+| Variant & colors | variant; palette — the eleven presets plus three assembled modes: **Custom** (2–4 swatches over a base preset, fed to `BeamColors.custom`), **Seed** (one swatch + a `BeamSeedHarmony`, fed to `BeamColors.fromSeed`), and **Lerp** (two presets and a blend slider, fed to `BeamColors.lerp`); an alpha-scale slider over any of them (`BeamColors.scaleAlpha`) |
+| Shape | stadium, per-corner, squircle, and star-contour toggles; a corner-radius slider (or four, in per-corner mode); border width; ring offset; the travelled edge on the line variant |
+| Timing | cycle, cycle gap, speed, hue period; direction, phase offset, and beam count on the traveling variants; breathe / spike / spike 2 on the line variant; a static-colors toggle |
+| Style | strength, brightness, saturation, hue range, hue mode, hue base, the three layer-opacity factors, glow spread, render scale; tail length and the comet tail on rotate and small; sparkle on the traveling variants; ring segments off the line variant; `glowBoost` and inner size on the pulse variants; the stock recipe, core blur, bloom blur, glow brightness, and glow saturation on pulse-outside |
+| Playback | active toggle; controller mode with start / pause / resume / stop / pulse / flash and its own speed; `startAfter` and `duration` outside controller mode; repeat (forever / once / 3 cycles); reduced motion, with a toggle that simulates it; offscreen pause; the fade curve (spring or `BeamPlayback.cssEase`) |
+| Drive | `progress:` with a position slider, `follow:` fed by the pointer over the preview, and `strengthListenable:` fed by a sine wave |
+| Theme | wraps the preview in a `BorderBeamTheme` carrying ocean colors and a squircle-20 shape, and swaps it for three `BeamSync` beams a third of a cycle apart |
 
 A few conventions worth knowing:
 
@@ -53,6 +67,17 @@ A few conventions worth knowing:
 - **Two previews.** When the window is wide enough the configuration renders on
   a dark and a light backdrop at once. `BeamTheme.auto` reads the ambient
   brightness, so neither preview sets `theme:` — the snippet stays faithful.
+- **Per-variant controls.** A field only appears where it reaches the painter:
+  the travelled edge on the line variant, tail length and comet on rotate and
+  small, sparkle on the traveling variants, inner size on pulse-inside. The
+  snippet drops the same fields on the same variants.
+- **What the snippet cannot write, it names.** A `BeamPathContour` takes a
+  builder, so the star contour prints as a commented placeholder; the pointer
+  and the strength signal print as the variables the surrounding widget would
+  hold (`follow: pointer`, `strengthListenable: level`).
+- **Static frame is the reduced-motion default**, so that chip sets no field.
+  **Simulate reduced motion** is a preview concern — it wraps the preview in a
+  `MediaQuery` asking for reduced motion and changes nothing in the snippet.
 - The **Copy** button beside the snippet puts it on the clipboard.
 
 ### Share links

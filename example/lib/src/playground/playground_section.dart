@@ -36,6 +36,11 @@ class PlaygroundSection extends StatefulWidget {
 // keep its label, readout, and `auto` chip on one line.
 const double _controlsWidth = 420;
 
+// The install line above the playground.
+const String _installCommand = 'flutter pub add flutter_border_beam';
+const String _repoUrl = 'https://github.com/SimplifyJobs/flutter_border_beam';
+const String _repoLabel = 'SimplifyJobs/flutter_border_beam';
+
 class _PlaygroundSectionState extends State<PlaygroundSection> {
   late PlaygroundState _state = _initialState();
 
@@ -157,10 +162,20 @@ class _PlaygroundSectionState extends State<PlaygroundSection> {
           onCopy: () => _copy('code', buildSnippet(_state)),
         );
 
+        final install = InstallBlock(
+          command: _installCommand,
+          repoLabel: _repoLabel,
+          copied: _copied == 'install' || _copied == 'repo',
+          onCopyCommand: () => _copy('install', _installCommand),
+          onCopyRepo: () => _copy('repo', _repoUrl),
+        );
+
         if (!wide) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              install,
+              const SizedBox(height: 12),
               _toolbar(),
               const SizedBox(height: 12),
               previews,
@@ -174,6 +189,8 @@ class _PlaygroundSectionState extends State<PlaygroundSection> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            install,
+            const SizedBox(height: 12),
             _toolbar(),
             const SizedBox(height: 12),
             Row(

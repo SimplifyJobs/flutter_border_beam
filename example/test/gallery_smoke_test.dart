@@ -1,5 +1,8 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_border_beam_example/main.dart';
+import 'package:flutter_border_beam_example/src/mocks.dart';
+import 'package:flutter_border_beam_example/src/playground/controls_panel.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Reads the playground's generated snippet.
@@ -17,12 +20,34 @@ Future<void> settle(WidgetTester tester) async {
 /// Scrolls [label] into view before tapping it — the demo is one long
 /// scroll view, and a tap on an off-screen widget silently hits nothing.
 Future<void> tapLabel(WidgetTester tester, String label) async {
+  await tapFinder(tester, find.text(label));
+}
+
+/// The same, for a label that also appears elsewhere on the page: the
+/// playground's own controls are scoped to the [ControlsPanel].
+Future<void> tapControl(WidgetTester tester, String label) async {
+  await tapFinder(
+    tester,
+    find.descendant(of: find.byType(ControlsPanel), matching: find.text(label)),
+  );
+}
+
+/// Scrolls [finder] into view and taps it.
+Future<void> tapFinder(WidgetTester tester, Finder finder) async {
   await settle(tester);
-  final finder = find.text(label);
   await tester.ensureVisible(finder);
   await tester.pump();
   await tester.tap(finder);
   await settle(tester);
+}
+
+/// Mounts the demo on a tall viewport — the gallery is one long page.
+Future<void> pumpGallery(WidgetTester tester) async {
+  tester.view.physicalSize = const Size(1200, 3600);
+  tester.view.devicePixelRatio = 2;
+  addTearDown(tester.view.reset);
+  await tester.pumpWidget(const BorderBeamDemoApp());
+  await tester.pump(const Duration(milliseconds: 300));
 }
 
 void main() {
@@ -159,6 +184,181 @@ void main() {
 
     await tapLabel(tester, 'Reset');
     expect(snippetText(tester), 'BorderBeam.rotate(\n  child: child,\n)');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('gallery: the palette, surface, motion, progress, and sync '
+      'sections all render', (tester) async {
+    await pumpGallery(tester);
+
+    for (final title in [
+      'Palettes',
+      'Surfaces',
+      'Motion',
+      'Driven progress',
+      'Sync',
+    ]) {
+      await tester.ensureVisible(find.text(title));
+      await settle(tester);
+      expect(find.text(title), findsOneWidget, reason: '$title section');
+    }
+
+    // One card per palette preset, named by the constant it uses.
+    for (final preset in ['colorful', 'mono', 'gold', 'holographic']) {
+      expect(find.text(preset), findsOneWidget);
+    }
+
+    // The four surface entry points.
+    for (final label in [
+      'BeamDecoration',
+      'BeamFocusRing',
+      'BeamHover',
+      'BeamPress',
+    ]) {
+      expect(find.text(label), findsOneWidget);
+    }
+
+    // The motion cards.
+    for (final label in ['reverse', 'bounce', 'beamCount 3', 'segments 8']) {
+      expect(find.text(label), findsOneWidget);
+    }
+
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('gallery: the surface wrappers light on focus, hover, and '
+      'press', (tester) async {
+    await pumpGallery(tester);
+
+    // Focus: the ring follows the field's own subtree.
+    await tapFinder(tester, find.byType(MockFocusField));
+    expect(
+      Focus.of(tester.element(find.text('Tap to focus'))).hasFocus,
+      isTrue,
+    );
+
+    // Hover: a mouse entering the card starts the beam and steers it.
+    final card = find.text('BeamHover');
+    await tester.ensureVisible(card);
+    await settle(tester);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: Offset.zero);
+    addTearDown(mouse.removePointer);
+    await mouse.moveTo(tester.getCenter(card));
+    await settle(tester);
+    await mouse.moveTo(Offset.zero);
+    await settle(tester);
+
+    // Press: pointer down lights it, and the release is held for the
+    // minimum duration.
+    final press = find.text('BeamPress');
+    await tester.ensureVisible(press);
+    await settle(tester);
+    final finger = await tester.startGesture(tester.getCenter(press));
+    await settle(tester);
+    await finger.up();
+    await settle(tester);
+
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('playground: the Drive section feeds progress, the pointer, '
+      'and a signal', (tester) async {
+    await pumpGallery(tester);
+
+    await tapControl(tester, 'Drive');
+    await tapControl(tester, 'Progress');
+    expect(snippetText(tester), contains('progress: 0.35'));
+
+    await tapControl(tester, 'Strength from signal');
+    expect(snippetText(tester), contains('strengthListenable: level'));
+
+    // Follow loses to progress while both are on, so it reaches the snippet
+    // only once progress is off again.
+    await tapControl(tester, 'Follow pointer');
+    expect(snippetText(tester), isNot(contains('follow: pointer')));
+    await tapControl(tester, 'Progress');
+    expect(snippetText(tester), contains('follow: pointer'));
+
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('playground: the sync toggle swaps in a BeamSync group', (
+    tester,
+  ) async {
+    await pumpGallery(tester);
+
+    await tapControl(tester, 'Theme');
+    await tapControl(tester, 'BeamSync');
+    expect(snippetText(tester), startsWith('BeamSync('));
+    // The group's three beams are labelled with the phase each one runs at.
+    expect(find.text('phaseOffset 0.00'), findsWidgets);
+    expect(find.text('phaseOffset 0.33'), findsWidgets);
+
+    await tapControl(tester, 'BeamSync');
+    expect(snippetText(tester), startsWith('BorderBeam.rotate('));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('playground: the controller transport carries pulse and '
+      'flash', (tester) async {
+    await pumpGallery(tester);
+
+    await tapControl(tester, 'Controller');
+    expect(snippetText(tester), contains('controller.pulse() / .flash()'));
+
+    for (final action in ['Pulse', 'Flash', 'Pause', 'Resume', 'Start']) {
+      await tapControl(tester, action);
+    }
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('playground: the new palette modes reach the snippet', (
+    tester,
+  ) async {
+    await pumpGallery(tester);
+
+    await tapControl(tester, 'Holographic');
+    expect(snippetText(tester), contains('colors: BeamColors.holographic'));
+
+    await tapControl(tester, 'Seed');
+    expect(snippetText(tester), contains('BeamColors.fromSeed('));
+    await tapControl(tester, 'Triadic');
+    expect(snippetText(tester), contains('BeamSeedHarmony.triadic'));
+
+    await tapControl(tester, 'Lerp');
+    expect(snippetText(tester), contains('BeamColors.lerp('));
+
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('playground: reduced motion can be chosen and simulated', (
+    tester,
+  ) async {
+    await pumpGallery(tester);
+
+    await tapControl(tester, 'Slow');
+    expect(
+      snippetText(tester),
+      contains('reducedMotion: BeamReducedMotion.slow'),
+    );
+
+    // Simulating is a preview concern: the beam's fields do not change.
+    final before = snippetText(tester);
+    await tapControl(tester, 'Simulate reduced motion');
+    expect(snippetText(tester), before);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('playground: the star contour and ring offset reach the '
+      'shape', (tester) async {
+    await pumpGallery(tester);
+
+    await tapControl(tester, 'Star contour');
+    expect(
+      snippetText(tester),
+      contains("// contour: BeamPathContour(builder: yourPath, key: 'star')"),
+    );
     expect(tester.takeException(), isNull);
   });
 }
