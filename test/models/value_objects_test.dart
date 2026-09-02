@@ -178,7 +178,7 @@ void main() {
   test('pulseOutsideStock cancels the demo tuning it can reach', () {
     const stock = BeamStyle.pulseOutsideStock;
     expect(stock.pulseOutsideTuning, BeamPulseOutsideTuning.stock);
-    expect(stock.glowBoost, closeTo(1 / 1.05, 1e-12));
+    expect(stock.glowBoost, 1);
     expect(stock.strokeOpacityFactor, closeTo(1 / 1.71, 1e-12));
     expect(stock.innerOpacityFactor, stock.strokeOpacityFactor);
     expect(stock.bloomOpacityFactor, stock.strokeOpacityFactor);

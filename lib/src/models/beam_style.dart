@@ -58,10 +58,9 @@ class BeamStyle {
   ///
   /// `BorderBeam.pulseOutside` paints the tuned demo recipe by default — the
   /// look beam.jakubantalik.com is known for. This style rolls every part of
-  /// that tuning back: the prominence boost and the glow multiplier through
-  /// the hooks that carry them ([glowBoost], the three opacity factors, and
-  /// [glowBrightness]/[glowSaturation]), and the glow's insets, blurs, and
-  /// size-derived unit through [pulseOutsideTuning].
+  /// that tuning back: the prominence boost, insets, blurs, and size-derived
+  /// unit through [pulseOutsideTuning], and the glow multiplier through the
+  /// three opacity factors and [glowBrightness]/[glowSaturation].
   ///
   /// The result is a tighter, dimmer halo that sits closer to the child.
   ///
@@ -74,12 +73,13 @@ class BeamStyle {
   ///
   /// Layer your own fields over it with [copyWith] or [merge]; anything you
   /// set wins, so `BeamStyle.pulseOutsideStock.copyWith(glowBoost: 1.4)`
-  /// keeps the stock geometry and pushes the blobs back out.
+  /// keeps the stock geometry and enlarges both its foreground and glow
+  /// blobs from the same neutral baseline.
   static const BeamStyle pulseOutsideStock = BeamStyle(
     strokeOpacityFactor: 1 / pulseOuterTunedGlowMultiplier,
     innerOpacityFactor: 1 / pulseOuterTunedGlowMultiplier,
     bloomOpacityFactor: 1 / pulseOuterTunedGlowMultiplier,
-    glowBoost: 1 / pulseOuterTunedBoost,
+    glowBoost: 1,
     glowBrightness: pulseOuterGlowBrightness,
     glowSaturation: pulseOuterGlowSaturation,
     pulseOutsideTuning: BeamPulseOutsideTuning.stock,

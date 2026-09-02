@@ -309,6 +309,28 @@ void main() {
       );
       expect(identical(_painter(tester).strength, strength), isTrue);
     });
+
+    testWidgets('still scales a debug-frozen frame', (tester) async {
+      final strength = ValueNotifier<double>(0);
+      addTearDown(strength.dispose);
+      await tester.pumpWidget(
+        _host(
+          BorderBeam.rotate(
+            playback: const BeamPlayback(
+              debugFrozenAt: Duration(milliseconds: 1300),
+            ),
+            strengthListenable: strength,
+            child: const SizedBox(),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(await _paintsPixels(tester, _painter(tester)), isFalse);
+
+      strength.value = 1;
+      await tester.pump();
+      expect(await _paintsPixels(tester, _painter(tester)), isTrue);
+    });
   });
 
   group('speedListenable', () {

@@ -166,7 +166,12 @@ class PulseInnerStrategy extends BeamVariantStrategy {
     if (strokeOpacity > 0) {
       canvas.save();
       canvas.clipPath(geometry.ring);
-      BeamLayerUtils.clipSegment(canvas, geometry, inward: 0, outward: 0);
+      BeamLayerUtils.clipSegment(
+        canvas,
+        geometry,
+        inward: geometry.borderWidth,
+        outward: 0,
+      );
       canvas.saveLayer(
         rect,
         Paint()..color = _white.withValues(alpha: strokeOpacity),
@@ -218,7 +223,12 @@ class PulseInnerStrategy extends BeamVariantStrategy {
       final frozenAlpha = 1 - params.op * 0.5;
       canvas.save();
       canvas.clipPath(geometry.outer);
-      BeamLayerUtils.clipSegment(canvas, geometry, inward: 0, outward: 0);
+      BeamLayerUtils.clipSegment(
+        canvas,
+        geometry,
+        inward: geometry.borderWidth,
+        outward: 0,
+      );
       canvas.saveLayer(
         rect,
         Paint()
@@ -232,7 +242,7 @@ class PulseInnerStrategy extends BeamVariantStrategy {
       canvas.save();
       canvas.clipPath(geometry.ring);
       for (final spec in pulseInnerBloom) {
-        final source = border[spec.ci];
+        final source = pulseBlobAt(border, spec.ci);
         paintFrozenPulseBlob(
           canvas,
           rect: rect,

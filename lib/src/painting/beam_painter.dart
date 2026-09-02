@@ -94,7 +94,7 @@ class BeamPainter extends CustomPainter with Diagnosticable {
     if (frozen != null) {
       phases = resolver.sample(
         frozen.inMicroseconds / Duration.microsecondsPerSecond,
-        1,
+        strength?.value ?? 1,
         progress: driven,
       );
     } else if (staticMode) {

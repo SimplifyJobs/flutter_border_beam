@@ -496,7 +496,12 @@ class LineStrategy extends BeamVariantStrategy {
 
     canvas.save();
     canvas.clipPath(geometry.ring);
-    BeamLayerUtils.clipSegment(canvas, geometry, inward: 0, outward: 0);
+    BeamLayerUtils.clipSegment(
+      canvas,
+      geometry,
+      inward: geometry.borderWidth,
+      outward: 0,
+    );
     canvas.saveLayer(rect, Paint()..color = _white.withValues(alpha: opacity));
 
     _forEachTraveller(canvas, beams, (beam) {
@@ -551,7 +556,16 @@ class LineStrategy extends BeamVariantStrategy {
     canvas.restore();
     canvas.restore();
 
-    _paintSparkles(canvas, rect, config, beams, opacity, isDark, path: path);
+    _paintSparkles(
+      canvas,
+      rect,
+      config,
+      beams,
+      opacity,
+      fadeMax,
+      isDark,
+      path: path,
+    );
   }
 
   void _paintBloom(
@@ -681,6 +695,7 @@ class LineStrategy extends BeamVariantStrategy {
     BeamConfig config,
     List<_Traveller> beams,
     double opacity,
+    double fadeMax,
     bool isDark, {
     _PathContext? path,
   }) {
@@ -706,7 +721,7 @@ class LineStrategy extends BeamVariantStrategy {
         center: _anchor(rect, beam, path: path),
         density: config.sparkle,
         color: isDark ? _white : _black,
-        opacity: opacity * beam.fade * weight,
+        opacity: opacity * (beam.fade / fadeMax) * weight,
         spread: _sparkleSpread,
         seed: (beam.x * _sparkleSeedSteps).floor() * 7 + i,
       );

@@ -127,7 +127,11 @@ class PulseOuterStrategy extends BeamVariantStrategy {
     final sx = _sx(size);
     final sy = _sy(size);
     final glow = _geometry(config, size);
-    final boost = config.glowBoost * pulseOuterTunedBoost;
+    final boost =
+        config.glowBoost *
+        (config.pulseOutsideTuning == BeamPulseOutsideTuning.demo
+            ? pulseOuterTunedBoost
+            : 1);
     final border = config.palette.data.border;
     double blobWeight(Rect blobRect, Offset fractionalPos) {
       final center = Offset(
@@ -196,7 +200,7 @@ class PulseOuterStrategy extends BeamVariantStrategy {
           paintPulseBlob(
             canvas,
             rect: coreRect,
-            color: border[spec.ci].color,
+            color: pulseBlobAt(border, spec.ci).color,
             fractionalPos: _specPos(spec, border),
             w: spec.w,
             h: spec.h,
@@ -247,7 +251,7 @@ class PulseOuterStrategy extends BeamVariantStrategy {
           paintFrozenPulseBlob(
             canvas,
             rect: bloomRect,
-            color: border[spec.ci].color,
+            color: pulseBlobAt(border, spec.ci).color,
             fractionalPos: _specPos(spec, border),
             w: spec.w,
             h: spec.h,
@@ -306,7 +310,12 @@ class PulseOuterStrategy extends BeamVariantStrategy {
 
     canvas.save();
     canvas.clipPath(geometry.ring);
-    BeamLayerUtils.clipSegment(canvas, geometry, inward: 0, outward: 0);
+    BeamLayerUtils.clipSegment(
+      canvas,
+      geometry,
+      inward: geometry.borderWidth,
+      outward: 0,
+    );
     canvas.saveLayer(
       rect,
       Paint()
@@ -329,7 +338,7 @@ class PulseOuterStrategy extends BeamVariantStrategy {
       paintPulseBlob(
         canvas,
         rect: rect,
-        color: border[spec.ci].color,
+        color: pulseBlobAt(border, spec.ci).color,
         fractionalPos: _specPos(spec, border),
         w: spec.w,
         h: spec.h,
@@ -362,7 +371,7 @@ class PulseOuterStrategy extends BeamVariantStrategy {
   Offset _specPos(PulseBlobSpec spec, List<BeamBlob> border) =>
       spec.x != null && spec.y != null
       ? Offset(spec.x!, spec.y!)
-      : border[spec.ci].position;
+      : pulseBlobAt(border, spec.ci).position;
 
   void _scaled(Canvas canvas, Offset center, void Function() paint) {
     canvas.save();

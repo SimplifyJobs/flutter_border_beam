@@ -4,11 +4,13 @@ import 'dart:ui' as ui;
 import 'package:flutter/painting.dart';
 import 'package:flutter_border_beam/src/animation/beam_phases.dart';
 import 'package:flutter_border_beam/src/constants/line_keyframes.dart';
+import 'package:flutter_border_beam/src/models/beam_blob.dart';
 import 'package:flutter_border_beam/src/models/beam_colors.dart';
 import 'package:flutter_border_beam/src/models/beam_config.dart';
 import 'package:flutter_border_beam/src/models/beam_options.dart';
 import 'package:flutter_border_beam/src/models/beam_segment.dart';
 import 'package:flutter_border_beam/src/models/beam_shape.dart';
+import 'package:flutter_border_beam/src/models/beam_style.dart';
 import 'package:flutter_border_beam/src/models/beam_variant.dart';
 import 'package:flutter_border_beam/src/painting/beam_painter.dart';
 import 'package:flutter_border_beam/src/painting/ring_geometry.dart';
@@ -205,6 +207,53 @@ void main() {
     });
   }
 
+  test('segmented stroke bands retain visible ring pixels', () async {
+    for (final variant in BeamVariant.values) {
+      final pixels = await _cycleFrames(
+        _config(variant, segment: BeamSegment.bottomHalf),
+      );
+      expect(
+        pixels.totalAlpha(const ui.Rect.fromLTRB(0, 250, 300, 300)),
+        greaterThan(1),
+        reason: '$variant',
+      );
+    }
+  });
+
+  test('rotate sparkles cannot spill beyond a segment band', () async {
+    final pixels = await _cycleFrames(
+      _config(
+        BeamVariant.rotate,
+        segment: BeamSegment.bottomHalf,
+        style: const BeamStyle(sparkle: 1),
+      ),
+    );
+    expect(pixels.totalAlpha(const ui.Rect.fromLTRB(0, 0, 300, 120)), 0);
+  });
+
+  test('pulse variants cycle a short spec palette without throwing', () async {
+    const short = BeamColors.spec(
+      border: [
+        BeamBlob(
+          color: ui.Color(0xFFFF0080),
+          position: ui.Offset(0.5, 0.5),
+          size: ui.Size(40, 24),
+        ),
+      ],
+    );
+    for (final variant in [BeamVariant.pulseInside, BeamVariant.pulseOutside]) {
+      final pixels = await _paint(
+        _config(variant, colors: short),
+        behindAndAbove: true,
+      );
+      expect(
+        pixels.totalAlpha(ui.Offset.zero & _size),
+        greaterThan(1),
+        reason: '$variant',
+      );
+    }
+  });
+
   test('an omitted segment and an explicit null paint identically', () async {
     final omitted = BeamConfig.resolve(
       variant: BeamVariant.rotate,
@@ -229,10 +278,13 @@ BeamConfig _config(
   bool wrapCorners = false,
   double radius = 16,
   BeamEdge edge = BeamEdge.bottom,
+  BeamColors colors = BeamColors.colorful,
+  BeamStyle style = const BeamStyle(),
 }) => BeamConfig.resolve(
   variant: variant,
-  palette: BeamColors.colorful.resolve(),
+  palette: colors.resolve(),
   brightness: ui.Brightness.dark,
+  style: style,
   shape: BeamShape(
     radius: BorderRadius.all(Radius.circular(radius)),
     edge: edge,

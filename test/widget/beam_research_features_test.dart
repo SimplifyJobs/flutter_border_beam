@@ -28,9 +28,9 @@ void main() {
         BeamVariant.pulseOutside,
         style: BeamStyle.pulseOutsideStock,
       );
-      // Each of these cancels a multiplier the strategy applies: the boost
-      // (×1.05) and the glow multiplier (×1.71) on all three layer opacities.
-      expect(config.glowBoost * 1.05, closeTo(1, 1e-12));
+      // Stock tuning disables the demo-only behind-glow boost in the
+      // strategy, leaving the shared foreground/behind hook neutral.
+      expect(config.glowBoost, 1);
       for (final factor in [
         config.strokeOpacityFactor,
         config.innerOpacityFactor,

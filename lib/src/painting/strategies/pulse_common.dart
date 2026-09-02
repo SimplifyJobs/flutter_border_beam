@@ -4,6 +4,10 @@ import '../../animation/oscillator.dart';
 import '../../models/beam_blob.dart';
 import '../gradient_builders.dart';
 
+/// Reads a pulse table's color source, cycling a short custom spec palette.
+BeamBlob pulseBlobAt(List<BeamBlob> border, int index) =>
+    border[index % border.length];
+
 /// Resolves a [PulseQuad] to its animated opacity factor.
 double quadOpacity(PulsePhaseSet pulse, PulseQuad quad) => switch (quad) {
   PulseQuad.tl => pulse.bopTl,
