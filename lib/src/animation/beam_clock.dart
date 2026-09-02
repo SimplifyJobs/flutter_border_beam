@@ -1,3 +1,4 @@
+import 'package:flutter/animation.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 
@@ -21,18 +22,20 @@ enum BeamFadeStage {
 /// function of elapsed time, driven by ONE [Ticker] (the React library uses
 /// one shared requestAnimationFrame loop). The clock integrates scaled
 /// deltas so [speed] changes and pauses keep continuity, runs the
-/// fade-in/fade-out envelope (spring-eased via [FadeSpringCurve]), and can
+/// fade-in/fade-out envelope (spring-eased via [FadeSpringCurve] unless
+/// [fadeCurve] replaces it), and can
 /// cap its notification rate for the pulse variants (~30fps in the source).
 class BeamClock extends ChangeNotifier {
   /// Creates a clock. [createTicker] is typically
   /// `TickerProviderStateMixin.createTicker`. [maxFps] caps notification
   /// frequency while not fading (null = every frame). [onFadeComplete] fires
   /// with `true` when a fade-in finishes and `false` when a fade-out
-  /// finishes.
+  /// finishes. [fadeCurve] replaces the spring easing of both fades.
   BeamClock({
     required Ticker Function(TickerCallback) createTicker,
     this.maxFps,
     this.onFadeComplete,
+    this.fadeCurve,
   }) : _createTicker = createTicker;
 
   /// Fade-in duration in seconds (React `beam-fade-in 0.6s`).
@@ -51,7 +54,7 @@ class BeamClock extends ChangeNotifier {
   static const double flashPeak = 4;
 
   // Spring-eased fade, isolated here so the curve is trivially replaceable.
-  static const _fadeCurve = FadeSpringCurve.instance;
+  static const _defaultFadeCurve = FadeSpringCurve.instance;
 
   final Ticker Function(TickerCallback) _createTicker;
 
@@ -61,6 +64,16 @@ class BeamClock extends ChangeNotifier {
   /// Fired when a fade completes; the argument is whether the beam is now
   /// active (`true` after fade-in, `false` after fade-out).
   final ValueChanged<bool>? onFadeComplete;
+
+  /// The easing both fades run on; null uses the spring
+  /// ([FadeSpringCurve]).
+  ///
+  /// Settable so a beam can pick up `BeamPlayback.fadeCurve` after its clock
+  /// exists. It is read per frame, so a change lands on the next one — and
+  /// mid-fade, since both stages read the curve from where they already are.
+  Curve? fadeCurve;
+
+  Curve get _fadeCurve => fadeCurve ?? _defaultFadeCurve;
 
   Ticker? _ticker;
   Duration _lastRaw = Duration.zero;

@@ -19,6 +19,7 @@ export 'src/models/beam_options.dart'
         BeamEdge,
         BeamHueMode,
         BeamPathContour,
+        BeamPulseOutsideTuning,
         BeamReducedMotion,
         BeamRepeat;
 export 'src/models/beam_playback.dart' show BeamPlayback;

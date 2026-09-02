@@ -1,3 +1,4 @@
+import 'package:flutter/animation.dart';
 import 'package:flutter/foundation.dart';
 
 import 'beam_options.dart';
@@ -33,7 +34,17 @@ class BeamPlayback {
     this.duration,
     this.repeat,
     this.reducedMotion,
+    this.pauseWhenOffscreen,
+    this.fadeCurve,
+    this.debugFrozenAt,
   });
+
+  /// The web platform's `ease` timing function, as a [Curve].
+  ///
+  /// The fades default to a spring, which carries a little momentum. Hand
+  /// this to [fadeCurve] to get the CSS transition the source library's own
+  /// page fades with instead.
+  static const Curve cssEase = Cubic(0.25, 0.1, 0.25, 1);
 
   /// Declarative play state: toggling fades the beam in (0.6s) and out
   /// (0.5s). Default true.
@@ -57,6 +68,37 @@ class BeamPlayback {
   /// quarter-speed motion, or full motion regardless.
   final BeamReducedMotion? reducedMotion;
 
+  /// Whether the beam's clock stops while the beam is scrolled out of its
+  /// enclosing scrollable, with a 256px margin. Default true.
+  ///
+  /// A list of beams costs one ticker each; this is what keeps the ones
+  /// nobody can see from spending frames. The beam is only *paused* — its
+  /// play state, its fade, and its callbacks are untouched, so it comes back
+  /// on screen exactly where it left off rather than restarting.
+  ///
+  /// It watches the nearest enclosing `Scrollable` and does nothing when
+  /// there is none.
+  final bool? pauseWhenOffscreen;
+
+  /// The easing both fade envelopes run on. Null (the default) uses the
+  /// spring, which overshoots slightly and settles.
+  ///
+  /// [cssEase] is the web's own `ease`, for a fade that matches the source
+  /// library exactly.
+  final Curve? fadeCurve;
+
+  /// Pins the beam to one instant of its timeline, at full opacity, and
+  /// never starts its clock.
+  ///
+  /// Every animated value is a pure function of elapsed time, so a fixed
+  /// time is a fixed frame: two runs a week apart paint the same pixels.
+  /// That is what makes a beam screenshottable — golden tests, docs
+  /// captures, design reviews.
+  ///
+  /// It reads the timeline from activation, so anything past the 0.6s
+  /// fade-in is a fully-lit frame.
+  final Duration? debugFrozenAt;
+
   /// Returns a copy with the given fields replaced. A null argument keeps the
   /// current value; build a new [BeamPlayback] to clear a field back to
   /// inherit.
@@ -67,6 +109,9 @@ class BeamPlayback {
     Duration? duration,
     BeamRepeat? repeat,
     BeamReducedMotion? reducedMotion,
+    bool? pauseWhenOffscreen,
+    Curve? fadeCurve,
+    Duration? debugFrozenAt,
   }) => BeamPlayback(
     active: active ?? this.active,
     autoPlay: autoPlay ?? this.autoPlay,
@@ -74,6 +119,9 @@ class BeamPlayback {
     duration: duration ?? this.duration,
     repeat: repeat ?? this.repeat,
     reducedMotion: reducedMotion ?? this.reducedMotion,
+    pauseWhenOffscreen: pauseWhenOffscreen ?? this.pauseWhenOffscreen,
+    fadeCurve: fadeCurve ?? this.fadeCurve,
+    debugFrozenAt: debugFrozenAt ?? this.debugFrozenAt,
   );
 
   /// Layers [other] over this playback: every non-null field of [other] wins,
@@ -87,6 +135,9 @@ class BeamPlayback {
           duration: other.duration,
           repeat: other.repeat,
           reducedMotion: other.reducedMotion,
+          pauseWhenOffscreen: other.pauseWhenOffscreen,
+          fadeCurve: other.fadeCurve,
+          debugFrozenAt: other.debugFrozenAt,
         );
 
   @override
@@ -98,7 +149,10 @@ class BeamPlayback {
           other.startAfter == startAfter &&
           other.duration == duration &&
           other.repeat == repeat &&
-          other.reducedMotion == reducedMotion;
+          other.reducedMotion == reducedMotion &&
+          other.pauseWhenOffscreen == pauseWhenOffscreen &&
+          other.fadeCurve == fadeCurve &&
+          other.debugFrozenAt == debugFrozenAt;
 
   @override
   int get hashCode => Object.hash(
@@ -108,6 +162,9 @@ class BeamPlayback {
     duration,
     repeat,
     reducedMotion,
+    pauseWhenOffscreen,
+    fadeCurve,
+    debugFrozenAt,
   );
 
   @override
@@ -119,6 +176,9 @@ class BeamPlayback {
       if (duration != null) 'duration: $duration',
       if (repeat != null) 'repeat: $repeat',
       if (reducedMotion != null) 'reducedMotion: $reducedMotion',
+      if (pauseWhenOffscreen != null) 'pauseWhenOffscreen: $pauseWhenOffscreen',
+      if (fadeCurve != null) 'fadeCurve: $fadeCurve',
+      if (debugFrozenAt != null) 'debugFrozenAt: $debugFrozenAt',
     ];
     return 'BeamPlayback(${fields.join(', ')})';
   }

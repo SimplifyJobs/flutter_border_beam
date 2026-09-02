@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../constants/pulse_constants.dart';
 import 'beam_colors.dart';
 import 'beam_options.dart';
 import 'beam_theme.dart';
@@ -46,8 +47,43 @@ class BeamStyle {
     this.comet,
     this.sparkle,
     this.segments,
+    this.innerSizeScale,
+    this.renderScale,
+    this.pulseOutsideTuning,
     this.themeConfig,
   });
+
+  /// The pulse-outside look as the React library ships it, before the demo
+  /// page's tuning.
+  ///
+  /// `BorderBeam.pulseOutside` paints the tuned demo recipe by default — the
+  /// look beam.jakubantalik.com is known for. This style rolls every part of
+  /// that tuning back: the prominence boost and the glow multiplier through
+  /// the hooks that carry them ([glowBoost], the three opacity factors, and
+  /// [glowBrightness]/[glowSaturation]), and the glow's insets, blurs, and
+  /// size-derived unit through [pulseOutsideTuning].
+  ///
+  /// The result is a tighter, dimmer halo that sits closer to the child.
+  ///
+  /// ```dart
+  /// BorderBeam.pulseOutside(
+  ///   style: BeamStyle.pulseOutsideStock,
+  ///   child: card,
+  /// )
+  /// ```
+  ///
+  /// Layer your own fields over it with [copyWith] or [merge]; anything you
+  /// set wins, so `BeamStyle.pulseOutsideStock.copyWith(glowBoost: 1.4)`
+  /// keeps the stock geometry and pushes the blobs back out.
+  static const BeamStyle pulseOutsideStock = BeamStyle(
+    strokeOpacityFactor: 1 / pulseOuterTunedGlowMultiplier,
+    innerOpacityFactor: 1 / pulseOuterTunedGlowMultiplier,
+    bloomOpacityFactor: 1 / pulseOuterTunedGlowMultiplier,
+    glowBoost: 1 / pulseOuterTunedBoost,
+    glowBrightness: pulseOuterGlowBrightness,
+    glowSaturation: pulseOuterGlowSaturation,
+    pulseOutsideTuning: BeamPulseOutsideTuning.stock,
+  );
 
   /// Color scheme: a preset, [BeamColors.custom], or [BeamColors.spec].
   /// Defaults to [BeamColors.colorful].
@@ -133,6 +169,37 @@ class BeamStyle {
   /// contour. Null (the default) keeps the ring solid.
   final int? segments;
 
+  /// Multiplier on the size of the pulse-inside inner wash — its blobs and
+  /// its corner accents. Default 1.
+  ///
+  /// Below 1 the wash pulls tighter to the border, leaving more of the child
+  /// clear; above 1 it floods further in. The perimeter ring and the bloom
+  /// keep their own geometry, so the border itself does not move.
+  ///
+  /// Only `BeamVariant.pulseInside` paints that layer; every other variant
+  /// ignores this.
+  final double? innerSizeScale;
+
+  /// The fraction of the box the beam is *painted* at before being scaled
+  /// back up to fill it, 0.25–1 (clamped). Default 1 — no rescaling.
+  ///
+  /// The palettes are authored against a 350×140 card, so on a
+  /// screen-width box the blobs read as small and sparse. Painting at, say,
+  /// `0.5` and magnifying restores the proportions the palette was drawn
+  /// for: the glow, its blurs, and the corner radii all grow together, so
+  /// the beam reads the same at any size.
+  ///
+  /// It costs nothing — one canvas transform, no extra layer — but it is a
+  /// magnification, so the ring's own edge softens as the factor drops.
+  final double? renderScale;
+
+  /// Which pulse-outside glow geometry to paint: the demo recipe (the
+  /// default) or the source's stock table.
+  ///
+  /// [BeamStyle.pulseOutsideStock] is the whole stock look; this field alone
+  /// changes only the insets and blurs.
+  final BeamPulseOutsideTuning? pulseOutsideTuning;
+
   /// Replaces the whole variant×brightness preset (layer opacities, inset
   /// shadow, and the default brightness/saturation) with your own.
   ///
@@ -165,6 +232,9 @@ class BeamStyle {
     bool? comet,
     double? sparkle,
     int? segments,
+    double? innerSizeScale,
+    double? renderScale,
+    BeamPulseOutsideTuning? pulseOutsideTuning,
     BeamThemeConfig? themeConfig,
   }) => BeamStyle(
     colors: colors ?? this.colors,
@@ -189,6 +259,9 @@ class BeamStyle {
     comet: comet ?? this.comet,
     sparkle: sparkle ?? this.sparkle,
     segments: segments ?? this.segments,
+    innerSizeScale: innerSizeScale ?? this.innerSizeScale,
+    renderScale: renderScale ?? this.renderScale,
+    pulseOutsideTuning: pulseOutsideTuning ?? this.pulseOutsideTuning,
     themeConfig: themeConfig ?? this.themeConfig,
   );
 
@@ -219,6 +292,9 @@ class BeamStyle {
           comet: other.comet,
           sparkle: other.sparkle,
           segments: other.segments,
+          innerSizeScale: other.innerSizeScale,
+          renderScale: other.renderScale,
+          pulseOutsideTuning: other.pulseOutsideTuning,
           themeConfig: other.themeConfig,
         );
 
@@ -248,6 +324,9 @@ class BeamStyle {
           other.comet == comet &&
           other.sparkle == sparkle &&
           other.segments == segments &&
+          other.innerSizeScale == innerSizeScale &&
+          other.renderScale == renderScale &&
+          other.pulseOutsideTuning == pulseOutsideTuning &&
           other.themeConfig == themeConfig;
 
   @override
@@ -274,6 +353,9 @@ class BeamStyle {
     comet,
     sparkle,
     segments,
+    innerSizeScale,
+    renderScale,
+    pulseOutsideTuning,
     themeConfig,
   ]);
 
@@ -303,6 +385,9 @@ class BeamStyle {
       if (comet != null) 'comet: $comet',
       if (sparkle != null) 'sparkle: $sparkle',
       if (segments != null) 'segments: $segments',
+      if (innerSizeScale != null) 'innerSizeScale: $innerSizeScale',
+      if (renderScale != null) 'renderScale: $renderScale',
+      if (pulseOutsideTuning != null) 'pulseOutsideTuning: $pulseOutsideTuning',
       if (themeConfig != null) 'themeConfig: $themeConfig',
     ];
     return 'BeamStyle(${fields.join(', ')})';

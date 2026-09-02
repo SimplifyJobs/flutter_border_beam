@@ -523,6 +523,10 @@ BeamTiming _configTiming(BeamTiming timing) => BeamTiming(
 // BeamReducedMotion.slow runs the clock at a quarter rate.
 const double _slowMotionFactor = 0.25;
 
+// How far outside the viewport a beam keeps running before its clock is
+// paused, matching the root margin the source's IntersectionObserver uses.
+const double _offscreenMarginPx = 256;
+
 // How long the follow easing takes to cover most of the distance to the
 // pointer. Short enough to feel attached, long enough to smooth a jittery
 // pointer stream.
@@ -588,12 +592,23 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
   bool get _active => _playback.active ?? true;
   bool get _autoPlay => _playback.autoPlay ?? true;
 
+  // A frozen beam paints one instant of its timeline forever, so its clock
+  // is never started at all.
+  bool get _frozen => _playback.debugFrozenAt != null;
+
   bool _autoPlayScheduled = false;
   bool _hasStarted = false;
   BeamReducedMotion? _reducedApplied;
   // Set only when reduced motion paused the clock, so turning reduced motion
   // back off never overrides a pause the controller asked for.
   bool _pausedForReducedMotion = false;
+  // The same idea for the offscreen pause: set only when this beam stopped
+  // the clock because nobody could see it, so resuming never overrides a
+  // pause a controller or reduced motion asked for.
+  bool _pausedForOffscreen = false;
+  ScrollableState? _scrollable;
+  ScrollPosition? _scrollPosition;
+  bool _offscreenCheckScheduled = false;
   double _hueTimeOffset = 0;
 
   @override
@@ -606,6 +621,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     _playback = widget._playbackInput ?? const BeamPlayback();
     _cycleSeconds = _cycleSecondsOf(_timing, widget.variant);
     _applySpeed();
+    _applyFadeCurve();
     widget.controller?.attach(_clock);
     widget.speedListenable?.addListener(_applySpeed);
   }
@@ -630,8 +646,16 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     _cycleSeconds = _cycleSecondsOf(timing, widget.variant);
     if (retime) _retimeToNewCycle(previousCycle, _cycleSeconds);
     _applySpeed();
+    _applyFadeCurve();
     _syncResolverPlayback();
     _syncTickListener();
+    _syncScrollListener();
+  }
+
+  // A group clock's fade belongs to its BeamSync, not to one member.
+  void _applyFadeCurve() {
+    if (_synced) return;
+    _clock.fadeCurve = _playback.fadeCurve;
   }
 
   // The rate the clock runs at: a live speedListenable first, then the
@@ -706,6 +730,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
       _sharedClock = null;
       _createOwnClock();
       _applySpeed();
+      _applyFadeCurve();
       if (widget.controller == null && _autoPlay && _active) _start();
     }
     _syncTickListener();
@@ -722,6 +747,9 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
       _pausedForReducedMotion = false;
       if (_clock.isVisible) {
         _clock.resume();
+        // Motion is allowed again, but visibility may not be — re-check
+        // rather than leaving an offscreen beam ticking.
+        _scheduleOffscreenCheck();
         return;
       }
     }
@@ -745,7 +773,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
   }
 
   void _start() {
-    if (_motionFrozen || _synced) return;
+    if (_motionFrozen || _synced || _frozen) return;
     _hasStarted = true;
     // Activating from hidden restarts the timeline, so the hue shift a
     // retime accumulated goes with it; a mid-fade-out re-activation keeps
@@ -918,6 +946,85 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     resolver.travelTimeOffset += delta * _cycleSeconds;
   }
 
+  // ─── Offscreen pause ────────────────────────────────────────────────────
+
+  bool get _pauseWhenOffscreen => _playback.pauseWhenOffscreen ?? true;
+
+  // Watches the nearest enclosing Scrollable, if there is one and this beam
+  // has a clock of its own to pause. Scrollable.maybeOf registers a
+  // dependency, so a scroll view swapping its position re-runs this.
+  void _syncScrollListener() {
+    final scrollable = (_pauseWhenOffscreen && !_synced && !_frozen)
+        ? Scrollable.maybeOf(context)
+        : null;
+    final position = scrollable?.position;
+    if (position == _scrollPosition) return;
+    _scrollPosition?.removeListener(_onScrollChanged);
+    _scrollable = scrollable;
+    _scrollPosition = position;
+    if (position == null) {
+      // Nothing left to tell this beam it is hidden, so it must not stay
+      // paused on the strength of a check nobody will repeat.
+      _resumeFromOffscreen();
+      return;
+    }
+    position.addListener(_onScrollChanged);
+    _scheduleOffscreenCheck();
+  }
+
+  void _onScrollChanged() => _scheduleOffscreenCheck();
+
+  // Coalesced to one check per frame, and deferred to the end of it: a
+  // scroll position moves before layout, so the beam's paint transform is
+  // only settled once the frame is done.
+  void _scheduleOffscreenCheck() {
+    if (_offscreenCheckScheduled) return;
+    _offscreenCheckScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _offscreenCheckScheduled = false;
+      _updateOffscreenPause();
+    });
+  }
+
+  void _updateOffscreenPause() {
+    if (!mounted || !_pauseWhenOffscreen || _synced || _frozen) return;
+    final viewport = _scrollable?.context.findRenderObject();
+    final self = context.findRenderObject();
+    if (viewport is! RenderBox || self is! RenderBox) return;
+    if (!viewport.attached ||
+        !viewport.hasSize ||
+        !self.attached ||
+        !self.hasSize) {
+      return;
+    }
+    final origin = self.localToGlobal(Offset.zero, ancestor: viewport);
+    final visible = (origin & self.size)
+        .inflate(_offscreenMarginPx)
+        .overlaps(Offset.zero & viewport.size);
+    if (visible) {
+      _resumeFromOffscreen();
+    } else {
+      _pauseForOffscreen();
+    }
+  }
+
+  void _pauseForOffscreen() {
+    // A clock that is already stopped was stopped by someone else — a
+    // controller, reduced motion, or a finished fade-out — and stays theirs.
+    if (_pausedForOffscreen || !_clock.isRunning) return;
+    _clock.pause();
+    _pausedForOffscreen = true;
+  }
+
+  void _resumeFromOffscreen() {
+    if (!_pausedForOffscreen) return;
+    _pausedForOffscreen = false;
+    // Reduced motion outranks visibility: a beam that must not move stays
+    // still whether or not it is on screen.
+    if (_motionFrozen || _pausedForReducedMotion) return;
+    if (_clock.isVisible) _clock.resume();
+  }
+
   // ─── Lifecycle ──────────────────────────────────────────────────────────
 
   @override
@@ -942,6 +1049,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
       _ownClock!.dispose();
       _createOwnClock();
       _applySpeed();
+      _applyFadeCurve();
       widget.controller?.attach(_clock);
       _syncTickListener();
       if (wasVisible && widget.controller == null && _active) _start();
@@ -968,6 +1076,9 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     _startTimer?.cancel();
     _durationTimer?.cancel();
     widget.speedListenable?.removeListener(_applySpeed);
+    _scrollPosition?.removeListener(_onScrollChanged);
+    _scrollPosition = null;
+    _scrollable = null;
     _detachTickListener();
     widget.controller?.detach(_clock);
     _ownClock?.dispose();
@@ -1044,6 +1155,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
                 staticMode: staticMode,
                 progress: _driven,
                 strength: widget.strengthListenable,
+                frozenAt: _playback.debugFrozenAt,
               )
             : null,
         foregroundPainter: hidden
@@ -1057,6 +1169,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
                 staticMode: staticMode,
                 progress: _driven,
                 strength: widget.strengthListenable,
+                frozenAt: _playback.debugFrozenAt,
               ),
         // The child never re-rasterizes with the beam's frames.
         child: RepaintBoundary(child: widget.child),

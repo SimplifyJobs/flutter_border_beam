@@ -52,6 +52,10 @@ class PulseInnerStrategy extends BeamVariantStrategy {
 
     final boost = config.glowBoost;
     final border = config.palette.data.border;
+    // The inward wash — its blobs and its corner accents — is the one layer
+    // innerSizeScale moves; the perimeter ring and the bloom keep their own
+    // geometry so the border itself stays where it is.
+    final innerScale = config.innerSizeScale;
 
     // ── z1: inner perimeter + corner accents (::before) ──
     final innerOpacity = BeamLayerUtils.layerOpacity(
@@ -75,8 +79,8 @@ class PulseInnerStrategy extends BeamVariantStrategy {
           rect: rect,
           color: blob.color,
           fractionalPos: blob.position,
-          w: pulseInnerSizes[i].width,
-          h: pulseInnerSizes[i].height,
+          w: pulseInnerSizes[i].width * innerScale,
+          h: pulseInnerSizes[i].height * innerScale,
           region: map.region,
           quad: map.quad,
           pulse: phases.pulse,
@@ -103,8 +107,8 @@ class PulseInnerStrategy extends BeamVariantStrategy {
         BeamLayerUtils.paintRadial(
           canvas,
           center: corner.pos,
-          radiusX: pulseInnerCornerRadius,
-          radiusY: pulseInnerCornerRadius,
+          radiusX: pulseInnerCornerRadius * innerScale,
+          radiusY: pulseInnerCornerRadius * innerScale,
           colors: [
             fold(cornerBase.withValues(alpha: a)),
             fold(cornerBase.withValues(alpha: 0)),

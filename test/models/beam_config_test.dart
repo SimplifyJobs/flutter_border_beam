@@ -179,6 +179,15 @@ void main() {
           _resolve(timing: _timing.copyWith(phaseOffset: 0.5)),
       'timing.beamCount': () =>
           _resolve(timing: _timing.copyWith(beamCount: 2)),
+      'style.innerSizeScale': () =>
+          _resolve(style: _style.copyWith(innerSizeScale: 0.6)),
+      'style.renderScale': () =>
+          _resolve(style: _style.copyWith(renderScale: 0.5)),
+      'style.pulseOutsideTuning': () => _resolve(
+        style: _style.copyWith(
+          pulseOutsideTuning: BeamPulseOutsideTuning.stock,
+        ),
+      ),
     };
 
     for (final MapEntry(key: name, value: mutate) in mutations.entries) {
@@ -286,7 +295,26 @@ void main() {
         expect(config.direction, BeamDirection.forward, reason: '$variant');
         expect(config.phaseOffset, 0, reason: '$variant');
         expect(config.beamCount, 1, reason: '$variant');
+        expect(config.innerSizeScale, 1, reason: '$variant');
+        expect(config.renderScale, 1, reason: '$variant');
+        expect(
+          config.pulseOutsideTuning,
+          BeamPulseOutsideTuning.demo,
+          reason: '$variant',
+        );
       }
+    });
+
+    test('renderScale is clamped to the 0.25-1 window', () {
+      BeamConfig withScale(double scale) => BeamConfig.resolve(
+        variant: BeamVariant.rotate,
+        palette: BeamColors.colorful.resolve(),
+        brightness: Brightness.dark,
+        style: BeamStyle(renderScale: scale),
+      );
+      expect(withScale(0).renderScale, 0.25);
+      expect(withScale(0.5).renderScale, 0.5);
+      expect(withScale(3).renderScale, 1);
     });
 
     test('sparkle is clamped to 0-1', () {

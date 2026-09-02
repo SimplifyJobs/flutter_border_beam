@@ -34,6 +34,7 @@ class BeamPainter extends CustomPainter with Diagnosticable {
     required this.staticMode,
     this.progress,
     this.strength,
+    this.frozenAt,
   }) : super(repaint: Listenable.merge([clock, ?progress, ?strength]));
 
   /// The time source; also the repaint trigger.
@@ -68,11 +69,35 @@ class BeamPainter extends CustomPainter with Diagnosticable {
   /// ignores it along with the rest of the clock.
   final ValueListenable<double>? strength;
 
+  /// The timeline position every frame is sampled at, or null to follow the
+  /// clock.
+  ///
+  /// `BeamPlayback.debugFrozenAt`: the beam paints that one instant at full
+  /// fade forever, which is what makes a screenshot of it reproducible. It
+  /// lives on the painter rather than on the config because it changes no
+  /// painted value — only which moment of the timeline is read — so a config
+  /// cached across a freeze is still the right config.
+  final Duration? frozenAt;
+
+  // The config the strategies actually paint with: at renderScale 1 it is
+  // the config itself, and below that the same beam re-authored for the
+  // smaller box the canvas transform magnifies back up.
+  late final BeamConfig _paintConfig = config.renderScale >= 1
+      ? config
+      : config.scaledBy(config.renderScale);
+
   @override
   void paint(Canvas canvas, Size size) {
     final driven = progress?.value;
     final BeamFramePhases phases;
-    if (staticMode) {
+    final frozen = frozenAt;
+    if (frozen != null) {
+      phases = resolver.sample(
+        frozen.inMicroseconds / Duration.microsecondsPerSecond,
+        1,
+        progress: driven,
+      );
+    } else if (staticMode) {
       phases = resolver.staticFrame(progress: driven);
     } else {
       if (!clock.isVisible) return;
@@ -86,10 +111,36 @@ class BeamPainter extends CustomPainter with Diagnosticable {
         progress: driven,
       );
     }
+    final scale = config.renderScale;
+    if (scale >= 1) {
+      _paintPass(canvas, size, config, phases);
+      return;
+    }
+    // One transform, no layer: the beam is drawn into a box `scale` the size
+    // of the real one and magnified back about the origin, so it lands
+    // exactly on the box's bounds. Blur sigmas ride the canvas, so they grow
+    // with everything else.
+    canvas.save();
+    canvas.scale(1 / scale);
+    _paintPass(
+      canvas,
+      Size(size.width * scale, size.height * scale),
+      _paintConfig,
+      phases,
+    );
+    canvas.restore();
+  }
+
+  void _paintPass(
+    Canvas canvas,
+    Size size,
+    BeamConfig painted,
+    BeamFramePhases phases,
+  ) {
     if (behind) {
-      strategy.paintBehind(canvas, size, config, phases);
+      strategy.paintBehind(canvas, size, painted, phases);
     } else {
-      strategy.paintAbove(canvas, size, config, phases);
+      strategy.paintAbove(canvas, size, painted, phases);
     }
   }
 
@@ -101,7 +152,8 @@ class BeamPainter extends CustomPainter with Diagnosticable {
       oldDelegate.staticMode != staticMode ||
       oldDelegate.clock != clock ||
       oldDelegate.progress != progress ||
-      oldDelegate.strength != strength;
+      oldDelegate.strength != strength ||
+      oldDelegate.frozenAt != frozenAt;
 
   @override
   void debugFillProperties(DiagnosticPropertiesBuilder properties) {
@@ -116,6 +168,9 @@ class BeamPainter extends CustomPainter with Diagnosticable {
       ..add(DoubleProperty('fadeOpacity', clock.fadeOpacity))
       ..add(DoubleProperty('boost', clock.boost, defaultValue: 1.0))
       ..add(DoubleProperty('progress', progress?.value, defaultValue: null))
-      ..add(DoubleProperty('strength', strength?.value, defaultValue: null));
+      ..add(DoubleProperty('strength', strength?.value, defaultValue: null))
+      ..add(
+        DiagnosticsProperty<Duration>('frozenAt', frozenAt, defaultValue: null),
+      );
   }
 }

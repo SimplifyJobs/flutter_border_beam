@@ -15,6 +15,12 @@ const double _defaultBreatheFactor = 1.3;
 const double _defaultSpikeFactor = 1.33;
 const double _defaultSpike2Factor = 1.7;
 
+// The window BeamStyle.renderScale is clamped to: below a quarter the
+// magnification is coarse enough to read as a blur, and above 1 the beam
+// would be painted larger than the box it fills.
+const double _minRenderScale = 0.25;
+const double _maxRenderScale = 1;
+
 double _seconds(Duration d) =>
     d.inMicroseconds / Duration.microsecondsPerSecond;
 
@@ -59,6 +65,9 @@ class BeamConfig {
     this.comet = false,
     this.sparkle = 0,
     this.segments,
+    this.innerSizeScale = 1,
+    this.renderScale = 1,
+    this.pulseOutsideTuning = BeamPulseOutsideTuning.demo,
     this.edge = BeamEdge.bottom,
     this.ringOffset = 0,
     this.contour,
@@ -130,6 +139,13 @@ class BeamConfig {
       comet: style.comet ?? false,
       sparkle: (style.sparkle ?? 0).clamp(0.0, 1.0),
       segments: style.segments,
+      innerSizeScale: style.innerSizeScale ?? 1,
+      renderScale: (style.renderScale ?? 1).clamp(
+        _minRenderScale,
+        _maxRenderScale,
+      ),
+      pulseOutsideTuning:
+          style.pulseOutsideTuning ?? BeamPulseOutsideTuning.demo,
       edge: shape.edge ?? BeamEdge.bottom,
       ringOffset: shape.ringOffset ?? 0,
       contour: shape.contour,
@@ -243,6 +259,16 @@ class BeamConfig {
   /// Number of dashes the ring is broken into, or null for a solid ring.
   final int? segments;
 
+  /// Multiplier on the pulse-inside inner wash's blobs and corner accents.
+  final double innerSizeScale;
+
+  /// The fraction of the box the beam is painted at before being magnified
+  /// back to fill it, clamped to 0.25–1.
+  final double renderScale;
+
+  /// Which pulse-outside glow geometry to paint.
+  final BeamPulseOutsideTuning pulseOutsideTuning;
+
   /// Which edge the line variant's beam travels along.
   final BeamEdge edge;
 
@@ -262,6 +288,61 @@ class BeamConfig {
   /// How many beams travel the contour at once, spaced equally along the
   /// cycle.
   final int beamCount;
+
+  /// This config re-authored for a box [factor] the size of the real one.
+  ///
+  /// Only the lengths measured against the box travel with it — the corner
+  /// radii, the ring's thickness, and its offset. Everything the palettes fix
+  /// in absolute px (blob sizes, blur radii, corner accents) deliberately
+  /// stays put: painting those at [factor] and magnifying the result back is
+  /// exactly what makes a palette authored for a card read on a screen-sized
+  /// box. [renderScale] is spent by the copy, so a painter cannot scale
+  /// twice.
+  BeamConfig scaledBy(double factor) => BeamConfig(
+    variant: variant,
+    palette: palette,
+    theme: theme,
+    brightness: brightness,
+    borderRadius: borderRadius * factor,
+    borderWidth: borderWidth * factor,
+    useSuperellipse: useSuperellipse,
+    strength: strength,
+    brightnessFactor: brightnessFactor,
+    saturation: saturation,
+    hueRange: hueRange,
+    hueBase: hueBase,
+    staticColors: staticColors,
+    cycleSeconds: cycleSeconds,
+    hueMode: hueMode,
+    huePeriodSeconds: huePeriodSeconds,
+    bloomHuePeriodSeconds: bloomHuePeriodSeconds,
+    gapSeconds: gapSeconds,
+    breatheFactor: breatheFactor,
+    spikeFactor: spikeFactor,
+    spike2Factor: spike2Factor,
+    strokeOpacityFactor: strokeOpacityFactor,
+    innerOpacityFactor: innerOpacityFactor,
+    bloomOpacityFactor: bloomOpacityFactor,
+    glowBoost: glowBoost,
+    coreBlur: coreBlur,
+    bloomBlur: bloomBlur,
+    glowBrightness: glowBrightness,
+    glowSaturation: glowSaturation,
+    tailLength: tailLength,
+    glowSpread: glowSpread,
+    comet: comet,
+    sparkle: sparkle,
+    segments: segments,
+    innerSizeScale: innerSizeScale,
+    renderScale: 1,
+    pulseOutsideTuning: pulseOutsideTuning,
+    edge: edge,
+    ringOffset: ringOffset * factor,
+    contour: contour,
+    direction: direction,
+    phaseOffset: phaseOffset,
+    beamCount: beamCount,
+  );
 
   /// Two configs are equal when every painted value is, which is what lets
   /// `BeamPainter.shouldRepaint` compare configs rather than identities.
@@ -307,6 +388,9 @@ class BeamConfig {
           other.comet == comet &&
           other.sparkle == sparkle &&
           other.segments == segments &&
+          other.innerSizeScale == innerSizeScale &&
+          other.renderScale == renderScale &&
+          other.pulseOutsideTuning == pulseOutsideTuning &&
           other.edge == edge &&
           other.ringOffset == ringOffset &&
           other.contour == contour &&
@@ -350,6 +434,9 @@ class BeamConfig {
     comet,
     sparkle,
     segments,
+    innerSizeScale,
+    renderScale,
+    pulseOutsideTuning,
     edge,
     ringOffset,
     contour,

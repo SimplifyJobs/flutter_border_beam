@@ -167,6 +167,25 @@ void main() {
           shape: BeamShape(contour: _blobContour),
           timing: const BeamTiming(),
         ),
+        // renderScale is one canvas transform inside BeamPainter, so a
+        // strategy frame is the same frame; innerSizeScale only resizes
+        // blobs a layer already holds; and the stock pulse-outside table
+        // only moves insets and blur sigmas.
+        'renderScale: 0.5': (
+          style: const BeamStyle(renderScale: 0.5),
+          shape: const BeamShape(),
+          timing: const BeamTiming(),
+        ),
+        'innerSizeScale: 0.6': (
+          style: const BeamStyle(innerSizeScale: 0.6),
+          shape: const BeamShape(),
+          timing: const BeamTiming(),
+        ),
+        'pulseOutsideStock': (
+          style: BeamStyle.pulseOutsideStock,
+          shape: const BeamShape(),
+          timing: const BeamTiming(),
+        ),
       };
 
   for (final MapEntry(key: label, value: scenario) in scenarios.entries) {

@@ -1,5 +1,6 @@
 import 'dart:ui' show Brightness, Path, Rect;
 
+import 'package:flutter/animation.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -122,6 +123,72 @@ void main() {
       );
       expect(const BeamStyle().toString(), 'BeamStyle()');
     });
+  });
+
+  test('the reference-port fields follow the inherit contract', () {
+    const base = BeamStyle(
+      innerSizeScale: 0.6,
+      renderScale: 0.5,
+      pulseOutsideTuning: BeamPulseOutsideTuning.stock,
+    );
+    final merged = base.merge(const BeamStyle(renderScale: 0.25));
+    expect(merged.innerSizeScale, 0.6, reason: 'null inherits');
+    expect(merged.renderScale, 0.25, reason: 'argument wins');
+    expect(merged.pulseOutsideTuning, BeamPulseOutsideTuning.stock);
+
+    final copy = base.copyWith(innerSizeScale: 1.4);
+    expect(copy.innerSizeScale, 1.4);
+    expect(copy.renderScale, 0.5);
+    expect(copy.pulseOutsideTuning, BeamPulseOutsideTuning.stock);
+  });
+
+  test('every reference-port field is part of the value', () {
+    const base = BeamStyle();
+    const variants = <BeamStyle>[
+      BeamStyle(innerSizeScale: 0.6),
+      BeamStyle(renderScale: 0.5),
+      BeamStyle(pulseOutsideTuning: BeamPulseOutsideTuning.stock),
+    ];
+    for (final variant in variants) {
+      expect(variant, isNot(base), reason: '$variant');
+      expect(variant.hashCode, isNot(base.hashCode), reason: '$variant');
+    }
+    expect(
+      const BeamStyle(innerSizeScale: 0.6, renderScale: 0.5),
+      const BeamStyle(innerSizeScale: 0.6, renderScale: 0.5),
+    );
+    expect(
+      const BeamStyle(pulseOutsideTuning: BeamPulseOutsideTuning.demo),
+      isNot(const BeamStyle(pulseOutsideTuning: BeamPulseOutsideTuning.stock)),
+    );
+  });
+
+  test('toString lists the reference-port fields', () {
+    expect(
+      const BeamStyle(
+        innerSizeScale: 0.6,
+        renderScale: 0.5,
+        pulseOutsideTuning: BeamPulseOutsideTuning.stock,
+      ).toString(),
+      'BeamStyle(innerSizeScale: 0.6, renderScale: 0.5, '
+      'pulseOutsideTuning: BeamPulseOutsideTuning.stock)',
+    );
+  });
+
+  test('pulseOutsideStock cancels the demo tuning it can reach', () {
+    const stock = BeamStyle.pulseOutsideStock;
+    expect(stock.pulseOutsideTuning, BeamPulseOutsideTuning.stock);
+    expect(stock.glowBoost, closeTo(1 / 1.05, 1e-12));
+    expect(stock.strokeOpacityFactor, closeTo(1 / 1.71, 1e-12));
+    expect(stock.innerOpacityFactor, stock.strokeOpacityFactor);
+    expect(stock.bloomOpacityFactor, stock.strokeOpacityFactor);
+    expect(stock.glowBrightness, 1.3);
+    expect(stock.glowSaturation, 1.2);
+    expect(
+      stock.merge(const BeamStyle(glowBrightness: 2)).glowBrightness,
+      2,
+      reason: 'it is a starting point, not a lock',
+    );
   });
 
   group('BeamShape', () {
@@ -420,6 +487,63 @@ void main() {
         isNot(const BeamPlayback(active: true)),
       );
     });
+  });
+
+  test('the playback-only fields follow the inherit contract', () {
+    const base = BeamPlayback(
+      pauseWhenOffscreen: false,
+      fadeCurve: BeamPlayback.cssEase,
+      debugFrozenAt: Duration(milliseconds: 1300),
+    );
+    final merged = base.merge(
+      const BeamPlayback(debugFrozenAt: Duration(seconds: 2)),
+    );
+    expect(merged.pauseWhenOffscreen, isFalse, reason: 'null inherits');
+    expect(merged.fadeCurve, BeamPlayback.cssEase);
+    expect(merged.debugFrozenAt, const Duration(seconds: 2));
+
+    final copy = base.copyWith(active: true);
+    expect(copy.pauseWhenOffscreen, isFalse);
+    expect(copy.fadeCurve, BeamPlayback.cssEase);
+    expect(copy.debugFrozenAt, const Duration(milliseconds: 1300));
+  });
+
+  test('every playback-only field is part of the value', () {
+    const base = BeamPlayback();
+    const variants = <BeamPlayback>[
+      BeamPlayback(pauseWhenOffscreen: false),
+      BeamPlayback(fadeCurve: BeamPlayback.cssEase),
+      BeamPlayback(debugFrozenAt: Duration(seconds: 1)),
+    ];
+    for (final variant in variants) {
+      expect(variant, isNot(base), reason: '$variant');
+      expect(variant.hashCode, isNot(base.hashCode), reason: '$variant');
+    }
+    expect(
+      const BeamPlayback(debugFrozenAt: Duration(seconds: 1)),
+      const BeamPlayback(debugFrozenAt: Duration(seconds: 1)),
+    );
+    expect(
+      const BeamPlayback(debugFrozenAt: Duration(seconds: 1)),
+      isNot(const BeamPlayback(debugFrozenAt: Duration(seconds: 2))),
+    );
+  });
+
+  test('toString lists the playback-only fields', () {
+    expect(
+      const BeamPlayback(
+        pauseWhenOffscreen: false,
+        debugFrozenAt: Duration(milliseconds: 1300),
+      ).toString(),
+      'BeamPlayback(pauseWhenOffscreen: false, '
+      'debugFrozenAt: 0:00:01.300000)',
+    );
+  });
+
+  test('cssEase is the web easing, and compares by value', () {
+    expect(BeamPlayback.cssEase, const Cubic(0.25, 0.1, 0.25, 1));
+    expect(BeamPlayback.cssEase.transform(0), 0);
+    expect(BeamPlayback.cssEase.transform(1), 1);
   });
 
   group('BeamRepeat', () {

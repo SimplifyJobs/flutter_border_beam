@@ -6,6 +6,7 @@ import '../../constants/pulse_params.dart';
 import '../../constants/pulse_tables.dart';
 import '../../models/beam_blob.dart';
 import '../../models/beam_config.dart';
+import '../../models/beam_options.dart';
 import '../../models/beam_variant.dart';
 import '../color_matrix.dart';
 import '../gradient_builders.dart';
@@ -14,6 +15,41 @@ import '../variant_strategy.dart';
 import 'pulse_common.dart';
 
 const Color _white = Color(0xFFFFFFFF);
+
+// ─── Verbatim: the source's stock outside-glow table ────────────────────────
+//
+// The React library's own `outsideConstants`, before the demo page layers
+// its tuned recipe over them (that recipe lives in `pulse_constants.dart`).
+// These are absolute px: the stock look does not scale its reach or its blur
+// with the element's size, which is exactly what BeamPulseOutsideTuning.stock
+// selects.
+
+/// Stock inset the core glow is grown past the child's bounds.
+const double _stockCoreInset = 10;
+
+/// Stock inset the bloom halo is grown past the child's bounds.
+const double _stockBloomInset = 30;
+
+/// Stock core-glow blur on a dark background.
+const double _stockCoreBlurDark = 3;
+
+/// Stock core-glow blur on a light background.
+const double _stockCoreBlurLight = 6;
+
+/// Stock bloom-halo blur on a dark background.
+const double _stockBloomBlurDark = 22.5;
+
+/// Stock bloom-halo blur on a light background.
+const double _stockBloomBlurLight = 15;
+
+/// How far the two outward glow layers reach past the child, and how heavily
+/// each is blurred, in the beam's own px.
+typedef _GlowGeometry = ({
+  double coreInset,
+  double bloomInset,
+  double coreBlur,
+  double bloomBlur,
+});
 
 /// The outward-blooming breathing halo (React `pulse-outside`): a crisp
 /// stroke ring above the child, and a colorful core plus soft halo painted
@@ -40,6 +76,27 @@ class PulseOuterStrategy extends BeamVariantStrategy {
   // (`--sub-glow-unit`).
   double _unit(Size size) =>
       _sx(size) / pulseOuterMinScale * pulseOuterGlowUnitDamping;
+
+  // The demo recipe scales every length by the size-derived unit; the stock
+  // table is fixed px and picks its blurs by brightness.
+  _GlowGeometry _geometry(BeamConfig config, Size size) {
+    if (config.pulseOutsideTuning == BeamPulseOutsideTuning.stock) {
+      final isDark = config.brightness == Brightness.dark;
+      return (
+        coreInset: _stockCoreInset,
+        bloomInset: _stockBloomInset,
+        coreBlur: isDark ? _stockCoreBlurDark : _stockCoreBlurLight,
+        bloomBlur: isDark ? _stockBloomBlurDark : _stockBloomBlurLight,
+      );
+    }
+    final unit = _unit(size);
+    return (
+      coreInset: pulseOuterTunedCoreInset * unit,
+      bloomInset: pulseOuterTunedBloomInset * unit,
+      coreBlur: pulseOuterTunedCoreBlur * unit,
+      bloomBlur: pulseOuterTunedBloomBlur * unit,
+    );
+  }
 
   BeamColorMatrix _matrix(
     BeamConfig config,
@@ -68,7 +125,7 @@ class PulseOuterStrategy extends BeamVariantStrategy {
     );
     final sx = _sx(size);
     final sy = _sy(size);
-    final unit = _unit(size);
+    final glow = _geometry(config, size);
     final boost = config.glowBoost * pulseOuterTunedBoost;
     final border = config.palette.data.border;
 
@@ -107,10 +164,9 @@ class PulseOuterStrategy extends BeamVariantStrategy {
     // glowSpread multiplies how far the halo reaches and how soft it is —
     // its insets and both blurs.
     final spread = config.glowSpread;
-    final coreBlur =
-        (config.coreBlur ?? pulseOuterTunedCoreBlur * unit) * spread;
+    final coreBlur = (config.coreBlur ?? glow.coreBlur) * spread;
     if (coreOpacity > 0) {
-      final coreRect = rect.inflate(pulseOuterTunedCoreInset * unit * spread);
+      final coreRect = rect.inflate(glow.coreInset * spread);
       canvas.saveLayer(
         coreRect.inflate(coreBlur * 3),
         Paint()
@@ -147,10 +203,9 @@ class PulseOuterStrategy extends BeamVariantStrategy {
       hookFactor: config.bloomOpacityFactor,
       extra: pulseOuterTunedGlowMultiplier,
     );
-    final bloomBlur =
-        (config.bloomBlur ?? pulseOuterTunedBloomBlur * unit) * spread;
+    final bloomBlur = (config.bloomBlur ?? glow.bloomBlur) * spread;
     if (bloomOpacity > 0) {
-      final bloomRect = rect.inflate(pulseOuterTunedBloomInset * unit * spread);
+      final bloomRect = rect.inflate(glow.bloomInset * spread);
       final frozenAlpha = 1 - params.op * 0.5;
       canvas.saveLayer(
         bloomRect.inflate(bloomBlur * 3),

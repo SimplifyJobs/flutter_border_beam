@@ -73,7 +73,9 @@ import '../painting/variant_strategy.dart';
 ///   ticking. It stops only when the decoration is replaced or its render
 ///   object is disposed.
 /// - **Reduced motion is not observed.** `MediaQuery.disableAnimationsOf` is
-///   unreachable, so [BeamPlayback.reducedMotion] has no effect here.
+///   unreachable, so [BeamPlayback.reducedMotion] has no effect here. Nor is
+///   the enclosing scrollable: there is no `Scrollable.of` to ask, so
+///   [BeamPlayback.pauseWhenOffscreen] is inert here too.
 /// - **[active] is a starting state, not a toggle.** Changing any field
 ///   replaces the decoration, which discards the running painter and builds a
 ///   fresh one — so flipping [active] cuts rather than fading. Animated
@@ -233,8 +235,11 @@ class BeamDecoration extends Decoration {
 class _BeamBoxPainter extends BoxPainter {
   _BeamBoxPainter(this._decoration, super.onChanged)
     : _strategy = strategyFor(_decoration.variant) {
-    _clock = BeamClock(createTicker: Ticker.new, maxFps: _strategy.preferredFps)
-      ..speed = _decoration._timing.speed ?? 1;
+    _clock = BeamClock(
+      createTicker: Ticker.new,
+      maxFps: _strategy.preferredFps,
+      fadeCurve: _decoration._playback.fadeCurve,
+    )..speed = _decoration._timing.speed ?? 1;
     _schedule();
     // Subscribed last, on purpose: createBoxPainter runs *inside* the render
     // object's paint, where onChanged (markNeedsPaint) is illegal, and
@@ -250,6 +255,9 @@ class _BeamBoxPainter extends BoxPainter {
   Timer? _durationTimer;
 
   BeamConfig? _config;
+  // _config re-authored for renderScale, or _config itself at scale 1 —
+  // built with the config so a frame never allocates one.
+  BeamConfig? _painted;
   BeamPhaseResolver? _resolver;
   TextDirection? _configDirection;
   bool _disposed = false;
@@ -259,6 +267,8 @@ class _BeamBoxPainter extends BoxPainter {
   // a controller attaches to a widget's clock, not a painter's.
   void _schedule() {
     final playback = _decoration._playback;
+    // A frozen beam paints one instant forever; its clock never starts.
+    if (playback.debugFrozenAt != null) return;
     if (!(playback.autoPlay ?? true) || !(playback.active ?? true)) return;
     final startAfter = playback.startAfter;
     if (startAfter == null) {
@@ -293,22 +303,39 @@ class _BeamBoxPainter extends BoxPainter {
       textDirection: textDirection,
     );
     _resolver = BeamPhaseResolver(_config!);
+    final scale = _config!.renderScale;
+    _painted = scale >= 1 ? _config : _config!.scaledBy(scale);
     return _config!;
   }
 
   @override
   void paint(Canvas canvas, Offset offset, ImageConfiguration configuration) {
     final size = configuration.size;
-    if (size == null || size.isEmpty || !_clock.isVisible) return;
+    if (size == null || size.isEmpty) return;
+    final frozen = _decoration._playback.debugFrozenAt;
+    if (frozen == null && !_clock.isVisible) return;
     final config = _configFor(configuration.textDirection ?? TextDirection.ltr);
-    final phases = _resolver!.sample(_clock.elapsedSeconds, _clock.fadeOpacity);
+    final phases = frozen != null
+        ? _resolver!.sample(
+            frozen.inMicroseconds / Duration.microsecondsPerSecond,
+            1,
+          )
+        : _resolver!.sample(_clock.elapsedSeconds, _clock.fadeOpacity);
+    // renderScale paints the beam into a smaller box and magnifies it back,
+    // so a palette authored for a card reads on a screen-sized one.
+    final scale = config.renderScale;
+    final painted = _painted!;
+    final paintedSize = scale >= 1
+        ? size
+        : Size(size.width * scale, size.height * scale);
     canvas.save();
     canvas.translate(offset.dx, offset.dy);
+    if (scale < 1) canvas.scale(1 / scale);
     // Both passes land in this one slot; BeamDecoration's docs say which slot
     // to hand the variant so they land on the right side of the child.
     _strategy
-      ..paintBehind(canvas, size, config, phases)
-      ..paintAbove(canvas, size, config, phases);
+      ..paintBehind(canvas, paintedSize, painted, phases)
+      ..paintAbove(canvas, paintedSize, painted, phases);
     canvas.restore();
   }
 

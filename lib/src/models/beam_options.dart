@@ -14,6 +14,27 @@ enum BeamHueMode {
   continuous,
 }
 
+/// Which set of glow geometry the pulse-outside variant paints.
+///
+/// The two differ only in how far the outward glow is grown past the child
+/// and how heavily it is blurred; every other part of the variant is shared.
+enum BeamPulseOutsideTuning {
+  /// The demo-hero recipe the source's demo page layers over its own
+  /// defaults: insets and blurs scaled by the element's size, melting the
+  /// separate blobs into one continuous edge-hugging glow.
+  ///
+  /// The default, because it is the pulse-outside look the library is known
+  /// for.
+  demo,
+
+  /// The React library's own defaults: fixed insets and a per-brightness
+  /// blur, with no size-derived unit.
+  ///
+  /// Reach for it through `BeamStyle.pulseOutsideStock`, which also rolls
+  /// back the demo recipe's prominence and opacity multipliers.
+  stock,
+}
+
 /// Which way a beam travels around its contour.
 enum BeamDirection {
   /// Clockwise for the rotate and small variants, left-to-right for the line
