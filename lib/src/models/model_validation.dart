@@ -81,3 +81,15 @@ int? validateRepeat(BeamRepeat? repeat) {
   }
   return cycles;
 }
+
+/// Rejects an empty color table, including in release builds.
+///
+/// `BeamColors` is a const hierarchy, so its constructors cannot assert on a
+/// list's length; resolution checks it instead. Every pulse layer reads its
+/// color through `index % table.length`, which would otherwise fail as an
+/// `IntegerDivisionByZeroException` deep inside a paint strategy.
+void validateColorTable(int length, String name) {
+  if (length < 1) {
+    throw ArgumentError.value(length, name, 'must contain at least one entry');
+  }
+}

@@ -107,23 +107,26 @@ class _BeamSyncState extends State<BeamSync>
     _clock.speed = widget.speed * factor;
   }
 
+  // Puts the group's clock back in motion. A clock that is mid-fade-out is
+  // still visible, so resuming it would only carry the fade to invisible —
+  // activate() is what reverses it, from the opacity it has reached.
+  void _runClock() {
+    if (_clock.isVisible && _clock.stage != BeamFadeStage.fadingOut) {
+      _clock.resume();
+    } else {
+      _clock.activate();
+    }
+  }
+
   void _applyReducedMotion() {
     _applySpeed();
     if (!widget.active) return;
-    if (!_reduced || widget.reducedMotion == BeamReducedMotion.animate) {
-      if (_clock.isVisible) {
-        _clock.resume();
-      } else {
-        _clock.activate();
-      }
-      return;
-    }
-    if (widget.reducedMotion == BeamReducedMotion.slow) {
-      if (_clock.isVisible) {
-        _clock.resume();
-      } else {
-        _clock.activate();
-      }
+    final motion =
+        !_reduced ||
+        widget.reducedMotion == BeamReducedMotion.animate ||
+        widget.reducedMotion == BeamReducedMotion.slow;
+    if (motion) {
+      _runClock();
       return;
     }
     _clock.showStatic();

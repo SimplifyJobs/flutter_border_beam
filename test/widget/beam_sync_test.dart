@@ -173,6 +173,38 @@ void main() {
     expect(tester.binding.transientCallbackCount, 1);
   });
 
+  testWidgets('the group reverses a fade-out that has not finished', (
+    tester,
+  ) async {
+    Widget build({required bool active}) =>
+        _host(BeamSync(active: active, child: _beam()));
+
+    await tester.pumpWidget(build(active: true));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 700));
+    final clock = _painters(tester).first.clock;
+
+    await tester.pumpWidget(build(active: false));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(clock.stage, BeamFadeStage.fadingOut);
+    expect(clock.fadeOpacity, lessThan(1));
+    final elapsed = clock.elapsedSeconds;
+
+    // Back on mid-fade: the fade must turn around from where it is instead of
+    // running on to invisible.
+    await tester.pumpWidget(build(active: true));
+    expect(clock.stage, BeamFadeStage.fadingIn);
+    expect(
+      clock.elapsedSeconds,
+      closeTo(elapsed, 1e-9),
+      reason: 'a reversed fade keeps the timeline it was on',
+    );
+    await tester.pump(const Duration(milliseconds: 700));
+    expect(clock.isVisible, isTrue);
+    expect(clock.fadeOpacity, closeTo(1, 1e-6));
+  });
+
   testWidgets('a group that starts stopped never runs a ticker', (
     tester,
   ) async {

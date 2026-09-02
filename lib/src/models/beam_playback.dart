@@ -87,8 +87,8 @@ class BeamPlayback {
   /// library exactly.
   final Curve? fadeCurve;
 
-  /// Pins the beam to one instant of its timeline, at full opacity, and
-  /// never starts its clock.
+  /// Pins the beam to one instant of its timeline and never starts its
+  /// clock.
   ///
   /// Every animated value is a pure function of elapsed time, so a fixed
   /// time is a fixed frame: two runs a week apart paint the same pixels.
@@ -96,7 +96,10 @@ class BeamPlayback {
   /// captures, design reviews.
   ///
   /// It reads the timeline from activation, so anything past the 0.6s
-  /// fade-in is a fully-lit frame.
+  /// fade-in is a fully-lit frame. The frozen frame is still sampled at the
+  /// live strength — [BeamStyle.strength] and
+  /// [BorderBeam.strengthListenable] dim it as they would any other frame,
+  /// and a strength of 0 paints nothing.
   final Duration? debugFrozenAt;
 
   /// Returns a copy with the given fields replaced. A null argument keeps the

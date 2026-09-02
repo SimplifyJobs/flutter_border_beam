@@ -194,6 +194,41 @@ void main() {
       );
     });
 
+    testWidgets('a phase-offset beam resting in the gap stays in the gap', (
+      tester,
+    ) async {
+      Widget build(Duration cycle) => _host(
+        BorderBeam.rotate(
+          timing: BeamTiming(
+            cycle: cycle,
+            cycleGap: const Duration(seconds: 1),
+            phaseOffset: 0.5,
+          ),
+          child: const SizedBox.expand(),
+        ),
+      );
+
+      // cycle 2 + gap 1 with a half-cycle offset: at 1.5s elapsed the beam is
+      // 2.5s into its own 3s period — parked half a second into the rest.
+      await tester.pumpWidget(build(const Duration(seconds: 2)));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1500));
+      final before = _painter(tester);
+      final resting = before.resolver.sample(1.5, 1);
+      expect(resting.fadeOpacity, closeTo(0, 1e-9));
+      expect(resting.travelProgress, closeTo(1, 1e-9));
+
+      await tester.pumpWidget(build(const Duration(seconds: 4)));
+      final after = _painter(tester);
+      final phases = after.resolver.sample(after.clock.elapsedSeconds, 1);
+      expect(
+        phases.fadeOpacity,
+        closeTo(0, 1e-9),
+        reason: 'the raw timeline says mid-sweep; the shifted one says gap',
+      );
+      expect(phases.travelProgress, closeTo(1, 1e-9));
+    });
+
     testWidgets('adding a gap to a running beam needs no retime either', (
       tester,
     ) async {

@@ -9,6 +9,7 @@ import '../constants/extra_palettes.dart';
 import '../constants/palettes.dart';
 import 'beam_blob.dart';
 import 'beam_palette.dart';
+import 'model_validation.dart';
 
 /// How [BeamColors.fromSeed] spreads one brand color into a multi-color
 /// palette.
@@ -533,7 +534,7 @@ class _CustomBeamColors extends BeamColors {
 
   @override
   BeamPalette _buildPalette() {
-    assert(colors.isNotEmpty, 'BeamColors.custom requires at least one color');
+    validateColorTable(colors.length, 'BeamColors.custom colors');
     return BeamPalette(
       data: _distribute(colors, base.resolve().data),
       forcesStaticColors: staticHue,
@@ -682,26 +683,38 @@ class _SpecBeamColors extends BeamColors {
 
   @override
   BeamPalette _buildPalette() {
-    assert(border.isNotEmpty, 'BeamColors.spec requires at least one blob');
+    validateColorTable(border.length, 'BeamColors.spec border');
+    // The caller keeps their list, and a growable one they mutate later would
+    // otherwise change the palette this cache holds under a key that no
+    // longer matches it. Every table that reaches BeamPresetData is a
+    // snapshot of its own — the unmodifiable cache key alone does not make
+    // the resolved palette immutable.
+    final borderTable = List<BeamBlob>.unmodifiable(border);
+    final smallTable = smallBorder == null
+        ? null
+        : List<BeamBlob>.unmodifiable(smallBorder!);
+    final lineTable = lineBlobs == null
+        ? null
+        : List<LineBlob>.unmodifiable(lineBlobs!);
     // Derive any missing tables by cycling the provided border colors over
     // the default geometry.
     final derived = _distribute([
-      for (final b in border) b.color,
+      for (final b in borderTable) b.color,
     ], colorfulPreset);
     return BeamPalette(
       data: BeamPresetData(
-        border: border,
+        border: borderTable,
         spike: derived.spike,
         spikeLt: derived.spikeLt,
-        smallBorder: smallBorder ?? derived.smallBorder,
-        smallInner: smallBorder != null
+        smallBorder: smallTable ?? derived.smallBorder,
+        smallInner: smallTable != null
             ? [
-                for (final b in smallBorder!)
+                for (final b in smallTable)
                   b.withColor(b.color.withValues(alpha: b.color.a * 0.45)),
               ]
             : derived.smallInner,
-        lineDark: lineBlobs ?? derived.lineDark,
-        lineLight: lineBlobs ?? derived.lineLight,
+        lineDark: lineTable ?? derived.lineDark,
+        lineLight: lineTable ?? derived.lineLight,
         lineInner: derived.lineInner,
         lineBloomDark: derived.lineBloomDark,
         lineBloomLight: derived.lineBloomLight,

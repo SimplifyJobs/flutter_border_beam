@@ -72,11 +72,14 @@ class BeamPainter extends CustomPainter with Diagnosticable {
   /// The timeline position every frame is sampled at, or null to follow the
   /// clock.
   ///
-  /// `BeamPlayback.debugFrozenAt`: the beam paints that one instant at full
-  /// fade forever, which is what makes a screenshot of it reproducible. It
-  /// lives on the painter rather than on the config because it changes no
-  /// painted value — only which moment of the timeline is read — so a config
-  /// cached across a freeze is still the right config.
+  /// `BeamPlayback.debugFrozenAt`: the beam paints that one instant of the
+  /// timeline forever, which is what makes a screenshot of it reproducible.
+  /// The instant carries its own point on the fade envelope and is still
+  /// scaled by the live [strength], so a strength below 1 dims the frozen
+  /// frame the way it dims a running one. It lives on the painter rather
+  /// than on the config because it changes no painted value — only which
+  /// moment of the timeline is read — so a config cached across a freeze is
+  /// still the right config.
   final Duration? frozenAt;
 
   // The config the strategies actually paint with: at renderScale 1 it is

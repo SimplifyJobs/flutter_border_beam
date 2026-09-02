@@ -428,7 +428,7 @@ BorderBeam.pulseInside(
 | `reducedMotion` | `BeamReducedMotion?` | `staticFrame` | What to do when the platform asks for reduced motion. |
 | `pauseWhenOffscreen` | `bool?` | `true` | Stops the clock while the beam is scrolled out of its nearest enclosing `Scrollable`, with a 256px margin. |
 | `fadeCurve` | `Curve?` | the fade spring | The easing both fade envelopes run on. |
-| `debugFrozenAt` | `Duration?` | none | Pins the beam to one instant of its timeline, at full opacity, and never starts its clock. |
+| `debugFrozenAt` | `Duration?` | none | Pins the beam to one instant of its timeline and never starts its clock. The frozen frame is still scaled by the live strength. |
 
 `reducedMotion` has four behaviors, all of them applying to all five variants:
 

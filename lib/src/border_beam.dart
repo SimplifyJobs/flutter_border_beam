@@ -649,6 +649,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     final previousGap =
         (_timing.cycleGap ?? Duration.zero).inMicroseconds /
         Duration.microsecondsPerSecond;
+    final previousPhase = _timing.phaseOffset ?? 0;
     _playback = playback;
     _timing = timing;
     _cycleSeconds = _cycleSecondsOf(timing, widget.variant);
@@ -661,6 +662,8 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
         _cycleSeconds,
         oldGap: previousGap,
         newGap: nextGap,
+        oldPhase: previousPhase,
+        newPhase: timing.phaseOffset ?? 0,
       );
     }
     _applySpeed();
@@ -897,6 +900,8 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     double newCycle, {
     required double oldGap,
     required double newGap,
+    required double oldPhase,
+    required double newPhase,
   }) {
     if (!_clock.isVisible || oldCycle <= 0 || oldCycle == newCycle) return;
     if (widget.variant.isPulse) {
@@ -906,13 +911,26 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     final before = _clock.elapsedSeconds;
     final oldPeriod = oldCycle + oldGap;
     final newPeriod = newCycle + newGap;
-    final completed = oldPeriod <= 0 ? 0 : (before / oldPeriod).floor();
-    final local = oldPeriod <= 0 ? before : before - completed * oldPeriod;
+    // The resolver samples the shifted timeline, not the clock's raw elapsed
+    // time, so sweep-or-gap has to be decided there: an offset beam resting
+    // in the gap sits at a different point of the period than its elapsed
+    // time alone says, and segmenting the raw timeline would drop it into
+    // the middle of the sweep.
+    final travel = _resolver?.travelTimeOffset ?? 0;
+    final shifted = before + oldPhase * oldCycle + travel;
+    final completed = oldPeriod <= 0 ? 0 : (shifted / oldPeriod).floor();
+    final local = oldPeriod <= 0 ? shifted : shifted - completed * oldPeriod;
     final newLocal = local < oldCycle || oldGap <= 0
         ? local * newCycle / oldCycle
         : newCycle + (local - oldCycle) * newGap / oldGap;
-    final target = completed * newPeriod + newLocal;
-    _clock.retime(before == 0 ? newCycle / oldCycle : target / before);
+    // Back out of the shifted timeline: the resolver re-applies the new
+    // offset and the unchanged travel hand-back on top of what the clock
+    // reports.
+    final target =
+        completed * newPeriod + newLocal - newPhase * newCycle - travel;
+    final factor = before == 0 ? newCycle / oldCycle : target / before;
+    if (!factor.isFinite || factor <= 0) return;
+    _clock.retime(factor);
     _setHueTimeOffset(_hueTimeOffset + before - _clock.elapsedSeconds);
   }
 

@@ -196,6 +196,42 @@ void main() {
       );
     });
 
+    test('an empty color table is rejected in release too', () {
+      expect(
+        () => BeamColors.custom(<Color>[]).resolve(),
+        throwsA(isA<ArgumentError>()),
+      );
+      expect(
+        () => BeamColors.spec(border: <BeamBlob>[]).resolve(),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+
+    test('a resolved spec palette does not alias the caller lists', () {
+      final border = <BeamBlob>[_blobA];
+      final small = <BeamBlob>[_blobA];
+      final lines = <LineBlob>[_lineBlob];
+      final palette = BeamColors.spec(
+        border: border,
+        smallBorder: small,
+        lineBlobs: lines,
+      ).resolve();
+
+      border[0] = _blobB;
+      small[0] = _blobB;
+      lines.clear();
+
+      expect(palette.data.border, [_blobA]);
+      expect(palette.data.smallBorder, [_blobA]);
+      expect(palette.data.lineDark, [_lineBlob]);
+      expect(palette.data.lineLight, [_lineBlob]);
+      expect(
+        () => palette.data.border.add(_blobB),
+        throwsUnsupportedError,
+        reason: 'the resolved tables are snapshots, not the caller list',
+      );
+    });
+
     test('custom distributes colors and preserves preset alpha', () {
       final palette = BeamColors.custom(const [Color(0xFFFF00AA)]).resolve();
       final reference = BeamColors.colorful.resolve();
