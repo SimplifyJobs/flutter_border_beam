@@ -267,6 +267,50 @@ void main() {
         contains("// contour: BeamPathContour(builder: yourPath, key: 'star')"),
       );
     });
+
+    test('segment presets emit their const BeamSegment fields', () {
+      final state = PlaygroundState()..segmentPreset = SegmentPreset.bottomHalf;
+      expect(buildSnippet(state), contains('segment: BeamSegment.bottomHalf'));
+
+      state.segmentPreset = SegmentPreset.topEdge;
+      expect(buildSnippet(state), contains('segment: BeamSegment.topEdge'));
+    });
+
+    test('a custom segment emits const edge anchors and feathering', () {
+      final state = PlaygroundState()
+        ..segmentPreset = SegmentPreset.custom
+        ..segmentFeather = 48;
+      expect(
+        buildSnippet(state),
+        contains(
+          'segment: BeamSegment(start: BeamAnchor.edge(BeamEdge.right), '
+          'end: BeamAnchor.edge(BeamEdge.left), feather: 48)',
+        ),
+      );
+
+      state.segmentStartT = 0.25;
+      expect(
+        buildSnippet(state),
+        contains('BeamAnchor.edge(BeamEdge.right, 0.25)'),
+      );
+    });
+
+    test('corner wrap is line-only and segment takes precedence over edge', () {
+      final state = PlaygroundState()
+        ..wrapCorners = true
+        ..edge = BeamEdge.top;
+      expect(buildSnippet(state), isNot(contains('wrapCorners')));
+
+      state.variant = BeamVariant.line;
+      expect(buildSnippet(state), contains('wrapCorners: true'));
+      expect(buildSnippet(state), contains('edge: BeamEdge.top'));
+
+      state.segmentPreset = SegmentPreset.bottomHalf;
+      final segmented = buildSnippet(state);
+      expect(segmented, contains('segment: BeamSegment.bottomHalf'));
+      expect(segmented, isNot(contains('wrapCorners')));
+      expect(segmented, isNot(contains('edge:')));
+    });
   });
 
   group('style', () {

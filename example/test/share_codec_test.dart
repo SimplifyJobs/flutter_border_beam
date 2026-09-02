@@ -60,6 +60,13 @@ void main() {
         ..edge = BeamEdge.right
         ..ringOffset = -6
         ..contour = true
+        ..segmentPreset = SegmentPreset.custom
+        ..segmentStartEdge = BeamEdge.bottom
+        ..segmentStartT = 0.2
+        ..segmentEndEdge = BeamEdge.top
+        ..segmentEndT = 0.8
+        ..segmentFeather = 72
+        ..wrapCorners = true
         ..cycleSeconds = 3.25
         ..cycleGapSeconds = 1.5
         ..speed = 2
@@ -138,6 +145,13 @@ void main() {
       expect(decoded.edge, BeamEdge.right);
       expect(decoded.ringOffset, -6);
       expect(decoded.contour, isTrue);
+      expect(decoded.segmentPreset, SegmentPreset.custom);
+      expect(decoded.segmentStartEdge, BeamEdge.bottom);
+      expect(decoded.segmentStartT, 0.2);
+      expect(decoded.segmentEndEdge, BeamEdge.top);
+      expect(decoded.segmentEndT, 0.8);
+      expect(decoded.segmentFeather, 72);
+      expect(decoded.wrapCorners, isTrue);
       expect(decoded.direction, BeamDirection.bounce);
       expect(decoded.phaseOffset, 0.5);
       expect(decoded.beamCount, 3);
@@ -278,6 +292,36 @@ void main() {
       expect(encoded, contains('sdh=monochrome'));
     });
 
+    test('segment presets and custom anchors use the compact shape keys', () {
+      final preset = PlaygroundState()
+        ..segmentPreset = SegmentPreset.bottomHalf;
+      expect(encodePlaygroundState(preset), 'sgp=bottomHalf');
+
+      final custom = PlaygroundState()
+        ..segmentPreset = SegmentPreset.custom
+        ..segmentStartEdge = BeamEdge.top
+        ..segmentStartT = 0.25
+        ..segmentEndEdge = BeamEdge.bottom
+        ..segmentEndT = 0.75
+        ..segmentFeather = 64
+        ..wrapCorners = true;
+      final encoded = encodePlaygroundState(custom);
+      expect(encoded, contains('sgp=custom'));
+      expect(encoded, contains('sga=top,0.25'));
+      expect(encoded, contains('sgb=bottom,0.75'));
+      expect(encoded, contains('sgf=64'));
+      expect(encoded, contains('wc=1'));
+
+      final decoded = decodePlaygroundState(encoded);
+      expect(decoded.segmentPreset, SegmentPreset.custom);
+      expect(decoded.segmentStartEdge, BeamEdge.top);
+      expect(decoded.segmentStartT, 0.25);
+      expect(decoded.segmentEndEdge, BeamEdge.bottom);
+      expect(decoded.segmentEndT, 0.75);
+      expect(decoded.segmentFeather, 64);
+      expect(decoded.wrapCorners, isTrue);
+    });
+
     test('unknown enum names and out-of-range numbers are ignored', () {
       final decoded = decodePlaygroundState(
         'ed=diagonal&dir=sideways&hm=strobe&rm=never&sdh=nope&'
@@ -303,6 +347,20 @@ void main() {
       expect(decoded.sparkle, d.sparkle);
       expect(decoded.innerSizeScale, d.innerSizeScale);
       expect(decoded.renderScale, d.renderScale);
+    });
+
+    test('bad segment ids, anchors, feather, and wrap values are ignored', () {
+      final decoded = decodePlaygroundState(
+        'sgp=diagonal&sga=right,4&sgb=nope,0.5&sgf=121&wc=maybe',
+      );
+      final d = PlaygroundState();
+      expect(decoded.segmentPreset, d.segmentPreset);
+      expect(decoded.segmentStartEdge, d.segmentStartEdge);
+      expect(decoded.segmentStartT, d.segmentStartT);
+      expect(decoded.segmentEndEdge, d.segmentEndEdge);
+      expect(decoded.segmentEndT, d.segmentEndT);
+      expect(decoded.segmentFeather, d.segmentFeather);
+      expect(decoded.wrapCorners, d.wrapCorners);
     });
 
     test('an assembled palette cannot be a lerp endpoint or a custom '

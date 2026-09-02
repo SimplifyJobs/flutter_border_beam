@@ -1,6 +1,6 @@
 # Shape
 
-`BeamShape` describes the geometry the beam travels: corner radii, ring thickness, the corner family, how far the ring sits from the child, and — when a rounded rectangle is not enough — an arbitrary path. The [README's shape table](../README.md#shape) lists the fields and defaults; this guide covers the parts with sharp edges.
+`BeamShape` describes the geometry the beam travels: corner radii, ring thickness, the corner family, how far the ring sits from the child, an optional partial segment or line corner wrap, and — when a rounded rectangle is not enough — an arbitrary path. The [README's shape table](../README.md#shape) lists the fields and defaults; this guide covers the parts with sharp edges.
 
 ## Three constructors, one shape
 
@@ -135,6 +135,89 @@ class NotchedContour extends BeamContour {
 ```
 
 The traveling variants walk the path's perimeter, so a contour with a very uneven perimeter distribution (a long thin spur, say) will pass through it quickly — that is arc-length behavior, not a bug.
+
+## Segments
+
+`BeamShape.segment` restricts visibility to part of the contour. It is a mask over the unchanged full-ring animation: the variant's constants, timing, and blob positions stay in full-contour space. The mask adds no compositing layers.
+
+Public perimeter positions are arc-length fractions measured clockwise from top-center:
+
+```text
+                  0 / 1
+                    ↓
+            ┌──────────────┐
+       0.75 →              ← 0.25
+            │              │
+            └──────────────┘
+                    ↑
+                   0.5
+```
+
+On a square, `0.25`, `0.5`, and `0.75` are approximately right-center, bottom-center, and left-center. Rounded corners change the exact fractions of edge landmarks because every coordinate is measured by path length, not by angle or box position.
+
+### Anchors and direction
+
+Three anchor constructors cover raw and semantic positions:
+
+- `BeamAnchor.fraction(t)` is an arc-length fraction; values resolve modulo one.
+- `BeamAnchor.edge(edge, t)` follows the named straight run in clockwise travel: left-to-right on top, top-to-bottom on right, right-to-left on bottom, and bottom-to-top on left. `t` defaults to `0.5`.
+- `BeamAnchor.corner(corner, t)` follows the named corner arc clockwise. `t` defaults to `0.5`; corners are named by `BeamCorner.topLeft`, `topRight`, `bottomRight`, and `bottomLeft`.
+
+The static anchors `topCenter`, `rightCenter`, `bottomCenter`, and `leftCenter` name the four common landmarks.
+
+`BeamSegment(start: ..., end: ..., feather: 32)` covers the clockwise span from `start` to `end`. When the end fraction is smaller than the start fraction, the span wraps through the `0` / top-center origin. Swapping the endpoints selects the complementary span. `feather` is the distance in logical pixels along the perimeter over which each end fades; `0` produces a hard cut.
+
+```dart
+BorderBeam.rotate(
+  shape: const BeamShape(
+    radius: BorderRadius.all(Radius.circular(24)),
+    segment: BeamSegment.bottomHalf,
+  ),
+  child: square,
+);
+```
+
+### Presets
+
+| Preset | Clockwise coverage |
+| --- | --- |
+| `bottomHalf` | right-center → bottom-center → left-center |
+| `topHalf` | left-center → top-center → right-center |
+| `leftHalf` | bottom-center → left-center → top-center |
+| `rightHalf` | top-center → right-center → bottom-center |
+| `bottomEdge` | bottom-right arc + bottom straight run + bottom-left arc |
+| `topEdge` | top-left arc + top straight run + top-right arc |
+| `leftEdge` | bottom-left arc + left straight run + top-left arc |
+| `rightEdge` | top-right arc + right straight run + bottom-right arc |
+
+`bottomHalf` produces the half-phone composition: both bottom corners, the bottom edge, and the lower halves of both sides.
+
+### Variant behavior
+
+- **`rotate` and `small`:** the conic window keeps its full sweep. In forward travel the beam appears at the segment start, moves clockwise to its end, and is invisible for the rest of the cycle.
+- **`line`:** the streak travels the segment in border-path space. For `bottomHalf` it descends the right edge, rounds the bottom-right corner, crosses the bottom, rounds the bottom-left corner, and climbs the left edge to the endpoint, with the usual fade at both ends of travel. `BeamShape.edge` is ignored when a segment is set.
+- **`pulseInside` and `pulseOutside`:** blobs outside the segment are hidden and blobs near an endpoint fade. `bottomHalf` therefore leaves only the lower blobs breathing.
+
+`BeamTiming.direction` changes travel direction without changing which clockwise span the segment selects. Stack a forward beam and a second beam with `direction: BeamDirection.reverse` for two counter-sweeping arcs. `beamCount` places multiple travelers on the same unchanged full-contour timeline, and the segment reveals each only while it crosses the selected span. Pulse variants ignore both travel settings. `cycleGap` adds the usual invisible rest to traveling variants.
+
+`ringOffset` moves the path before its perimeter is measured, so the segment and its feather follow the offset ring. A custom `BeamContour` works too: top-center is the point on its path nearest the box's top-center, and fractions advance by measured path length. Semantic edge and corner anchors resolve against the corresponding regions of that measured perimeter.
+
+## Corner wrap
+
+`BeamShape.wrapCorners` applies to `line` when no segment is set. The default line geometry runs along the selected `edge`; with `wrapCorners: true`, the streak is placed in border-path space and bends around the two corner arcs adjacent to that edge instead of continuing straight past them.
+
+```dart
+BorderBeam.line(
+  shape: const BeamShape.all(
+    24,
+    edge: BeamEdge.bottom,
+    wrapCorners: true,
+  ),
+  child: card,
+);
+```
+
+A segment already places the line in border-path space and defines its endpoints, so it takes precedence over both `edge` and `wrapCorners`.
 
 ## Border width
 

@@ -46,7 +46,7 @@ A faithful Flutter port of the [border-beam](https://github.com/Jakubantalik/Lib
 - **Five variants** — `rotate`, `small`, `line`, `pulseInside`, `pulseOutside`, each a named constructor with tuned defaults, plus a generic `BorderBeam(variant: …)` for a runtime choice.
 - **Eleven palettes** — the four from the original plus seven Flutter-only ones, with `BeamColors.custom`, `fromSeed` harmonies, `fromScheme`, `lerp`, `scaleAlpha`, and per-blob `spec`.
 - **Value-object API** — `BeamStyle`, `BeamShape`, `BeamTiming`, `BeamPlayback`; every field nullable, so anything you leave out is inherited. App-wide defaults live in a `BorderBeamTheme`, and nested themes merge.
-- **Shapes** — per-corner direction-aware radii, stadium, Apple-style superellipse, ring offset, and arbitrary path contours.
+- **Shapes** — per-corner direction-aware radii, stadium, Apple-style superellipse, ring offset, arbitrary path contours, partial `segment`s, and line `wrapCorners`.
 - **Motion** — cycle gap, direction (forward / reverse / bounce), phase offset, several beams on one contour, driven `progress`, pointer `follow`.
 - **`BeamSync`** — one ticker and one timeline for a whole subtree, so a row of cards reads as one system.
 - **Surfaces & interactions** — `BorderBeam.overlay`, a `BeamDecoration` for existing `Container`s, and `BeamFocusRing` / `BeamHover` / `BeamPress` wrappers.
@@ -244,10 +244,45 @@ BorderBeam.rotate(
 | `edge` | `BeamEdge?` | `BeamEdge.bottom` | `line` |
 | `ringOffset` | `double?` | `0` | all |
 | `contour` | `BeamContour?` | none | all |
+| `segment` | `BeamSegment?` | none (full contour) | all |
+| `wrapCorners` | `bool?` | `false` | `line`, without a segment |
 
 Three constructors cover the common cases: `BeamShape.all(r)` is the **const** path to a uniform radius (it stores the number rather than building a `BorderRadius`), `BeamShape.circular(r)` is the same shape when you already think in `BorderRadius` terms (**not** const), and `BeamShape.stadium()` rounds each corner to half the shortest side. `radius` resolves against the ambient `Directionality` and clamps per corner the way `RRect.scaleRadii` does.
 
 There is **no auto-detection of the child's radius** — pass the same value your child uses. Full treatment, including writing a `BeamContour`: **[doc/shape.md](doc/shape.md)**.
+
+### Partial contours
+
+`BeamShape.segment` masks the unchanged full-ring animation to a clockwise portion of the contour. Constants and blob positions stay in full-ring space, and the mask adds no compositing layer. Positions are arc-length fractions from top-center, clockwise: `0` is top-center, `0.25` is approximately right-center on a square, `0.5` is bottom-center, and `0.75` is approximately left-center.
+
+```dart
+BorderBeam.rotate(
+  shape: const BeamShape(
+    radius: BorderRadius.all(Radius.circular(24)),
+    segment: BeamSegment.bottomHalf,
+  ),
+  child: square,
+);
+```
+
+Build endpoints with `BeamAnchor.fraction(t)`, `BeamAnchor.edge(edge, t)`, or `BeamAnchor.corner(corner, t)`. Edge `t` follows the clockwise straight run, corner `t` follows the clockwise arc, and both default to `0.5`. `topCenter`, `rightCenter`, `bottomCenter`, and `leftCenter` cover the common landmarks. `BeamSegment(start: ..., end: ..., feather: 32)` runs clockwise from start to end, wrapping through top-center when necessary; `feather` is the perimeter distance in logical pixels over which each end fades, and `0` makes a hard cut.
+
+| Preset | Coverage |
+| --- | --- |
+| `bottomHalf` / `topHalf` | The lower / upper half between the side centers |
+| `leftHalf` / `rightHalf` | The left / right half between the top and bottom centers |
+| `bottomEdge` / `topEdge` | The named straight run plus both adjacent corner arcs |
+| `leftEdge` / `rightEdge` | The named straight run plus both adjacent corner arcs |
+
+`bottomHalf` is the half-phone look: both bottom corners, the bottom edge, and the lower halves of both sides.
+
+- **`rotate` / `small`:** the conic window keeps its full sweep. It appears at `start`, travels clockwise to `end`, and stays invisible for the rest of the cycle.
+- **`line`:** the streak travels the segment, rounding its corners and fading at both ends of travel. `shape.edge` is ignored while a segment is set.
+- **Pulse variants:** blobs outside the segment are hidden and blobs near either end fade, so `bottomHalf` leaves only the lower blobs breathing.
+
+For two counter-sweeping arcs, stack a second beam with `timing: const BeamTiming(direction: BeamDirection.reverse)`. Add `cycleGap` when each arc should rest between passes.
+
+For a full-contour line, `wrapCorners: true` places the streak in border-path space so it bends around the two corner arcs adjacent to `edge`. Corner wrapping applies only to `line` when `segment` is null.
 
 ## Style
 
@@ -635,7 +670,7 @@ The constants are transcribed verbatim from the upstream `src/styles.ts`, so the
 | `BeamTheme.auto` | Follows `Theme.of(context)` | Follows the OS color scheme |
 | Child radius | Passed in; no auto-detection | Read from the child |
 
-Flutter-only additions, with no upstream counterpart: `hueBase`, custom palettes (`custom` / `fromSeed` / `fromScheme` / `lerp` / `scaleAlpha` / `spec`) and the seven extra presets, per-corner radii, superellipse corners, stadium shapes, arbitrary contours, `segments`, `direction`, `cycleGap`, `beamCount`, `progress`, `follow`, `BeamSync`, `BeamDecoration`, and the `BeamFocusRing` / `BeamHover` / `BeamPress` wrappers.
+Flutter-only additions, with no upstream counterpart: `hueBase`, custom palettes (`custom` / `fromSeed` / `fromScheme` / `lerp` / `scaleAlpha` / `spec`) and the seven extra presets, per-corner radii, superellipse corners, stadium shapes, arbitrary contours, `BeamShape.segment`, `BeamShape.wrapCorners`, `segments`, `direction`, `cycleGap`, `beamCount`, `progress`, `follow`, `BeamSync`, `BeamDecoration`, and the `BeamFocusRing` / `BeamHover` / `BeamPress` wrappers.
 
 Tracks upstream **border-beam 1.4.0**. How the constants are sourced, transcribed, and verified against the source: **[doc/parity.md](doc/parity.md)**.
 
@@ -663,6 +698,9 @@ Check reduced motion. With `reducedMotion: BeamReducedMotion.hide`, a platform r
 
 **The squircle option does nothing on my Flutter version.**
 `superellipse` needs Flutter ≥ 3.35, where `RSuperellipse` is stable. That is the package's declared minimum, and CI tests against exactly that version.
+
+**Why does my segment run the wrong way?**
+Segments always run clockwise from `start` to `end`, wrapping through top-center when needed. Swap the two anchors to select the complementary direction around the contour.
 
 **Does it work on web?**
 Yes — the [live playground](https://simplifyjobs.github.io/flutter_border_beam/) is a web build of the example app, and CI builds it on every commit. The blur-heavy variants (`line`, `pulseOutside`) are the most expensive there, so prefer a single hero beam over a grid of them on web.

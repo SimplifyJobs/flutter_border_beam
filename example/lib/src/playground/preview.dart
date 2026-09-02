@@ -203,10 +203,13 @@ class _PreviewState extends State<_Preview>
   // The single configured beam, wrapped in a pointer listener while the
   // follow toggle is on.
   Widget _single(PlaygroundState state, DemoTokens tokens, double width) {
-    final size = Size(width, _surfaceHeight);
+    final segmentSide = math.min(width, 200.0);
+    final size = state.segmentPreset == SegmentPreset.off
+        ? Size(width, _surfaceHeight)
+        : Size.square(segmentSide);
     final Widget beam = SizedBox(
-      width: width,
-      height: _surfaceHeight,
+      width: size.width,
+      height: size.height,
       child: BorderBeam(
         variant: state.variant,
         active: state.buildActive(),

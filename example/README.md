@@ -16,6 +16,8 @@ flutter run -d chrome
   nothing but its variant, so colors, shape, and cycle all come from the theme.
 - **Rest between sweeps** — a `cycleGap` beam that parks at the end of its
   travel and fades away before the next sweep.
+- **Partial contours** — the half-phone composition on rotate, line, and
+  pulse-inside, plus a full line bending through adjacent corners.
 - **Palettes** — a card per preset: colorful, mono, ocean, sunset, aurora, neon,
   candy, ember, ice, gold, holographic.
 - **Surfaces** — the beam reached without the wrapper: a `BeamDecoration` in a
@@ -45,7 +47,7 @@ Controls are grouped into collapsible sections:
 | Section | Controls |
 | --- | --- |
 | Variant & colors | variant; palette — the eleven presets plus three assembled modes: **Custom** (2–4 swatches over a base preset, fed to `BeamColors.custom`), **Seed** (one swatch + a `BeamSeedHarmony`, fed to `BeamColors.fromSeed`), and **Lerp** (two presets and a blend slider, fed to `BeamColors.lerp`); an alpha-scale slider over any of them (`BeamColors.scaleAlpha`) |
-| Shape | stadium, per-corner, squircle, and star-contour toggles; a corner-radius slider (or four, in per-corner mode); border width; ring offset; the travelled edge on the line variant |
+| Shape | stadium, per-corner, squircle, and star-contour toggles; a corner-radius slider (or four, in per-corner mode); border width; ring offset; segment presets or custom edge anchors with feathering; the travelled edge and corner wrap on a segment-free line |
 | Timing | cycle, cycle gap, speed, hue period; direction, phase offset, and beam count on the traveling variants; breathe / spike / spike 2 on the line variant; a static-colors toggle |
 | Style | strength, brightness, saturation, hue range, hue mode, hue base, the three layer-opacity factors, glow spread, render scale; tail length and the comet tail on rotate and small; sparkle on the traveling variants; ring segments off the line variant; `glowBoost` and inner size on the pulse variants; the stock recipe, core blur, bloom blur, glow brightness, and glow saturation on pulse-outside |
 | Playback | active toggle; controller mode with start / pause / resume / stop / pulse / flash and its own speed; `startAfter` and `duration` outside controller mode; repeat (forever / once / 3 cycles); reduced motion, with a toggle that simulates it; offscreen pause; the fade curve (spring or `BeamPlayback.cssEase`) |
@@ -71,6 +73,9 @@ A few conventions worth knowing:
   the travelled edge on the line variant, tail length and comet on rotate and
   small, sparkle on the traveling variants, inner size on pulse-inside. The
   snippet drops the same fields on the same variants.
+- **Segments own line travel.** Selecting one hides the line edge and corner
+  wrap controls because `segment` defines the path-space endpoints. Custom
+  segments expose start/end edge anchors and a 0–120px feather.
 - **What the snippet cannot write, it names.** A `BeamPathContour` takes a
   builder, so the star contour prints as a commented placeholder; the pointer
   and the strength signal print as the variables the surrounding widget would

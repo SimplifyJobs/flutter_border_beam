@@ -28,6 +28,8 @@ A beam is an animated blur — the most expensive thing a phone GPU does per pix
 
 Each entry is a layer the variant genuinely composites: the inner glow, the stroke, the bloom, the mask sub-layer where two masks intersect (`rotate`, `line`, `pulseInside`), and pulse-outside's two behind-child glows.
 
+A segment adds two `dstIn` gradient draws per painted layer and zero `saveLayer`s; the budget test includes segment rows to pin that invariant.
+
 `test/painting/save_layer_budget_test.dart` measures the count through a counting canvas for every variant × brightness × palette × time sample and asserts it **exactly**, along with save/restore balance. A regression and an improvement both fail the suite until the table is updated in both the test and this document — which is the point: the number is a contract, not a high-water mark.
 
 The rule the engine follows: never add a `saveLayer` to carry a `ColorFilter`. A filter rides on a layer that exists anyway, and blur is the only filter allowed to justify a layer of its own.

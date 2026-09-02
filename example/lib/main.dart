@@ -103,6 +103,14 @@ class _DemoPageState extends State<_DemoPage> {
                     const SizedBox(height: 16),
                     const _CycleGapExample(),
                     const SizedBox(height: 40),
+                    const _SectionTitle('Partial contours'),
+                    const _SectionCaption(
+                      'One segment across rotate, line, and pulse, plus a '
+                      'full line that bends around its adjacent corners.',
+                    ),
+                    const SizedBox(height: 16),
+                    const _PartialContourExamples(),
+                    const SizedBox(height: 40),
                     const _SectionTitle('Palettes'),
                     const _SectionCaption(
                       'The eleven presets, each on the same card. Custom, '
@@ -511,6 +519,79 @@ class _CycleGapExample extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A half-phone segment across the three painting families, beside a
+/// segment-free line using border-path corner wrapping.
+class _PartialContourExamples extends StatelessWidget {
+  const _PartialContourExamples();
+
+  static const BeamShape _halfShape = BeamShape.all(
+    36,
+    segment: BeamSegment.bottomHalf,
+  );
+
+  @override
+  Widget build(BuildContext context) => ExampleFrame(
+    height: 370,
+    clip: false,
+    child: Padding(
+      padding: const EdgeInsets.all(18),
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 180,
+            height: 320,
+            child: BorderBeam.rotate(
+              colors: BeamColors.aurora,
+              shape: _halfShape,
+              child: _ThemedCard(label: 'Half phone', radius: 36),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              children: [
+                Expanded(
+                  child: BorderBeam.line(
+                    colors: BeamColors.ocean,
+                    shape: _halfShape,
+                    child: const _ThemedCard(
+                      label: 'Half phone · line',
+                      radius: 36,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: BorderBeam.pulseInside(
+                    colors: BeamColors.sunset,
+                    shape: _halfShape,
+                    child: const _ThemedCard(
+                      label: 'Half phone · pulse',
+                      radius: 36,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Expanded(
+                  child: BorderBeam.line(
+                    colors: BeamColors.neon,
+                    shape: BeamShape.all(
+                      28,
+                      edge: BeamEdge.bottom,
+                      wrapCorners: true,
+                    ),
+                    child: _ThemedCard(label: 'Corner wrap', radius: 28),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 /// The eleven palette presets, one small card each.

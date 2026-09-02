@@ -61,6 +61,29 @@ String encodePlaygroundState(PlaygroundState state) {
   choice('ed', state.edge, d.edge);
   number('ro', state.ringOffset, d.ringOffset);
   flag('ct', state.contour);
+  if (state.segmentPreset != SegmentPreset.off) {
+    put('sgp', state.segmentPreset.id);
+    if (state.segmentPreset == SegmentPreset.custom) {
+      if (state.segmentStartEdge != d.segmentStartEdge ||
+          state.segmentStartT != d.segmentStartT) {
+        put(
+          'sga',
+          '${state.segmentStartEdge.name},${_formatNumber(state.segmentStartT)}',
+        );
+      }
+      if (state.segmentEndEdge != d.segmentEndEdge ||
+          state.segmentEndT != d.segmentEndT) {
+        put(
+          'sgb',
+          '${state.segmentEndEdge.name},${_formatNumber(state.segmentEndT)}',
+        );
+      }
+      if (state.segmentFeather != d.segmentFeather) {
+        put('sgf', _formatNumber(state.segmentFeather));
+      }
+    }
+  }
+  flag('wc', state.wrapCorners);
 
   optional('cy', state.cycleSeconds);
   number('cg', state.cycleGapSeconds, d.cycleGapSeconds);
@@ -173,6 +196,18 @@ PlaygroundState decodePlaygroundState(String encoded) {
     return null;
   }
 
+  ({BeamEdge edge, double t})? readAnchor(String key) {
+    final parts = values[key]?.split(',');
+    if (parts == null || parts.length != 2) return null;
+    BeamEdge? edge;
+    for (final option in BeamEdge.values) {
+      if (option.name == parts.first) edge = option;
+    }
+    final t = double.tryParse(parts.last);
+    if (edge == null || t == null || t.isNaN || t < 0 || t > 1) return null;
+    return (edge: edge, t: t);
+  }
+
   for (final entry in _variantIds.entries) {
     if (entry.value == values['v']) state.variant = entry.key;
   }
@@ -213,6 +248,19 @@ PlaygroundState decodePlaygroundState(String encoded) {
   state.edge = readEnum('ed', BeamEdge.values) ?? state.edge;
   state.ringOffset = read('ro', -12, 24) ?? state.ringOffset;
   state.contour = readFlag('ct') ?? state.contour;
+  for (final preset in SegmentPreset.values) {
+    if (preset.id == values['sgp']) state.segmentPreset = preset;
+  }
+  if (readAnchor('sga') case final anchor?) {
+    state.segmentStartEdge = anchor.edge;
+    state.segmentStartT = anchor.t;
+  }
+  if (readAnchor('sgb') case final anchor?) {
+    state.segmentEndEdge = anchor.edge;
+    state.segmentEndT = anchor.t;
+  }
+  state.segmentFeather = read('sgf', 0, 120) ?? state.segmentFeather;
+  state.wrapCorners = readFlag('wc') ?? state.wrapCorners;
 
   state.cycleSeconds = read('cy', 0.5, 8);
   state.cycleGapSeconds = read('cg', 0, 4) ?? state.cycleGapSeconds;

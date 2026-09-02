@@ -58,6 +58,13 @@ the transcription is verified.
   beam to travel, replacing the rounded rectangle, with a true normal offset
   for its inner ring. `BeamPathContour` wraps a `Path Function(Rect)` with an
   explicit equality key.
+- `BeamShape.segment` accepts a `BeamSegment` between two `BeamAnchor`s — a
+  raw perimeter fraction, a position along a `BeamEdge`, or a position through
+  a `BeamCorner` — and masks the unchanged full-ring animation to that
+  clockwise span. Presets cover each half and each edge with its adjacent
+  corner arcs; endpoint feathering is measured in perimeter pixels.
+- `BeamShape.wrapCorners` places a segment-free line in border-path space so
+  its streak bends around the two corner arcs adjacent to its selected edge.
 
 #### Style
 

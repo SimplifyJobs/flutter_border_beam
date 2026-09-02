@@ -284,7 +284,70 @@ class ControlsPanel extends StatelessWidget {
             suffix: 'px',
             onChanged: (v) => onEdit(() => s.ringOffset = v),
           ),
-          if (isLine)
+          ControlRow(
+            label: 'Segment',
+            child: ChipGroup(
+              children: [
+                for (final preset in SegmentPreset.values)
+                  DemoChip(
+                    label: preset.label,
+                    selected: s.segmentPreset == preset,
+                    onTap: () => onEdit(() => s.segmentPreset = preset),
+                  ),
+              ],
+            ),
+          ),
+          if (s.segmentPreset == SegmentPreset.custom) ...[
+            ControlRow(
+              label: 'Start edge',
+              child: ChipGroup(
+                children: [
+                  for (final entry in _edgeLabels.entries)
+                    DemoChip(
+                      label: entry.value,
+                      selected: s.segmentStartEdge == entry.key,
+                      onTap: () => onEdit(() => s.segmentStartEdge = entry.key),
+                    ),
+                ],
+              ),
+            ),
+            SliderRow(
+              label: 'Start t',
+              value: s.segmentStartT,
+              min: 0,
+              max: 1,
+              onChanged: (v) => onEdit(() => s.segmentStartT = v),
+            ),
+            ControlRow(
+              label: 'End edge',
+              child: ChipGroup(
+                children: [
+                  for (final entry in _edgeLabels.entries)
+                    DemoChip(
+                      label: entry.value,
+                      selected: s.segmentEndEdge == entry.key,
+                      onTap: () => onEdit(() => s.segmentEndEdge = entry.key),
+                    ),
+                ],
+              ),
+            ),
+            SliderRow(
+              label: 'End t',
+              value: s.segmentEndT,
+              min: 0,
+              max: 1,
+              onChanged: (v) => onEdit(() => s.segmentEndT = v),
+            ),
+            SliderRow(
+              label: 'Feather',
+              value: s.segmentFeather,
+              min: 0,
+              max: 120,
+              suffix: 'px',
+              onChanged: (v) => onEdit(() => s.segmentFeather = v),
+            ),
+          ],
+          if (isLine && s.segmentPreset == SegmentPreset.off)
             ControlRow(
               label: 'Edge',
               child: ChipGroup(
@@ -296,6 +359,15 @@ class ControlsPanel extends StatelessWidget {
                       onTap: () => onEdit(() => s.edge = entry.key),
                     ),
                 ],
+              ),
+            ),
+          if (isLine && s.segmentPreset == SegmentPreset.off)
+            ControlRow(
+              label: 'Corner wrap',
+              child: DemoChip(
+                label: 'Wrap corners',
+                selected: s.wrapCorners,
+                onTap: () => onEdit(() => s.wrapCorners = !s.wrapCorners),
               ),
             ),
         ],

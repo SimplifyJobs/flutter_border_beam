@@ -70,6 +70,11 @@ void main() {
     expect(find.text('small'), findsOneWidget);
     expect(find.text('pulseInside'), findsOneWidget);
     expect(find.text('Rest between sweeps'), findsOneWidget);
+    expect(find.text('Partial contours'), findsOneWidget);
+    expect(find.text('Half phone'), findsOneWidget);
+    expect(find.text('Half phone · line'), findsOneWidget);
+    expect(find.text('Half phone · pulse'), findsOneWidget);
+    expect(find.text('Corner wrap'), findsOneWidget);
 
     // Switch to the Pulse tab.
     await tapLabel(tester, 'Pulse');
@@ -118,6 +123,44 @@ void main() {
     await tapLabel(tester, 'Pulse Outside');
     expect(snippetText(tester), startsWith('BorderBeam.pulseOutside('));
 
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('playground: segment chips and corner wrap reach the snippet', (
+    tester,
+  ) async {
+    await pumpGallery(tester);
+
+    await tapControl(tester, 'Bottom half');
+    expect(snippetText(tester), contains('BeamSegment.bottomHalf'));
+
+    await tapControl(tester, 'Top edge');
+    expect(snippetText(tester), contains('BeamSegment.topEdge'));
+
+    await tapFinder(
+      tester,
+      find
+          .descendant(
+            of: find.byType(ControlsPanel),
+            matching: find.text('Custom'),
+          )
+          .last,
+    );
+    expect(
+      snippetText(tester),
+      contains(
+        'BeamSegment(start: BeamAnchor.edge(BeamEdge.right), '
+        'end: BeamAnchor.edge(BeamEdge.left), feather: 48)',
+      ),
+    );
+    expect(find.text('Start edge'), findsOneWidget);
+    expect(find.text('End edge'), findsOneWidget);
+    expect(find.text('Feather'), findsOneWidget);
+
+    await tapControl(tester, 'Off');
+    await tapControl(tester, 'Line');
+    await tapControl(tester, 'Wrap corners');
+    expect(snippetText(tester), contains('wrapCorners: true'));
     expect(tester.takeException(), isNull);
   });
 
@@ -197,10 +240,17 @@ void main() {
       'Motion',
       'Driven progress',
       'Sync',
+      'Partial contours',
     ]) {
       await tester.ensureVisible(find.text(title));
       await settle(tester);
       expect(find.text(title), findsOneWidget, reason: '$title section');
+    }
+
+    for (final label in ['Half phone', 'Half phone · line', 'Corner wrap']) {
+      await tester.ensureVisible(find.text(label));
+      await settle(tester);
+      expect(find.text(label), findsOneWidget);
     }
 
     // One card per palette preset, named by the constant it uses.

@@ -100,13 +100,15 @@ None of these exist upstream:
 
 **Color** — `hueBase`; `BeamColors.custom`, `fromSeed` (four harmonies), `fromScheme`, `lerp`, `scaleAlpha`, `spec`; and the seven extra presets (`aurora`, `neon`, `candy`, `ember`, `ice`, `gold`, `holographic`).
 
-**Shape** — per-corner direction-aware radii, `BeamShape.stadium`, superellipse corners, `ringOffset`, `edge`, and arbitrary `BeamContour` paths.
+**Shape** — per-corner direction-aware radii, `BeamShape.stadium`, superellipse corners, `ringOffset`, `edge`, arbitrary `BeamContour` paths, `BeamShape.segment`, and `BeamShape.wrapCorners`.
 
 **Motion** — `cycleGap`, `direction`, `phaseOffset`, `beamCount`, `segments`, `tailLength`, `glowSpread`, `comet`, `sparkle`, `renderScale`, `innerSizeScale`, driven `progress`, pointer `follow`, `strengthListenable`, `speedListenable`, and `BeamSync`.
 
 **Playback & API** — the value-object API itself, `BorderBeamTheme`, `BorderBeamController` (including `pulse()` and `flash()`), `BeamRepeat`, `pauseWhenOffscreen`, `debugFrozenAt`, `fadeCurve`, and `pulseOutsideTuning` as a selectable field.
 
 **Surfaces** — `BorderBeam.overlay`, `BeamDecoration`, `BeamFocusRing`, `BeamHover`, `BeamPress`.
+
+The React original has no segment API. `BeamSegment` is a Flutter extension that masks the unchanged full-contour animation in perimeter space. The original author's SwiftUI showcase composes the half-phone look with a screen-space gradient mask over a full beam; this package expresses that composition as `shape.segment` and keeps it correct for arbitrary sizes, radii, offsets, and contours.
 
 ## CSS ↔ Flutter mapping
 

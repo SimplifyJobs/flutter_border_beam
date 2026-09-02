@@ -96,6 +96,41 @@ const int maxCustomColors = 4;
 /// The dash counts the ring-segments control offers, alongside `off`.
 const List<int> segmentChoices = [4, 6, 8, 12, 16];
 
+/// Partial-contour choices exposed by the Shape controls.
+enum SegmentPreset {
+  /// The full contour.
+  off('Off', 'off'),
+
+  /// [BeamSegment.bottomHalf].
+  bottomHalf('Bottom half', 'bottomHalf'),
+
+  /// [BeamSegment.topHalf].
+  topHalf('Top half', 'topHalf'),
+
+  /// [BeamSegment.leftHalf].
+  leftHalf('Left half', 'leftHalf'),
+
+  /// [BeamSegment.rightHalf].
+  rightHalf('Right half', 'rightHalf'),
+
+  /// [BeamSegment.bottomEdge].
+  bottomEdge('Bottom edge', 'bottomEdge'),
+
+  /// [BeamSegment.topEdge].
+  topEdge('Top edge', 'topEdge'),
+
+  /// A segment assembled from the two edge-anchor controls.
+  custom('Custom', 'custom');
+
+  const SegmentPreset(this.label, this.id);
+
+  /// Chip label.
+  final String label;
+
+  /// Stable share-link identifier.
+  final String id;
+}
+
 /// The five-pointed star the shape section's contour toggle installs, so the
 /// playground can show a beam travelling a path that is not a rounded
 /// rectangle.
@@ -213,6 +248,27 @@ class PlaygroundState {
 
   /// Whether the beam travels [starContour] instead of a rounded rectangle.
   bool contour = false;
+
+  /// Which part of the contour is visible.
+  SegmentPreset segmentPreset = SegmentPreset.off;
+
+  /// Edge carrying the custom segment's start anchor.
+  BeamEdge segmentStartEdge = BeamEdge.right;
+
+  /// Position along [segmentStartEdge]'s clockwise straight run.
+  double segmentStartT = 0.5;
+
+  /// Edge carrying the custom segment's end anchor.
+  BeamEdge segmentEndEdge = BeamEdge.left;
+
+  /// Position along [segmentEndEdge]'s clockwise straight run.
+  double segmentEndT = 0.5;
+
+  /// Fade length at each end of a custom segment, in logical px.
+  double segmentFeather = 48;
+
+  /// Whether a segment-free line bends around its adjacent corners.
+  bool wrapCorners = false;
 
   // ─── Timing ─────────────────────────────────────────────────────────────
 
@@ -471,7 +527,26 @@ class PlaygroundState {
       radius != defaultRadius ||
       borderWidth != 1 ||
       ringOffset != 0 ||
-      (variant == BeamVariant.line && edge != BeamEdge.bottom);
+      segmentPreset != SegmentPreset.off ||
+      (variant == BeamVariant.line &&
+          segmentPreset == SegmentPreset.off &&
+          (edge != BeamEdge.bottom || wrapCorners));
+
+  /// The selected partial contour, or null for the full contour.
+  BeamSegment? get segment => switch (segmentPreset) {
+    SegmentPreset.off => null,
+    SegmentPreset.bottomHalf => BeamSegment.bottomHalf,
+    SegmentPreset.topHalf => BeamSegment.topHalf,
+    SegmentPreset.leftHalf => BeamSegment.leftHalf,
+    SegmentPreset.rightHalf => BeamSegment.rightHalf,
+    SegmentPreset.bottomEdge => BeamSegment.bottomEdge,
+    SegmentPreset.topEdge => BeamSegment.topEdge,
+    SegmentPreset.custom => BeamSegment(
+      start: BeamAnchor.edge(segmentStartEdge, segmentStartT),
+      end: BeamAnchor.edge(segmentEndEdge, segmentEndT),
+      feather: segmentFeather,
+    ),
+  };
 
   // ─── Value objects ──────────────────────────────────────────────────────
 
@@ -481,7 +556,10 @@ class PlaygroundState {
     if (!hasShape) return null;
     final width = borderWidth == 1 ? null : borderWidth;
     final se = superellipse ? true : null;
-    final beamEdge = variant == BeamVariant.line && edge != BeamEdge.bottom
+    final beamEdge =
+        variant == BeamVariant.line &&
+            segmentPreset == SegmentPreset.off &&
+            edge != BeamEdge.bottom
         ? edge
         : null;
     final offset = ringOffset == 0 ? null : ringOffset;
@@ -493,6 +571,13 @@ class PlaygroundState {
         edge: beamEdge,
         ringOffset: offset,
         contour: path,
+        segment: segment,
+        wrapCorners:
+            variant == BeamVariant.line &&
+                segmentPreset == SegmentPreset.off &&
+                wrapCorners
+            ? true
+            : null,
       );
     }
     return BeamShape(
@@ -502,6 +587,13 @@ class PlaygroundState {
       edge: beamEdge,
       ringOffset: offset,
       contour: path,
+      segment: segment,
+      wrapCorners:
+          variant == BeamVariant.line &&
+              segmentPreset == SegmentPreset.off &&
+              wrapCorners
+          ? true
+          : null,
     );
   }
 

@@ -59,6 +59,26 @@ BorderBeam.rotate(
 
 `beamCount` with `bounce` is worth trying on a wide card: the beams meet and part rather than chasing each other around.
 
+Segments compose with the same travel controls. The segment always names a clockwise span; `direction` controls which way a traveler crosses it, and `cycleGap` adds the normal rest after a traveling sweep. Two beams with opposite directions make a counter-sweep:
+
+```dart
+Stack(
+  children: [
+    BorderBeam.rotate(
+      shape: const BeamShape(segment: BeamSegment.bottomHalf),
+      child: card,
+    ),
+    BorderBeam.rotate(
+      shape: const BeamShape(segment: BeamSegment.bottomHalf),
+      timing: const BeamTiming(direction: BeamDirection.reverse),
+      child: card,
+    ),
+  ],
+);
+```
+
+Add the same `cycleGap` to both timings when the arcs should disappear between passes.
+
 ## The hue tracks
 
 The hue is a separate track from the sweep, on its own period.

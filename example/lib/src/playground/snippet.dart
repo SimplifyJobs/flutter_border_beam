@@ -156,9 +156,14 @@ String? _shape(PlaygroundState state) {
   final extras = <String>[
     if (state.borderWidth != 1) 'borderWidth: ${_num(state.borderWidth)}',
     if (state.superellipse) 'superellipse: true',
-    if (isLine && state.edge != BeamEdge.bottom)
+    if (isLine &&
+        state.segmentPreset == SegmentPreset.off &&
+        state.edge != BeamEdge.bottom)
       'edge: BeamEdge.${state.edge.name}',
     if (state.ringOffset != 0) 'ringOffset: ${_num(state.ringOffset)}',
+    if (state.segmentPreset != SegmentPreset.off) 'segment: ${_segment(state)}',
+    if (isLine && state.segmentPreset == SegmentPreset.off && state.wrapCorners)
+      'wrapCorners: true',
   ];
   final contour = state.contour ? _contourPlaceholder : null;
 
@@ -191,6 +196,19 @@ String? _shape(PlaygroundState state) {
   }
   return 'shape: $head(${[...positional, ...extras].join(', ')})';
 }
+
+String _segment(PlaygroundState state) => switch (state.segmentPreset) {
+  SegmentPreset.off => throw StateError('Off has no BeamSegment'),
+  SegmentPreset.custom =>
+    'BeamSegment(start: ${_edgeAnchor(state.segmentStartEdge, state.segmentStartT)}, '
+        'end: ${_edgeAnchor(state.segmentEndEdge, state.segmentEndT)}, '
+        'feather: ${_num(state.segmentFeather)})',
+  final SegmentPreset preset => 'BeamSegment.${preset.id}',
+};
+
+String _edgeAnchor(BeamEdge edge, double t) => t == 0.5
+    ? 'BeamAnchor.edge(BeamEdge.${edge.name})'
+    : 'BeamAnchor.edge(BeamEdge.${edge.name}, ${_num(t)})';
 
 // A BeamPathContour takes a builder, which a generated snippet cannot write
 // for you — the placeholder names the field and the key it compares on.
