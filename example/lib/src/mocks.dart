@@ -230,6 +230,73 @@ class MockSearchBar extends StatelessWidget {
   }
 }
 
+/// A focusable field with no Material ancestor: a [Focus] around a painted
+/// box, so the gallery can show `BeamFocusRing` lighting on focus without
+/// pulling in Material's own input decoration.
+class MockFocusField extends StatefulWidget {
+  /// Creates the field.
+  const MockFocusField({
+    super.key,
+    this.label = 'Tap to focus',
+    this.width = 210,
+  });
+
+  /// Placeholder text.
+  final String label;
+
+  /// Field width.
+  final double width;
+
+  @override
+  State<MockFocusField> createState() => _MockFocusFieldState();
+}
+
+class _MockFocusFieldState extends State<MockFocusField> {
+  late final FocusNode _node = FocusNode(debugLabel: 'mock-focus-field');
+
+  @override
+  void dispose() {
+    _node.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = DemoTheme.of(context).tokens;
+    return Focus(
+      focusNode: _node,
+      child: GestureDetector(
+        onTap: _node.requestFocus,
+        child: AnimatedBuilder(
+          animation: _node,
+          builder: (context, _) => Container(
+            width: widget.width,
+            height: 40,
+            decoration: _mockBox(t, 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 1.5,
+                  height: 16,
+                  color: _node.hasFocus ? t.mockTextStrong : t.mockPlaceholder,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  widget.label,
+                  style: _mockStyle(
+                    _node.hasFocus ? t.mockText : t.mockPlaceholder,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _DashedCircle extends StatelessWidget {
   const _DashedCircle({required this.color});
 

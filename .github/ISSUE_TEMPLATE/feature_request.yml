@@ -1,0 +1,74 @@
+name: Feature request
+description: Propose a new variant, option, palette, or API.
+title: "[feat]: "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This package is a port of the
+        [border-beam](https://github.com/Jakubantalik/border-beam) React
+        library. Features that exist upstream are the easiest sell — say so if
+        yours does, and link the source. Flutter-only additions are welcome
+        too; they just need to stay out of the parity tables.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: >-
+        What are you trying to build, and where does the package get in the
+        way? Describe the situation, not the solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: api
+    attributes:
+      label: Proposed API
+      description: >-
+        A sketch of the call site as you would want to write it. Rough is
+        fine — the shape is what matters.
+      render: dart
+      placeholder: |
+        BorderBeam.rotate(
+          style: const BeamStyle(tailLength: 0.4),
+          child: ...,
+        )
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: >-
+        What can you do today instead, and why is it not enough? Include any
+        workaround you are currently shipping.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: rendering-defaults
+    attributes:
+      label: Does this change rendering defaults?
+      description: >-
+        Would an existing `BorderBeam` with no new arguments look or animate
+        differently? That makes it a breaking visual change, which needs a
+        much stronger case and regenerated goldens.
+      options:
+        - "No — purely additive, defaults unchanged"
+        - "Yes — existing beams would render differently"
+        - "Not sure"
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: >-
+        References, a link to the React implementation, screenshots or a
+        mockup of the effect.
+    validations:
+      required: false

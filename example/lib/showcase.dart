@@ -1,4 +1,4 @@
-import 'package:border_beam/border_beam.dart';
+import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter/material.dart';
 
 import 'demo_harness.dart';
@@ -62,7 +62,7 @@ void main() {
       'squircle': () => _card(
         const BorderBeam.rotate(
           colors: BeamColors.ocean,
-          useSuperellipse: true,
+          shape: BeamShape(superellipse: true),
           borderRadius: 28,
           child: _Surface(radius: 28),
         ),

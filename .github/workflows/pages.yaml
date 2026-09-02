@@ -1,0 +1,104 @@
+# Deploy the example gallery to GitHub Pages.
+#
+# The site is `example/` — the demo gallery and the interactive playground —
+# built for web and served at
+#
+#     https://simplifyjobs.github.io/flutter_border_beam/
+#
+# That URL is not incidental: `example/lib/src/playground/share_codec.dart`
+# hardcodes it as `playgroundSiteUrl` when it builds a share link, so the
+# `--base-href` below must stay `/flutter_border_beam/` (the repo name) for
+# shared links to resolve.
+#
+# ── ONE-TIME SETUP THE MAINTAINER MUST DO ────────────────────────────────────
+#
+#   Repo Settings → Pages → Build and deployment → Source: **GitHub Actions**.
+#
+#   Without that, `actions/configure-pages` fails with "Get Pages site failed"
+#   and nothing deploys. There is no secret and no branch to create — the
+#   artifact this workflow uploads is the whole site.
+#
+# ── WHY THE 404 COPY ─────────────────────────────────────────────────────────
+#
+# Pages serves static files and has no rewrite rule, so any path that is not a
+# real file 404s. The playground puts its state in the URL and the gallery
+# uses path-shaped routes (`/pulse`, …), so a deep link would land on the
+# Pages 404 page instead of the app. Copying `index.html` to `404.html` makes
+# the 404 response *be* the app: Flutter boots, reads the location, and routes
+# to it. `#state` fragments survive the redirect for free (fragments are never
+# sent to the server).
+#
+# The Flutter pin matches ci.yaml's FLUTTER_VERSION — the site should be built
+# by the same SDK the package is tested on.
+
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "example/**"
+      - "lib/**"
+      - "pubspec.yaml"
+      - ".github/workflows/pages.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time. Queued rather than cancelled: a half-finished
+# deploy that loses its slot would leave the live site on an older build.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  # Keep in sync with ci.yaml's FLUTTER_VERSION.
+  FLUTTER_VERSION: 3.44.2
+
+jobs:
+  build:
+    name: Build the example for web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        working-directory: example
+        run: flutter pub get
+
+      # `--base-href` must be the repo name: Pages serves project sites from
+      # `https://<owner>.github.io/<repo>/`, not from the domain root.
+      - name: Build web
+        working-directory: example
+        run: flutter build web --release --base-href /flutter_border_beam/
+
+      - name: Add the SPA fallback
+        working-directory: example
+        run: cp build/web/index.html build/web/404.html
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: example/build/web
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

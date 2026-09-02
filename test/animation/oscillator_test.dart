@@ -1,8 +1,8 @@
 import 'dart:ui';
 
-import 'package:border_beam/src/animation/oscillator.dart';
-import 'package:border_beam/src/constants/pulse_params.dart';
-import 'package:border_beam/src/models/beam_variant.dart';
+import 'package:flutter_border_beam/src/animation/oscillator.dart';
+import 'package:flutter_border_beam/src/constants/pulse_params.dart';
+import 'package:flutter_border_beam/src/models/beam_variant.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

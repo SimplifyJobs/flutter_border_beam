@@ -1,0 +1,110 @@
+name: Bug report
+description: Something renders, animates, or behaves incorrectly.
+title: "[bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. If you can reproduce it in the
+        [live playground](https://simplifyjobs.github.io/flutter_border_beam/),
+        paste the share link — it carries the exact configuration and saves
+        everyone a round trip.
+
+        Security issues do **not** belong here — see
+        [SECURITY.md](https://github.com/SimplifyJobs/flutter_border_beam/blob/main/SECURITY.md).
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened
+      description: A short description of the bug.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: >-
+        The smallest widget tree that shows the problem — ideally one that
+        drops straight into a fresh `flutter create` app. A playground share
+        link works too.
+      render: dart
+      placeholder: |
+        BorderBeam.rotate(
+          colors: BeamColors.ocean,
+          child: const SizedBox(width: 240, height: 120),
+        )
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: input
+    id: variant
+    attributes:
+      label: Variant(s) and palette
+      description: Which `BeamVariant` and which `BeamColors` (or custom colors).
+      placeholder: "rotate + line; BeamColors.colorful"
+    validations:
+      required: true
+
+  - type: textarea
+    id: flutter-version
+    attributes:
+      label: "`flutter --version` output"
+      description: Paste the whole thing — the Dart version and channel matter.
+      render: shell
+    validations:
+      required: true
+
+  - type: input
+    id: package-version
+    attributes:
+      label: flutter_border_beam version
+      placeholder: "0.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: Device / OS
+      description: >-
+        Include the web renderer (canvaskit or skwasm) and the browser if this
+        is on web; include the simulator/emulator vs. physical device
+        otherwise.
+      placeholder: "iPhone 16 simulator, iOS 26.0 / Chrome 141 on macOS, canvaskit"
+    validations:
+      required: true
+
+  - type: textarea
+    id: media
+    attributes:
+      label: Screenshot or video
+      description: >-
+        Strongly encouraged — this package is a visual one, and a five-second
+        screen recording usually says more than a paragraph. Drag files in.
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: Logs, a stack trace, what you already tried.
+    validations:
+      required: false

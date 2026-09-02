@@ -12,24 +12,44 @@
     * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
 
     This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
+    the `--base-href` argument provided to `flutter build`. The Pages workflow
+    (.github/workflows/pages.yaml) passes `--base-href /flutter_border_beam/`.
   -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="Interactive playground and gallery for flutter_border_beam — animated border beam effects for Flutter. Tune every variant, palette, and timing knob live, then copy the Dart snippet.">
+
+  <!-- Matches the gallery's dark surface, so the browser chrome does not flash. -->
+  <meta name="theme-color" content="#070707">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="flutter_border_beam">
+  <meta property="og:title" content="flutter_border_beam playground">
+  <meta property="og:description" content="Animated border beam effects for Flutter. Tune every variant, palette, and timing knob live, then copy the Dart snippet.">
+  <meta property="og:url" content="https://simplifyjobs.github.io/flutter_border_beam/">
+  <meta property="og:image" content="https://raw.githubusercontent.com/SimplifyJobs/flutter_border_beam/main/screenshots/rotate.png">
+  <meta property="og:image:alt" content="A card with a beam of light traveling around its border.">
+
+  <!-- Twitter card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="flutter_border_beam playground">
+  <meta name="twitter:description" content="Animated border beam effects for Flutter. Tune every variant, palette, and timing knob live, then copy the Dart snippet.">
+  <meta name="twitter:image" content="https://raw.githubusercontent.com/SimplifyJobs/flutter_border_beam/main/screenshots/rotate.png">
+  <meta name="twitter:image:alt" content="A card with a beam of light traveling around its border.">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="border_beam_example">
+  <meta name="apple-mobile-web-app-title" content="flutter_border_beam">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>border_beam_example</title>
+  <title>flutter_border_beam playground</title>
   <link rel="manifest" href="manifest.json">
 </head>
 <body>

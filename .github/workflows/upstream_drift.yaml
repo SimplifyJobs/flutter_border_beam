@@ -1,0 +1,125 @@
+# Upstream drift alarm for flutter_border_beam.
+#
+# Everything in `lib/src/constants/` is a hand transcription of the React
+# border-beam library's `src/styles.ts`. `test/constants/spec_parity_test.dart`
+# proves the transcription against a VENDORED copy of upstream's generated
+# `spec/beam-spec.json` — which means the parity test can only ever be as
+# current as that fixture. This job watches the live upstream and shouts when
+# it moves.
+#
+# It is an ALARM, not a build gate: it never runs on push or pull_request, so
+# it can fail without blocking anyone's merge. A failure means "go re-audit the
+# constants", never "this PR is broken".
+#
+# Two independent signals, because they catch different things:
+#
+#  1. The spec JSON itself (minus its `generated` timestamp, which the
+#     extractor rewrites on every run whether or not a value changed).
+#  2. The sha256 of `src/styles.ts`. The spec is generated FROM styles.ts, so a
+#     styles change that upstream has not regenerated the spec for would slip
+#     past signal 1 entirely.
+#
+# Markdown in the job summary uses `~~~` fences and escaped backticks so the
+# shell literals stay free of unquoted backticks (shellcheck SC2016).
+
+name: Upstream drift
+
+on:
+  schedule:
+    # Mondays, 06:00 UTC.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upstream-drift
+  cancel-in-progress: false
+
+env:
+  UPSTREAM_RAW: https://raw.githubusercontent.com/Jakubantalik/Libraries/main/packages/border-beam
+
+jobs:
+  compare-vendored-spec-with-upstream:
+    name: Compare vendored spec with upstream
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out flutter_border_beam
+        uses: actions/checkout@v5
+
+      - name: Fetch upstream spec and styles.ts
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/upstream"
+          curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors \
+            "$UPSTREAM_RAW/spec/beam-spec.json" \
+            -o "$RUNNER_TEMP/upstream/beam-spec.json"
+          curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors \
+            "$UPSTREAM_RAW/src/styles.ts" \
+            -o "$RUNNER_TEMP/upstream/styles.ts"
+          jq empty < "$RUNNER_TEMP/upstream/beam-spec.json"
+
+      - name: Diff the spec (ignoring the generated timestamp)
+        id: spec
+        run: |
+          set -euo pipefail
+          jq -S 'del(.generated)' test/fixtures/beam-spec.json \
+            > "$RUNNER_TEMP/ours.json"
+          jq -S 'del(.generated)' "$RUNNER_TEMP/upstream/beam-spec.json" \
+            > "$RUNNER_TEMP/theirs.json"
+          if diff -u "$RUNNER_TEMP/ours.json" "$RUNNER_TEMP/theirs.json" \
+            > "$RUNNER_TEMP/spec.diff"; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Vendored spec matches upstream."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Upstream \`beam-spec.json\` changed"
+              echo
+              echo '~~~diff'
+              head -c 60000 "$RUNNER_TEMP/spec.diff"
+              echo
+              echo '~~~'
+            } >> "$GITHUB_STEP_SUMMARY"
+            cat "$RUNNER_TEMP/spec.diff"
+          fi
+
+      - name: Compare the styles.ts hash
+        id: styles
+        run: |
+          set -euo pipefail
+          recorded="$(grep '^styles_sha256=' test/fixtures/UPSTREAM | cut -d= -f2)"
+          current="$(sha256sum "$RUNNER_TEMP/upstream/styles.ts" | cut -d' ' -f1)"
+          echo "recorded: $recorded"
+          echo "current:  $current"
+          if [ "$recorded" = "$current" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Upstream \`src/styles.ts\` changed"
+              echo
+              echo "recorded: \`$recorded\`"
+              echo
+              echo "current:  \`$current\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Report
+        env:
+          SPEC_CHANGED: ${{ steps.spec.outputs.changed }}
+          STYLES_CHANGED: ${{ steps.styles.outputs.changed }}
+        run: |
+          set -euo pipefail
+          remedy="re-audit the constants against src/styles.ts, run tool/spec/refresh.sh, then flutter test test/constants/spec_parity_test.dart"
+          if [ "$SPEC_CHANGED" = 'true' ]; then
+            echo "::error title=Upstream spec drift::beam-spec.json changed upstream — $remedy"
+          fi
+          if [ "$STYLES_CHANGED" = 'true' ]; then
+            echo "::warning title=Upstream styles.ts drift::styles.ts changed upstream (the spec may not have been regenerated yet) — $remedy"
+          fi
+          if [ "$SPEC_CHANGED" = 'true' ] || [ "$STYLES_CHANGED" = 'true' ]; then
+            exit 1
+          fi
+          echo "No upstream drift."

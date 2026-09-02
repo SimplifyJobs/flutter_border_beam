@@ -66,6 +66,25 @@ class BorderBeamController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Bumps the beam's brightness once and lets it settle (~0.6s), without
+  /// touching the timeline — the way to mark a moment (a message arrived, a
+  /// step finished) on a beam that is already running.
+  ///
+  /// No-op while the beam is hidden or frozen.
+  void pulse() {
+    _clock?.pulse();
+    notifyListeners();
+  }
+
+  /// Blinks the beam to full opacity, holds 120ms, and decays — a sharper,
+  /// brighter accent than [pulse].
+  ///
+  /// No-op while the beam is hidden or frozen.
+  void flash() {
+    _clock?.flash();
+    notifyListeners();
+  }
+
   /// Jumps the animation timeline to [position].
   void seek(Duration position) {
     _clock?.seek(position.inMicroseconds / Duration.microsecondsPerSecond);

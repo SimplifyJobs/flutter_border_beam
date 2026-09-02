@@ -27,4 +27,28 @@ class BeamPalette {
   /// Whether the line variant applies its grayscale spike attenuation
   /// (alpha rescale, wider/shorter spikes, extra bloom blur).
   final bool monoTreatment;
+
+  /// Two palettes are equal when their tables and paint-time modifiers are.
+  ///
+  /// [BeamColors.resolve] hands out one palette per distinct color choice,
+  /// so this normally short-circuits on identity; the structural path
+  /// covers palettes rebuilt after a cache eviction.
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BeamPalette &&
+          other.data == data &&
+          other.forcesStaticColors == forcesStaticColors &&
+          other.opacityMultiplier == opacityMultiplier &&
+          other.monoTreatment == monoTreatment;
+
+  @override
+  int get hashCode =>
+      Object.hash(data, forcesStaticColors, opacityMultiplier, monoTreatment);
+
+  @override
+  String toString() =>
+      'BeamPalette(forcesStaticColors: $forcesStaticColors, '
+      'opacityMultiplier: $opacityMultiplier, '
+      'monoTreatment: $monoTreatment)';
 }

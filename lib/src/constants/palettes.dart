@@ -1,5 +1,7 @@
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
+
 import '../models/beam_blob.dart';
 
 // Verbatim transcription of the color palette tables from the React library
@@ -53,6 +55,39 @@ class BeamPresetData {
 
   /// 5 fixed bloom spike color pairs, light theme.
   final List<SpikePair> lineBloomLight;
+
+  // Structural equality: derived bundles (custom/seed/lerp palettes) are
+  // built fresh on every resolve, so two bundles carrying the same tables
+  // must compare equal for `BeamConfig` — and therefore
+  // `BeamPainter.shouldRepaint` — to see them as the same paint.
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BeamPresetData &&
+          listEquals(other.border, border) &&
+          other.spike == spike &&
+          other.spikeLt == spikeLt &&
+          listEquals(other.smallBorder, smallBorder) &&
+          listEquals(other.smallInner, smallInner) &&
+          listEquals(other.lineDark, lineDark) &&
+          listEquals(other.lineLight, lineLight) &&
+          listEquals(other.lineInner, lineInner) &&
+          listEquals(other.lineBloomDark, lineBloomDark) &&
+          listEquals(other.lineBloomLight, lineBloomLight);
+
+  @override
+  int get hashCode => Object.hash(
+    Object.hashAll(border),
+    spike,
+    spikeLt,
+    Object.hashAll(smallBorder),
+    Object.hashAll(smallInner),
+    Object.hashAll(lineDark),
+    Object.hashAll(lineLight),
+    Object.hashAll(lineInner),
+    Object.hashAll(lineBloomDark),
+    Object.hashAll(lineBloomLight),
+  );
 }
 
 // ── colorful ────────────────────────────────────────────────────────────────

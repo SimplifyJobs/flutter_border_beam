@@ -4,6 +4,14 @@ import '../../animation/oscillator.dart';
 import '../../models/beam_blob.dart';
 import '../gradient_builders.dart';
 
+/// Reads a pulse table's color source, cycling a short custom spec palette.
+///
+/// [border] is never empty: every palette that reaches the painter resolves
+/// through `BeamColors`, and `validateColorTable` rejects an empty table
+/// there — in release builds as well as debug ones.
+BeamBlob pulseBlobAt(List<BeamBlob> border, int index) =>
+    border[index % border.length];
+
 /// Resolves a [PulseQuad] to its animated opacity factor.
 double quadOpacity(PulsePhaseSet pulse, PulseQuad quad) => switch (quad) {
   PulseQuad.tl => pulse.bopTl,
@@ -29,7 +37,9 @@ void paintPulseBlob(
   required double sy,
   required double boost,
   required Color Function(Color) fold,
+  double alphaScale = 1,
 }) {
+  if (alphaScale <= 0) return;
   final r = region.index;
   BeamGradients.paintBlob(
     canvas,
@@ -40,7 +50,7 @@ void paintPulseBlob(
     radiusX: w * pulse.bw[r] * sx * boost,
     radiusY: h * pulse.bh[r] * pulse.bgh * sy * boost,
     color: fold(color),
-    alpha: quadOpacity(pulse, quad),
+    alpha: quadOpacity(pulse, quad) * alphaScale,
   );
 }
 
@@ -59,7 +69,9 @@ void paintFrozenPulseBlob(
   required double sy,
   required double boost,
   required Color Function(Color) fold,
+  double alphaScale = 1,
 }) {
+  if (alphaScale <= 0) return;
   BeamGradients.paintBlob(
     canvas,
     center: Offset(
@@ -68,6 +80,6 @@ void paintFrozenPulseBlob(
     ),
     radiusX: w * sx * boost,
     radiusY: h * sy * boost,
-    color: fold(color.withValues(alpha: frozenAlpha)),
+    color: fold(color.withValues(alpha: frozenAlpha * alphaScale)),
   );
 }

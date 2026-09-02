@@ -1,0 +1,7 @@
+# Code owners are requested for review automatically on every PR.
+# A GitHub team (e.g. @SimplifyJobs/mobile) can replace the individual owner
+# once one exists — teams survive people changing roles.
+
+*           @rehmatsg
+
+/.github/   @rehmatsg

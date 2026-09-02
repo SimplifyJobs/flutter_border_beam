@@ -1,31 +1,193 @@
+# CI for flutter_border_beam.
+#
+# Two things about this workflow are deliberate and easy to get wrong:
+#
+#  1. The Flutter version is PINNED to 3.44.2 rather than tracking `stable`.
+#     The golden files in `test/` were generated on Flutter 3.44.2 (Dart 3.12)
+#     on macOS, and rasterization of blurs and gradients shifts between
+#     Flutter releases. An unpinned `stable` would turn every Flutter release
+#     into a spurious golden diff. Regenerate the goldens (macOS,
+#     `flutter test --update-goldens --tags golden`) in the same commit that
+#     bumps this pin.
+#  2. The `min-sdk` job builds and tests on Flutter 3.35.0 — the exact lower
+#     bound declared by `environment: flutter: ">=3.35.0"` in pubspec.yaml.
+#     Without it that bound is an untested claim and consumers on the oldest
+#     supported SDK find the breakage for us. It is a hard gate, not an
+#     advisory one: no `continue-on-error`.
+#
+# Jobs are intentionally independent (no `needs:`) so they run in parallel.
+# `goldens` is the only macOS runner, and therefore the only expensive one.
+
 name: CI
 
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # The pinned SDK. Keep in sync with the goldens and with release.yaml.
+  FLUTTER_VERSION: 3.44.2
+  # The declared lower bound from pubspec.yaml's `environment:` block.
+  FLUTTER_MIN_VERSION: 3.35.0
 
 jobs:
-  analyze-and-test:
+  quality:
+    name: Format, analyze, test, coverage
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Required so codecov/codecov-action can mint a GitHub OIDC token and
+      # upload tokenlessly (the repo is public, so there is no CODECOV_TOKEN).
+      id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+
       - uses: subosito/flutter-action@v2
         with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
-      - run: flutter pub get
-      - run: dart format --output=none --set-exit-if-changed .
-      - run: flutter analyze
-      # Goldens are pinned to macOS rendering; see the goldens job.
-      - run: flutter test --exclude-tags golden
-      - run: dart pub publish --dry-run
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Analyze
+        run: flutter analyze --fatal-infos
+
+      # Goldens are pinned to macOS rendering — the `goldens` job owns them.
+      - name: Test with coverage
+        run: flutter test --exclude-tags golden --coverage
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage/lcov.info
+          use_oidc: true
+          # Coverage reporting must never be the reason a PR goes red.
+          fail_ci_if_error: false
+
+      - name: Validate the publishable archive
+        run: dart pub publish --dry-run
 
   goldens:
+    name: Goldens (macOS)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+
       - uses: subosito/flutter-action@v2
         with:
+          # Same pin as `quality`: the goldens encode this exact renderer.
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
-      - run: flutter pub get
-      - run: flutter test --tags golden
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run golden tests
+        run: flutter test --tags golden
+
+      - name: Upload golden failures
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-failures
+          path: test/**/failures/**
+          retention-days: 7
+          if-no-files-found: ignore
+
+  min-sdk:
+    name: Minimum supported Flutter (3.35.0)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_MIN_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # `--fatal-infos` is deliberately omitted here: lint rule sets move
+      # between SDKs, and an info-level diagnostic from an older analyzer is
+      # not a reason to block. Errors and warnings still fail the job.
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test --exclude-tags golden
+
+  pana:
+    name: pub.dev score (pana)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Install pana
+        run: dart pub global activate pana
+
+      # pana prints the full report to the log, then `--exit-code-threshold N`
+      # fails the job when MORE than N pub.dev points are lost. 20 is a floor,
+      # not a target: it leaves room for points only a published package can
+      # earn (downstream-usage and up-to-date-dependency signals) while still
+      # catching a real regression — a dropped example, a broken publish
+      # archive, undocumented public API, an unresolvable dependency. Ratchet
+      # it down as the package settles; the number should only get smaller.
+      - name: Run pana
+        run: dart pub global run pana --no-warning --exit-code-threshold 20 .
+
+  example:
+    name: Example app
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      # The example consumes the package by path, so it is the canary for API
+      # breaks in the gallery, and the web build proves the package carries no
+      # imports that fail to compile for web.
+      - name: Install dependencies
+        working-directory: example
+        run: flutter pub get
+
+      - name: Analyze
+        working-directory: example
+        run: flutter analyze --fatal-infos
+
+      - name: Test
+        working-directory: example
+        run: flutter test
+
+      - name: Build web
+        working-directory: example
+        run: flutter build web --release

@@ -1,7 +1,13 @@
 # Repo-only files, excluded from the published pub package.
+# `screenshots/` stays in the archive — pub.dev renders the images the
+# pubspec's `screenshots:` section points at, so they must ship with the package.
 assets/
 tool/
+# The vendored upstream spec is parity-test input only (123 KB of JSON).
+test/fixtures/
 CLAUDE.md
 .demos/
 **/.dart_tool/
 **/build/
+# Golden reference images (6.9 MB) only matter to the repo's own CI, not to consumers.
+test/golden/

@@ -1,3 +1,7 @@
+import 'dart:ui';
+
+import '../constants/pulse_params.dart';
+
 /// The five beam effect variants, matching the React library's `size` prop.
 ///
 /// Rotate family (a traveling beam sweeps around the border):
@@ -42,4 +46,21 @@ enum BeamVariant {
 
   /// Default border (stroke ring) width preset. All variants use 1px.
   double get defaultBorderWidth => 1;
+
+  /// Default period of one full hue track pass: 12s for the traveling
+  /// variants, 16s for [pulseInside], 14s for [pulseOutside].
+  ///
+  /// The pulse periods come from [PulseParams], which tunes them by neither
+  /// brightness nor cycle length — the arguments below only satisfy that
+  /// signature.
+  Duration get defaultHuePeriod => isPulse
+      ? _seconds(PulseParams.resolve(this, Brightness.dark, 2.3).huePeriod)
+      : const Duration(seconds: 12);
+
+  /// Default period of the [line] variant's separate bloom hue track: 8s.
+  /// No other variant paints a bloom hue track of its own.
+  Duration get defaultBloomHuePeriod => const Duration(seconds: 8);
 }
+
+Duration _seconds(double value) =>
+    Duration(microseconds: (value * Duration.microsecondsPerSecond).round());

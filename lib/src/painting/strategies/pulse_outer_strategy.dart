@@ -1,18 +1,55 @@
 import 'dart:ui';
 
 import '../../animation/beam_phases.dart';
+import '../../constants/pulse_constants.dart';
 import '../../constants/pulse_params.dart';
 import '../../constants/pulse_tables.dart';
 import '../../models/beam_blob.dart';
 import '../../models/beam_config.dart';
+import '../../models/beam_options.dart';
 import '../../models/beam_variant.dart';
 import '../color_matrix.dart';
+import '../gradient_builders.dart';
 import '../layer_utils.dart';
-import '../ring_geometry.dart';
 import '../variant_strategy.dart';
 import 'pulse_common.dart';
 
 const Color _white = Color(0xFFFFFFFF);
+
+// ─── Verbatim: the source's stock outside-glow table ────────────────────────
+//
+// The React library's own `outsideConstants`, before the demo page layers
+// its tuned recipe over them (that recipe lives in `pulse_constants.dart`).
+// These are absolute px: the stock look does not scale its reach or its blur
+// with the element's size, which is exactly what BeamPulseOutsideTuning.stock
+// selects.
+
+/// Stock inset the core glow is grown past the child's bounds.
+const double _stockCoreInset = 10;
+
+/// Stock inset the bloom halo is grown past the child's bounds.
+const double _stockBloomInset = 30;
+
+/// Stock core-glow blur on a dark background.
+const double _stockCoreBlurDark = 3;
+
+/// Stock core-glow blur on a light background.
+const double _stockCoreBlurLight = 6;
+
+/// Stock bloom-halo blur on a dark background.
+const double _stockBloomBlurDark = 22.5;
+
+/// Stock bloom-halo blur on a light background.
+const double _stockBloomBlurLight = 15;
+
+/// How far the two outward glow layers reach past the child, and how heavily
+/// each is blurred, in the beam's own px.
+typedef _GlowGeometry = ({
+  double coreInset,
+  double bloomInset,
+  double coreBlur,
+  double bloomBlur,
+});
 
 /// The outward-blooming breathing halo (React `pulse-outside`): a crisp
 /// stroke ring above the child, and a colorful core plus soft halo painted
@@ -22,51 +59,44 @@ class PulseOuterStrategy extends BeamVariantStrategy {
   /// Const constructor.
   const PulseOuterStrategy();
 
-  /// Reference child dimensions the glow geometry was authored for.
-  static const double referenceWidth = 350;
-
-  /// Reference child height.
-  static const double referenceHeight = 140;
-
-  /// Glow scale clamp bounds.
-  static const double minScale = 0.35;
-
-  /// Upper clamp bound.
-  static const double maxScale = 4;
-
-  // The source's constant outward-glow transform (scale(0.95, 0.9)).
-  static const double _sw = 0.95;
-  static const double _sh = 0.9;
-
-  // The demo-hero tuning recipe (`.beam-host--pulse-outside-tuned` in the
-  // source's demo). The library's RAW defaults render a sparse, dim halo of
-  // separate blobs; the pulse-outside look everyone knows from
-  // beam.jakubantalik.com layers this recipe on top: unit-scaled insets and
-  // blurs (the ~20px core blur is what melts the blobs into one continuous
-  // edge-hugging glow), ×1.71 layer opacities, brightness 1.3×1.71 and
-  // saturation 1.2×1.71, and a 1.05 prominence boost. Baked in as the
-  // Flutter defaults; every value stays overridable through the widget's
-  // coreBlur/bloomBlur/glowBrightness/glowSaturation/glowBoost/opacity
-  // hooks.
-  static const double _tunedBoost = 1.05;
-  static const double _tunedGlowMul = 1.71;
-  static const double _tunedCoreInset = 6;
-  static const double _tunedBloomInset = 14;
-  static const double _tunedCoreBlur = 10;
-  static const double _tunedBloomBlur = 19;
-
   @override
   double? get preferredFps => 30;
 
-  double _sx(Size size) =>
-      (size.width / referenceWidth).clamp(minScale, maxScale);
-  double _sy(Size size) =>
-      (size.height / referenceHeight).clamp(minScale, maxScale);
+  double _sx(Size size) => (size.width / pulseOuterReferenceWidth).clamp(
+    pulseOuterMinScale,
+    pulseOuterMaxScale,
+  );
+  double _sy(Size size) => (size.height / pulseOuterReferenceHeight).clamp(
+    pulseOuterMinScale,
+    pulseOuterMaxScale,
+  );
 
   // Halo reach/blur scale with element size relative to the demo's Subscribe
   // button baseline (measured glow scale 0.35), damped ×0.7
   // (`--sub-glow-unit`).
-  double _unit(Size size) => _sx(size) / minScale * 0.7;
+  double _unit(Size size) =>
+      _sx(size) / pulseOuterMinScale * pulseOuterGlowUnitDamping;
+
+  // The demo recipe scales every length by the size-derived unit; the stock
+  // table is fixed px and picks its blurs by brightness.
+  _GlowGeometry _geometry(BeamConfig config, Size size) {
+    if (config.pulseOutsideTuning == BeamPulseOutsideTuning.stock) {
+      final isDark = config.brightness == Brightness.dark;
+      return (
+        coreInset: _stockCoreInset,
+        bloomInset: _stockBloomInset,
+        coreBlur: isDark ? _stockCoreBlurDark : _stockCoreBlurLight,
+        bloomBlur: isDark ? _stockBloomBlurDark : _stockBloomBlurLight,
+      );
+    }
+    final unit = _unit(size);
+    return (
+      coreInset: pulseOuterTunedCoreInset * unit,
+      bloomInset: pulseOuterTunedBloomInset * unit,
+      coreBlur: pulseOuterTunedCoreBlur * unit,
+      bloomBlur: pulseOuterTunedBloomBlur * unit,
+    );
+  }
 
   BeamColorMatrix _matrix(
     BeamConfig config,
@@ -87,7 +117,8 @@ class PulseOuterStrategy extends BeamVariantStrategy {
     BeamFramePhases phases,
   ) {
     if (phases.fadeOpacity <= 0) return;
-    final rect = Offset.zero & size;
+    final rect = beamRect(size, config);
+    final geometry = beamGeometry(rect, config);
     final params = PulseParams.resolve(
       BeamVariant.pulseOutside,
       config.brightness,
@@ -95,9 +126,22 @@ class PulseOuterStrategy extends BeamVariantStrategy {
     );
     final sx = _sx(size);
     final sy = _sy(size);
-    final unit = _unit(size);
-    final boost = config.glowBoost * _tunedBoost;
+    final glow = _geometry(config, size);
+    final boost =
+        config.glowBoost *
+        (config.pulseOutsideTuning == BeamPulseOutsideTuning.demo
+            ? pulseOuterTunedBoost
+            : 1);
     final border = config.palette.data.border;
+    double blobWeight(Rect blobRect, Offset fractionalPos) {
+      final center = Offset(
+        blobRect.left + fractionalPos.dx * blobRect.width,
+        blobRect.top + fractionalPos.dy * blobRect.height,
+      );
+      return geometry.segmentWeightAt(
+        geometry.perimeter.nearestFraction(center),
+      );
+    }
 
     // Filter ordering: CSS runs `blur()` before the color terms, and Skia
     // runs a paint's colorFilter BEFORE its imageFilter, so the color matrix
@@ -106,8 +150,12 @@ class PulseOuterStrategy extends BeamVariantStrategy {
     final glowMatrix = _matrix(
       config,
       phases,
-      brightness: config.glowBrightness ?? 1.3 * _tunedGlowMul,
-      saturation: config.glowSaturation ?? 1.2 * _tunedGlowMul,
+      brightness:
+          config.glowBrightness ??
+          pulseOuterGlowBrightness * pulseOuterTunedGlowMultiplier,
+      saturation:
+          config.glowSaturation ??
+          pulseOuterGlowSaturation * pulseOuterTunedGlowMultiplier,
     );
     ImageFilter glowBlur(double sigma) => ImageFilter.compose(
       outer: glowMatrix.toColorFilter(),
@@ -125,13 +173,24 @@ class PulseOuterStrategy extends BeamVariantStrategy {
       fade: phases.fadeOpacity,
       preset: config.theme.innerOpacity,
       hookFactor: config.innerOpacityFactor,
-      extra: _tunedGlowMul,
+      extra: pulseOuterTunedGlowMultiplier,
     );
-    final coreBlur = config.coreBlur ?? _tunedCoreBlur * unit;
+    // glowSpread multiplies how far the halo reaches and how soft it is —
+    // its insets and both blurs.
+    final spread = config.glowSpread;
+    final coreBlur = (config.coreBlur ?? glow.coreBlur) * spread;
     if (coreOpacity > 0) {
-      final coreRect = rect.inflate(_tunedCoreInset * unit);
+      final coreRect = rect.inflate(glow.coreInset * spread);
+      final layerBounds = coreRect.inflate(coreBlur * 3);
+      canvas.save();
+      BeamLayerUtils.clipSegment(
+        canvas,
+        geometry,
+        inward: 0,
+        outward: glow.coreInset * spread + coreBlur * 3,
+      );
       canvas.saveLayer(
-        coreRect.inflate(coreBlur * 3),
+        layerBounds,
         Paint()
           ..color = _white.withValues(alpha: coreOpacity)
           ..imageFilter = glowBlur(coreBlur),
@@ -141,7 +200,7 @@ class PulseOuterStrategy extends BeamVariantStrategy {
           paintPulseBlob(
             canvas,
             rect: coreRect,
-            color: border[spec.ci].color,
+            color: pulseBlobAt(border, spec.ci).color,
             fractionalPos: _specPos(spec, border),
             w: spec.w,
             h: spec.h,
@@ -152,9 +211,12 @@ class PulseOuterStrategy extends BeamVariantStrategy {
             sy: sy,
             boost: boost,
             fold: fold,
+            alphaScale: blobWeight(coreRect, _specPos(spec, border)),
           );
         }
       });
+      BeamLayerUtils.applySegmentFeather(canvas, layerBounds, geometry);
+      canvas.restore();
       canvas.restore();
     }
 
@@ -164,14 +226,22 @@ class PulseOuterStrategy extends BeamVariantStrategy {
       fade: phases.fadeOpacity,
       preset: config.theme.bloomOpacity,
       hookFactor: config.bloomOpacityFactor,
-      extra: _tunedGlowMul,
+      extra: pulseOuterTunedGlowMultiplier,
     );
-    final bloomBlur = config.bloomBlur ?? _tunedBloomBlur * unit;
+    final bloomBlur = (config.bloomBlur ?? glow.bloomBlur) * spread;
     if (bloomOpacity > 0) {
-      final bloomRect = rect.inflate(_tunedBloomInset * unit);
+      final bloomRect = rect.inflate(glow.bloomInset * spread);
       final frozenAlpha = 1 - params.op * 0.5;
+      final layerBounds = bloomRect.inflate(bloomBlur * 3);
+      canvas.save();
+      BeamLayerUtils.clipSegment(
+        canvas,
+        geometry,
+        inward: 0,
+        outward: glow.bloomInset * spread + bloomBlur * 3,
+      );
       canvas.saveLayer(
-        bloomRect.inflate(bloomBlur * 3),
+        layerBounds,
         Paint()
           ..color = _white.withValues(alpha: bloomOpacity)
           ..imageFilter = glowBlur(bloomBlur),
@@ -181,7 +251,7 @@ class PulseOuterStrategy extends BeamVariantStrategy {
           paintFrozenPulseBlob(
             canvas,
             rect: bloomRect,
-            color: border[spec.ci].color,
+            color: pulseBlobAt(border, spec.ci).color,
             fractionalPos: _specPos(spec, border),
             w: spec.w,
             h: spec.h,
@@ -190,9 +260,12 @@ class PulseOuterStrategy extends BeamVariantStrategy {
             sy: sy,
             boost: boost,
             fold: fold,
+            alphaScale: blobWeight(bloomRect, _specPos(spec, border)),
           );
         }
       });
+      BeamLayerUtils.applySegmentFeather(canvas, layerBounds, geometry);
+      canvas.restore();
       canvas.restore();
     }
   }
@@ -205,15 +278,10 @@ class PulseOuterStrategy extends BeamVariantStrategy {
     BeamFramePhases phases,
   ) {
     if (phases.fadeOpacity <= 0) return;
-    final rect = Offset.zero & size;
+    final rect = beamRect(size, config);
     final isDark = config.brightness == Brightness.dark;
-    final geometry = BeamRingGeometry(
-      rect: rect,
-      radius: config.borderRadius,
-      // The stroke ring is always 1px in the source (padding: 1px).
-      borderWidth: config.borderWidth,
-      useSuperellipse: config.useSuperellipse,
-    );
+    // The stroke ring is always 1px in the source (padding: 1px).
+    final geometry = beamGeometry(rect, config);
     final sx = _sx(size);
     final sy = _sy(size);
     // Filter applied at layer composite time (post-gradient), matching CSS —
@@ -221,18 +289,33 @@ class PulseOuterStrategy extends BeamVariantStrategy {
     final matrix = _matrix(config, phases);
     Color fold(Color c) => c;
     final border = config.palette.data.border;
+    double blobWeight(Offset fractionalPos) {
+      final center = Offset(
+        rect.left + fractionalPos.dx * rect.width,
+        rect.top + fractionalPos.dy * rect.height,
+      );
+      return geometry.segmentWeightAt(
+        geometry.perimeter.nearestFraction(center),
+      );
+    }
 
     final strokeOpacity = BeamLayerUtils.layerOpacity(
       config,
       fade: phases.fadeOpacity,
       preset: config.theme.strokeOpacity,
       hookFactor: config.strokeOpacityFactor,
-      extra: _tunedGlowMul,
+      extra: pulseOuterTunedGlowMultiplier,
     );
     if (strokeOpacity <= 0) return;
 
     canvas.save();
     canvas.clipPath(geometry.ring);
+    BeamLayerUtils.clipSegment(
+      canvas,
+      geometry,
+      inward: geometry.borderWidth,
+      outward: 0,
+    );
     canvas.saveLayer(
       rect,
       Paint()
@@ -255,7 +338,7 @@ class PulseOuterStrategy extends BeamVariantStrategy {
       paintPulseBlob(
         canvas,
         rect: rect,
-        color: border[spec.ci].color,
+        color: pulseBlobAt(border, spec.ci).color,
         fractionalPos: _specPos(spec, border),
         w: spec.w,
         h: spec.h,
@@ -266,8 +349,21 @@ class PulseOuterStrategy extends BeamVariantStrategy {
         sy: sy,
         boost: config.glowBoost,
         fold: fold,
+        alphaScale: blobWeight(_specPos(spec, border)),
       );
     }
+    // The dashed-ring mask rides inside the ring layer; the outward glows are
+    // left continuous, since dashing a soft halo reads as banding.
+    final segments = config.segments;
+    if (segments != null && segments >= 2) {
+      canvas.drawRect(
+        rect,
+        Paint()
+          ..blendMode = BlendMode.dstIn
+          ..shader = BeamGradients.segmentMask(rect, segments),
+      );
+    }
+    BeamLayerUtils.applySegmentFeather(canvas, rect, geometry);
     canvas.restore();
     canvas.restore();
   }
@@ -275,12 +371,12 @@ class PulseOuterStrategy extends BeamVariantStrategy {
   Offset _specPos(PulseBlobSpec spec, List<BeamBlob> border) =>
       spec.x != null && spec.y != null
       ? Offset(spec.x!, spec.y!)
-      : border[spec.ci].position;
+      : pulseBlobAt(border, spec.ci).position;
 
   void _scaled(Canvas canvas, Offset center, void Function() paint) {
     canvas.save();
     canvas.translate(center.dx, center.dy);
-    canvas.scale(_sw, _sh);
+    canvas.scale(pulseOuterScaleX, pulseOuterScaleY);
     canvas.translate(-center.dx, -center.dy);
     paint();
     canvas.restore();

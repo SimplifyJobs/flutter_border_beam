@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# record_demo.sh — record a clean, high-quality demo video of a border_beam
+# record_demo.sh — record a clean, high-quality demo video of a flutter_border_beam
 # reel running on the iOS simulator, with zero manual ffmpeg/simctl fuss.
 #
 # It drives the example app like this:

@@ -1,13 +1,16 @@
 @Tags(['golden'])
 library;
 
-import 'package:border_beam/border_beam.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Golden scenes freeze the (fake) test clock at 1.3s after activation —
 /// past the 0.6s fade-in, mid-cycle for every variant — so each image
-/// captures a representative animated frame deterministically.
+/// captures a representative animated frame deterministically. The two
+/// traveling variants are captured a second time at a later instant
+/// (`_late`), because one frame of a sweep says nothing about where the
+/// sweep is the rest of the time.
 ///
 /// Regenerate with:
 ///   flutter test --update-goldens --tags golden
@@ -32,20 +35,25 @@ void main() {
     );
   }
 
-  Widget mockSurface(Brightness brightness, {double radius = 16}) =>
-      DecoratedBox(
-        decoration: BoxDecoration(
-          color: brightness == Brightness.dark
-              ? const Color(0xFF1D1D1D)
-              : const Color(0xFFFFFFFF),
-          borderRadius: BorderRadius.circular(radius),
-          border: Border.all(
-            color: brightness == Brightness.dark
-                ? const Color(0x14FFFFFF)
-                : const Color(0x14000000),
-          ),
-        ),
-      );
+  // [radii] carries a per-corner radius when a scene needs one; otherwise
+  // every corner takes [radius].
+  Widget mockSurface(
+    Brightness brightness, {
+    double radius = 16,
+    BorderRadius? radii,
+  }) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: brightness == Brightness.dark
+          ? const Color(0xFF1D1D1D)
+          : const Color(0xFFFFFFFF),
+      borderRadius: radii ?? BorderRadius.circular(radius),
+      border: Border.all(
+        color: brightness == Brightness.dark
+            ? const Color(0x14FFFFFF)
+            : const Color(0x14000000),
+      ),
+    ),
+  );
 
   Future<void> capture(
     WidgetTester tester,
@@ -54,6 +62,7 @@ void main() {
     required Brightness brightness,
     double width = 350,
     double height = 140,
+    Duration freeze = const Duration(milliseconds: 1300),
   }) async {
     await tester.pumpWidget(
       scene(
@@ -64,7 +73,7 @@ void main() {
       ),
     );
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 1300));
+    await tester.pump(freeze);
     await expectLater(
       find.byType(MaterialApp),
       matchesGoldenFile('goldens/$name.png'),
@@ -80,6 +89,8 @@ void main() {
     for (final MapEntry(key: paletteName, value: colors) in {
       'colorful': BeamColors.colorful,
       'mono': BeamColors.mono,
+      'ocean': BeamColors.ocean,
+      'sunset': BeamColors.sunset,
     }.entries) {
       testWidgets('rotate $theme $paletteName', (tester) async {
         await capture(
@@ -88,7 +99,7 @@ void main() {
           brightness: brightness,
           (b) => BorderBeam.rotate(
             colors: colors,
-            theme: beamTheme,
+            style: BeamStyle(theme: beamTheme),
             child: mockSurface(b),
           ),
         );
@@ -103,7 +114,7 @@ void main() {
           height: 36,
           (b) => BorderBeam.small(
             colors: colors,
-            theme: beamTheme,
+            style: BeamStyle(theme: beamTheme),
             child: mockSurface(b, radius: 32),
           ),
         );
@@ -116,7 +127,7 @@ void main() {
           brightness: brightness,
           (b) => BorderBeam.line(
             colors: colors,
-            theme: beamTheme,
+            style: BeamStyle(theme: beamTheme),
             child: mockSurface(b),
           ),
         );
@@ -129,7 +140,7 @@ void main() {
           brightness: brightness,
           (b) => BorderBeam.pulseInside(
             colors: colors,
-            theme: beamTheme,
+            style: BeamStyle(theme: beamTheme),
             child: mockSurface(b),
           ),
         );
@@ -142,12 +153,44 @@ void main() {
           brightness: brightness,
           (b) => BorderBeam.pulseOutside(
             colors: colors,
-            theme: beamTheme,
+            style: BeamStyle(theme: beamTheme),
             child: mockSurface(b),
           ),
         );
       });
     }
+
+    // Second freezes for the traveling variants. rotate's 1.96s cycle puts
+    // 2.3s at cycle fraction 0.17 (vs 0.66 at 1.3s) — the beam is on the
+    // opposite side of the border. line's 3.1s cycle puts 2.0s at fraction
+    // 0.645, still inside the [0.325, 0.675] window where `beam-edge-fade`
+    // holds at 1, so the beam is at full strength further along its travel
+    // (x 0.60 vs 0.45 at 1.3s).
+    testWidgets('rotate $theme colorful late', (tester) async {
+      await capture(
+        tester,
+        'rotate_${theme}_colorful_late',
+        brightness: brightness,
+        freeze: const Duration(milliseconds: 2300),
+        (b) => BorderBeam.rotate(
+          style: BeamStyle(theme: beamTheme),
+          child: mockSurface(b),
+        ),
+      );
+    });
+
+    testWidgets('line $theme colorful late', (tester) async {
+      await capture(
+        tester,
+        'line_${theme}_colorful_late',
+        brightness: brightness,
+        freeze: const Duration(milliseconds: 2000),
+        (b) => BorderBeam.line(
+          style: BeamStyle(theme: beamTheme),
+          child: mockSurface(b),
+        ),
+      );
+    });
 
     testWidgets('rotate $theme ocean superellipse', (tester) async {
       await capture(
@@ -156,8 +199,8 @@ void main() {
         brightness: brightness,
         (b) => BorderBeam.rotate(
           colors: BeamColors.ocean,
-          theme: beamTheme,
-          useSuperellipse: true,
+          style: BeamStyle(theme: beamTheme),
+          shape: const BeamShape(superellipse: true),
           borderRadius: 28,
           child: mockSurface(b, radius: 28),
         ),
@@ -176,8 +219,71 @@ void main() {
           Color(0xFF00E5FF),
           Color(0xFFFFC400),
         ]),
-        theme: BeamTheme.dark,
+        style: const BeamStyle(theme: BeamTheme.dark),
         child: mockSurface(b),
+      ),
+    );
+  });
+
+  // Per-corner and stadium geometry, dark/colorful only: the shape is what
+  // these scenes are about, so one palette is enough.
+  const cornerRadii = BorderRadius.only(
+    topLeft: Radius.circular(40),
+    bottomRight: Radius.circular(40),
+  );
+
+  testWidgets('rotate dark colorful per-corner radii', (tester) async {
+    await capture(
+      tester,
+      'rotate_dark_colorful_corners',
+      brightness: Brightness.dark,
+      (b) => BorderBeam.rotate(
+        style: const BeamStyle(theme: BeamTheme.dark),
+        shape: const BeamShape(radius: cornerRadii),
+        child: mockSurface(b, radii: cornerRadii),
+      ),
+    );
+  });
+
+  testWidgets('rotate dark colorful per-corner superellipse', (tester) async {
+    await capture(
+      tester,
+      'rotate_dark_colorful_corners_squircle',
+      brightness: Brightness.dark,
+      (b) => BorderBeam.rotate(
+        style: const BeamStyle(theme: BeamTheme.dark),
+        shape: const BeamShape(radius: cornerRadii, superellipse: true),
+        child: mockSurface(b, radii: cornerRadii),
+      ),
+    );
+  });
+
+  // A 350x60 box: the stadium radius clamps to 30 on every corner, so the
+  // beam travels a pill and the surface matches it.
+  testWidgets('rotate dark colorful stadium', (tester) async {
+    await capture(
+      tester,
+      'rotate_dark_colorful_stadium',
+      brightness: Brightness.dark,
+      height: 60,
+      (b) => BorderBeam.rotate(
+        style: const BeamStyle(theme: BeamTheme.dark),
+        shape: const BeamShape.stadium(),
+        child: mockSurface(b, radius: 30),
+      ),
+    );
+  });
+
+  testWidgets('line dark colorful stadium', (tester) async {
+    await capture(
+      tester,
+      'line_dark_colorful_stadium',
+      brightness: Brightness.dark,
+      height: 60,
+      (b) => BorderBeam.line(
+        style: const BeamStyle(theme: BeamTheme.dark),
+        shape: const BeamShape.stadium(),
+        child: mockSurface(b, radius: 30),
       ),
     );
   });
