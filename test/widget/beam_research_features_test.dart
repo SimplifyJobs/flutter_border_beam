@@ -388,10 +388,12 @@ void main() {
 
   group('pauseWhenOffscreen', () {
     // cacheExtent keeps rows built well past the 256px margin, so there is
-    // something offscreen left to pause.
+    // something offscreen left to pause. The double form is the one every
+    // supported Flutter accepts (ScrollCacheExtent arrives after 3.35).
     Widget list({bool? pause}) => _app(
       ListView.builder(
-        scrollCacheExtent: const ScrollCacheExtent.pixels(4000),
+        // ignore: deprecated_member_use
+        cacheExtent: 4000,
         itemCount: 12,
         itemBuilder: (context, index) => SizedBox(
           height: 200,

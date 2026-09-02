@@ -9,3 +9,5 @@ CLAUDE.md
 .demos/
 **/.dart_tool/
 **/build/
+# Golden reference images (6.9 MB) only matter to the repo's own CI, not to consumers.
+test/golden/
