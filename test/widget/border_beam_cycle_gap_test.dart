@@ -5,8 +5,12 @@ import 'package:flutter_border_beam/src/models/beam_config.dart';
 import 'package:flutter_border_beam/src/painting/beam_painter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-Widget _host(Widget child) => MaterialApp(
+Widget _host(Widget child, {bool disableAnimations = false}) => MaterialApp(
   theme: ThemeData(brightness: Brightness.dark),
+  builder: (context, app) => MediaQuery(
+    data: MediaQuery.of(context).copyWith(disableAnimations: disableAnimations),
+    child: app!,
+  ),
   home: Scaffold(
     body: Center(child: SizedBox(width: 350, height: 140, child: child)),
   ),
@@ -388,6 +392,111 @@ void main() {
       expect(restarted.clock.elapsedSeconds, closeTo(0, 1e-9));
       expect(restarted.resolver.hueTimeOffset, 0);
       expect(restarted.resolver.breatheTimeOffset, 0);
+    });
+
+    testWidgets('a variant change rebuilds the clock and drops corrections', (
+      tester,
+    ) async {
+      Widget build({required BeamVariant variant, required Duration cycle}) =>
+          _host(
+            BorderBeam(
+              variant: variant,
+              timing: BeamTiming(
+                cycle: cycle,
+                cycleGap: const Duration(seconds: 1),
+              ),
+              child: const SizedBox.expand(),
+            ),
+          );
+
+      await tester.pumpWidget(
+        build(variant: BeamVariant.line, cycle: const Duration(seconds: 2)),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 2500));
+      await tester.pumpWidget(
+        build(variant: BeamVariant.line, cycle: const Duration(seconds: 4)),
+      );
+      final retimed = _painter(tester);
+      expect(retimed.resolver.hueTimeOffset, isNot(0));
+      expect(retimed.resolver.breatheTimeOffset, isNot(0));
+
+      // The fps cap is variant-bound, so this swaps the clock out from under
+      // the beam — a new timeline at zero, and no reset the old clock could
+      // have announced.
+      await tester.pumpWidget(
+        build(variant: BeamVariant.rotate, cycle: const Duration(seconds: 4)),
+      );
+      final swapped = _painter(tester);
+      expect(swapped.clock, isNot(same(retimed.clock)));
+      expect(swapped.clock.elapsedSeconds, closeTo(0, 1e-9));
+      expect(swapped.resolver.hueTimeOffset, 0);
+      expect(swapped.resolver.breatheTimeOffset, 0);
+      expect(swapped.resolver.travelTimeOffset, 0);
+
+      // And the replacement clock is bound, so a later restart still clears.
+      await tester.pump(const Duration(milliseconds: 700));
+      expect(swapped.clock.isVisible, isTrue);
+    });
+
+    testWidgets('a reduced-motion variant swap clears them without a restart', (
+      tester,
+    ) async {
+      Widget build({
+        required BeamVariant variant,
+        required Duration cycle,
+        bool reduced = false,
+      }) => _host(
+        disableAnimations: reduced,
+        BorderBeam(
+          variant: variant,
+          timing: BeamTiming(
+            cycle: cycle,
+            cycleGap: const Duration(seconds: 1),
+          ),
+          child: const SizedBox.expand(),
+        ),
+      );
+
+      // Accumulate the corrections while the beam is genuinely running: a
+      // beam that starts under reduced motion never activates its clock, so
+      // it never retimes either.
+      await tester.pumpWidget(
+        build(variant: BeamVariant.line, cycle: const Duration(seconds: 2)),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 2500));
+      await tester.pumpWidget(
+        build(variant: BeamVariant.line, cycle: const Duration(seconds: 4)),
+      );
+      expect(_painter(tester).resolver.breatheTimeOffset, isNot(0));
+
+      // Now freeze it. The clock stays visible and the corrections stay
+      // valid for the clock they describe.
+      await tester.pumpWidget(
+        build(
+          variant: BeamVariant.line,
+          cycle: const Duration(seconds: 4),
+          reduced: true,
+        ),
+      );
+      expect(_painter(tester).staticMode, isTrue);
+
+      // The static frame samples the resolver, so a stale correction shows.
+      // Nothing restarts the replacement clock here — reduced motion keeps
+      // _start() out — so the clear has to happen when the clock is built.
+      await tester.pumpWidget(
+        build(
+          variant: BeamVariant.rotate,
+          cycle: const Duration(seconds: 4),
+          reduced: true,
+        ),
+      );
+      final swapped = _painter(tester);
+      expect(swapped.staticMode, isTrue);
+      expect(swapped.resolver.breatheTimeOffset, 0);
+      expect(swapped.resolver.travelTimeOffset, 0);
+      expect(swapped.resolver.hueTimeOffset, 0);
     });
 
     testWidgets('changing a track period re-phases only that track', (

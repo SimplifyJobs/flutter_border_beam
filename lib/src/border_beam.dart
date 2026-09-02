@@ -628,7 +628,6 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     _cycleSeconds = _cycleSecondsOf(_timing, widget.variant);
     _applySpeed();
     _applyFadeCurve();
-    _syncResetListener();
     widget.controller?.attach(_clock);
     widget.speedListenable?.addListener(_applySpeed);
   }
@@ -837,7 +836,6 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
       _createOwnClock();
       _applySpeed();
       _applyFadeCurve();
-      _syncResetListener();
       if (widget.controller == null && _autoPlay && _active) _start();
     }
     _syncResetListener();
@@ -878,6 +876,10 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
       maxFps: _strategy.preferredFps,
       onFadeComplete: _onFadeComplete,
     );
+    // A replacement clock starts its own timeline at zero, so it takes the
+    // reset listener and drops every correction that described the old one.
+    _syncResetListener();
+    _onTimelineReset();
   }
 
   void _start() {
@@ -1256,6 +1258,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
       final wasVisible = _clock.isVisible;
       widget.controller?.detach(_clock);
       _detachTickListener();
+      _detachResetListener();
       _ownClock!.dispose();
       _createOwnClock();
       _applySpeed();
