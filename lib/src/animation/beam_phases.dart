@@ -181,6 +181,13 @@ class BeamPhaseResolver {
   /// in play, the clock is moved to put the *sweep* where it belongs, and
   /// that target is not the pure rescale. The widget sets this to the
   /// difference, so these tracks read the timeline they would have had.
+  ///
+  /// It corrects for a *cycle* change only. Changing one of the factors that
+  /// define these periods (`BeamTiming.breatheFactor` and friends) re-phases
+  /// the affected track by design, the same way changing
+  /// `BeamTiming.huePeriod` re-phases the hue: a period change describes a
+  /// different animation, so there is no phase to carry over. The widget
+  /// drops this offset whenever the timeline restarts.
   double breatheTimeOffset = 0;
 
   /// Samples all phases at [t] seconds with the given [fadeOpacity].

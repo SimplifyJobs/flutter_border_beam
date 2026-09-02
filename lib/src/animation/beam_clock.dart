@@ -175,6 +175,31 @@ class BeamClock extends ChangeNotifier {
     return raw.clamp(0.0, 1.0);
   }
 
+  // Called when `elapsedSeconds` goes back to zero. Kept separate from the
+  // ChangeNotifier listeners, which fire every frame: a reset happens only
+  // on a restart, so registering for it costs nothing per frame.
+  final List<VoidCallback> _timelineResetListeners = <VoidCallback>[];
+
+  /// Registers [listener] to hear that the timeline restarted from zero.
+  ///
+  /// Anything holding a correction *relative* to elapsed time — a hue shift,
+  /// a rescale offset, a `follow` hand-back — is meaningless once the
+  /// timeline restarts, and a shared group clock restarts without any one
+  /// member being told. This is how they find out.
+  void addTimelineResetListener(VoidCallback listener) =>
+      _timelineResetListeners.add(listener);
+
+  /// Removes a listener added with [addTimelineResetListener].
+  void removeTimelineResetListener(VoidCallback listener) =>
+      _timelineResetListeners.remove(listener);
+
+  void _notifyTimelineReset() {
+    // Copied: a listener is free to detach itself while being called.
+    for (final listener in List<VoidCallback>.of(_timelineResetListeners)) {
+      listener();
+    }
+  }
+
   /// Activates the beam: resets the timeline (matching CSS animation restart
   /// when `data-active` is re-applied) and fades in.
   void activate() {
@@ -187,6 +212,7 @@ class BeamClock extends ChangeNotifier {
       _elapsed = 0;
       _fadeFromOpacity = 0;
       _boost = null;
+      _notifyTimelineReset();
     }
     _visible = true;
     _stage = BeamFadeStage.fadingIn;
@@ -276,6 +302,7 @@ class BeamClock extends ChangeNotifier {
       _visible = false;
       _ticker!.stop();
       _elapsed = 0;
+      _notifyTimelineReset();
       onFadeComplete?.call(false);
     } else if (_stage == BeamFadeStage.none && maxFps != null && !isBoosting) {
       // Rate cap (pulse variants): skip paint-frame notifications, matching
@@ -295,6 +322,7 @@ class BeamClock extends ChangeNotifier {
   @override
   void dispose() {
     _boost = null;
+    _timelineResetListeners.clear();
     _ticker?.dispose();
     _ticker = null;
     super.dispose();

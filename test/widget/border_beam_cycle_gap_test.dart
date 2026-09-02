@@ -310,6 +310,117 @@ void main() {
       expect(now.spike2, closeTo(was.spike2, 1e-9));
     });
 
+    testWidgets('a restart drops the timeline corrections a retime left', (
+      tester,
+    ) async {
+      Widget build({required Duration cycle, required bool active}) => _host(
+        BorderBeam.line(
+          active: active,
+          timing: BeamTiming(
+            cycle: cycle,
+            cycleGap: const Duration(seconds: 1),
+          ),
+          child: const SizedBox.expand(),
+        ),
+      );
+
+      await tester.pumpWidget(
+        build(cycle: const Duration(seconds: 2), active: true),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 2500));
+      await tester.pumpWidget(
+        build(cycle: const Duration(seconds: 4), active: true),
+      );
+      final retimed = _painter(tester);
+      expect(retimed.resolver.hueTimeOffset, isNot(0));
+      expect(retimed.resolver.breatheTimeOffset, isNot(0));
+
+      // Off, let the fade finish, then on: activate() puts elapsed back to
+      // zero, so every correction measured against the old timeline goes.
+      await tester.pumpWidget(
+        build(cycle: const Duration(seconds: 4), active: false),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pumpWidget(
+        build(cycle: const Duration(seconds: 4), active: true),
+      );
+      final restarted = _painter(tester);
+      expect(restarted.clock.elapsedSeconds, closeTo(0, 1e-9));
+      expect(restarted.resolver.hueTimeOffset, 0);
+      expect(restarted.resolver.breatheTimeOffset, 0);
+      expect(restarted.resolver.travelTimeOffset, 0);
+    });
+
+    testWidgets('a synced group restart drops its members corrections', (
+      tester,
+    ) async {
+      Widget build({required Duration cycle, required bool active}) => _host(
+        BeamSync(
+          active: active,
+          child: BorderBeam.line(
+            timing: BeamTiming(cycle: cycle),
+            child: const SizedBox.expand(),
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(
+        build(cycle: const Duration(seconds: 2), active: true),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1500));
+      await tester.pumpWidget(
+        build(cycle: const Duration(seconds: 4), active: true),
+      );
+      expect(_painter(tester).resolver.hueTimeOffset, isNot(0));
+
+      // The group owns the clock, so the member is never told to restart —
+      // it has to hear it from the clock itself.
+      await tester.pumpWidget(
+        build(cycle: const Duration(seconds: 4), active: false),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pumpWidget(
+        build(cycle: const Duration(seconds: 4), active: true),
+      );
+      final restarted = _painter(tester);
+      expect(restarted.clock.elapsedSeconds, closeTo(0, 1e-9));
+      expect(restarted.resolver.hueTimeOffset, 0);
+      expect(restarted.resolver.breatheTimeOffset, 0);
+    });
+
+    testWidgets('changing a track period re-phases only that track', (
+      tester,
+    ) async {
+      Widget build(double breatheFactor) => _host(
+        BorderBeam.line(
+          timing: BeamTiming(
+            cycle: const Duration(seconds: 2),
+            breatheFactor: breatheFactor,
+          ),
+          child: const SizedBox.expand(),
+        ),
+      );
+
+      await tester.pumpWidget(build(1.3));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 900));
+      final before = _painter(tester);
+      final was = before.resolver.sample(before.clock.elapsedSeconds, 1);
+
+      // Documented contract: a period change re-phases its own track and
+      // leaves the timeline — and therefore every other track — alone.
+      await tester.pumpWidget(build(2.6));
+      final after = _painter(tester);
+      expect(after.clock.elapsedSeconds, closeTo(0.9, 1e-9));
+      final now = after.resolver.sample(after.clock.elapsedSeconds, 1);
+      expect(now.travelProgress, closeTo(was.travelProgress, 1e-9));
+      expect(now.spike, closeTo(was.spike, 1e-9));
+      expect(now.spike2, closeTo(was.spike2, 1e-9));
+      expect(now.lineH, isNot(closeTo(was.lineH, 1e-6)));
+    });
+
     testWidgets('adding a gap to a running beam needs no retime either', (
       tester,
     ) async {

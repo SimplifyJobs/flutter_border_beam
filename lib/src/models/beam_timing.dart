@@ -109,22 +109,40 @@ class BeamTiming {
   /// ±`hueRange`), and to the pulse presets' own periods — 16s for
   /// pulse-inside, 14s for pulse-outside (a continuous revolution). Setting
   /// it overrides the period for every variant.
+  ///
+  /// Changing it mid-run re-phases the hue track — see [breatheFactor].
   final Duration? huePeriod;
 
   /// Period of the line variant's separate bloom hue track, a ping-pong
   /// across ±(`hueRange` + 10)°. Default 8s.
+  ///
+  /// Changing it mid-run re-phases the bloom hue track — see [breatheFactor].
   final Duration? bloomHuePeriod;
 
   /// The line beam's height-breathe period, as a multiple of [cycle].
   /// Default 1.3.
+  ///
+  /// Changing a track's own period mid-run **re-phases that track**: it
+  /// resumes at `elapsed / newPeriod` rather than holding the fraction it
+  /// had, so the line's height jumps once and then continues smoothly. The
+  /// in-place retiming [cycle] documents is a different thing — it rescales
+  /// elapsed time, which every cycle-derived track (this one included) rides
+  /// through without a jump. There is no way to change a period *and* keep
+  /// its phase, because the two describe different animations; the same
+  /// applies to [spikeFactor], [spike2Factor], [huePeriod], and
+  /// [bloomHuePeriod]. Set these once, or accept the single step.
   final double? breatheFactor;
 
   /// The line beam's first spike-scale period, as a multiple of [cycle].
   /// Default 1.33.
+  ///
+  /// Changing it mid-run re-phases the spike track — see [breatheFactor].
   final double? spikeFactor;
 
   /// The line beam's second spike-scale period, as a multiple of [cycle].
   /// Default 1.7.
+  ///
+  /// Changing it mid-run re-phases the spike track — see [breatheFactor].
   final double? spike2Factor;
 
   /// Returns a copy with the given fields replaced. A null argument keeps the

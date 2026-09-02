@@ -582,6 +582,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
   double _followVelocity = 0;
   double _lastTickSeconds = 0;
   BeamClock? _listeningTo;
+  BeamClock? _resetBoundTo;
 
   BeamClock get _clock => _sharedClock ?? _ownClock!;
 
@@ -627,6 +628,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     _cycleSeconds = _cycleSecondsOf(_timing, widget.variant);
     _applySpeed();
     _applyFadeCurve();
+    _syncResetListener();
     widget.controller?.attach(_clock);
     widget.speedListenable?.addListener(_applySpeed);
   }
@@ -821,6 +823,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
       'own. Drive the group through BeamSync, or move the beam out of it.',
     );
     _detachTickListener();
+    _detachResetListener();
     if (shared != null) {
       _startTimer?.cancel();
       _startTimer = null;
@@ -834,8 +837,10 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
       _createOwnClock();
       _applySpeed();
       _applyFadeCurve();
+      _syncResetListener();
       if (widget.controller == null && _autoPlay && _active) _start();
     }
+    _syncResetListener();
     _syncTickListener();
   }
 
@@ -878,12 +883,31 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
   void _start() {
     if (_motionFrozen || _synced || _frozen) return;
     _hasStarted = true;
-    // Activating from hidden restarts the timeline, so the hue shift a
-    // retime accumulated goes with it; a mid-fade-out re-activation keeps
-    // the timeline, and keeps the shift.
-    if (!_clock.isVisible) _setHueTimeOffset(0);
     _clock.activate();
     _armDurationBudget();
+  }
+
+  // Every offset below is a correction measured against the running
+  // timeline: the hue shift a retime accumulated, the line tracks' rescale
+  // correction, and a `follow` hand-back. A restart puts elapsed time back
+  // to zero, which leaves all of them describing a timeline that no longer
+  // exists — so the clock tells us, and we drop them. A mid-fade-out
+  // re-activation keeps its timeline, and so keeps the corrections.
+  void _onTimelineReset() {
+    _setHueTimeOffset(0);
+    _setBreatheTimeOffset(0);
+    _setTravelTimeOffset(0);
+  }
+
+  void _syncResetListener() {
+    if (_resetBoundTo == _clock) return;
+    _detachResetListener();
+    _resetBoundTo = _clock..addTimelineResetListener(_onTimelineReset);
+  }
+
+  void _detachResetListener() {
+    _resetBoundTo?.removeTimelineResetListener(_onTimelineReset);
+    _resetBoundTo = null;
   }
 
   void _setHueTimeOffset(double seconds) {
@@ -1262,6 +1286,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     _scrollPosition = null;
     _scrollable = null;
     _detachTickListener();
+    _detachResetListener();
     widget.controller?.detach(_clock);
     _ownClock?.dispose();
     _driven.dispose();
