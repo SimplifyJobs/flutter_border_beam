@@ -24,10 +24,17 @@ String buildSnippet(PlaygroundState state) {
 
   var body = _beam(state);
   if (state.syncDemo) {
+    final beams = [
+      for (var i = 0; i < 3; i++)
+        '${_indent(_beam(state, synced: true, phaseOffset: i / 3), '    ')},',
+    ].join('\n');
     body = _wrap('BeamSync', [
-      '// One clock for the group; each beam sets its own '
-          'timing.phaseOffset.',
-    ], body);
+      if (!state.active) 'active: false,',
+      if (state.speed != 1) 'speed: ${_num(state.speed)},',
+      if (state.reducedMotion case final BeamReducedMotion mode)
+        'reducedMotion: BeamReducedMotion.${mode.name},',
+      '// One clock for the group; each beam has its own phase offset.',
+    ], 'Column(\n  children: [\n$beams\n  ],\n)');
   }
   if (state.themeDemo) {
     body = _wrap('BorderBeamTheme', [
@@ -42,7 +49,7 @@ String buildSnippet(PlaygroundState state) {
 
 // The declarations the beam's arguments refer to.
 List<String> _preamble(PlaygroundState state) => [
-  if (state.controllerMode) ...[
+  if (state.controllerMode && !state.syncDemo) ...[
     'final controller = BorderBeamController();',
     '// controller.start() / .pause() / .resume() / .stop()',
     '// controller.pulse() / .flash()',
@@ -50,7 +57,7 @@ List<String> _preamble(PlaygroundState state) => [
   ],
   if (state.strengthSignal)
     'final level = ValueNotifier<double>(1); // drive from your own signal',
-  if (state.followsPointer)
+  if (state.followsPointer && !state.syncDemo)
     '// pointer: the normalized pointer position (0–1 on each axis), from a '
         'MouseRegion or a Listener.',
 ];
@@ -68,11 +75,15 @@ String _wrap(String name, List<String> header, String child) {
 }
 
 // The BorderBeam call itself.
-String _beam(PlaygroundState state) {
+String _beam(
+  PlaygroundState state, {
+  bool synced = false,
+  double? phaseOffset,
+}) {
   final args = <String>[];
 
   if (state.hasColors) args.add('colors: ${_colors(state)}');
-  if (state.buildActive() == false) args.add('active: false');
+  if (!synced && state.buildActive() == false) args.add('active: false');
 
   final shape = _shape(state);
   if (shape != null) args.add(shape);
@@ -86,10 +97,10 @@ String _beam(PlaygroundState state) {
     );
   }
 
-  final timing = _timing(state);
+  final timing = _timing(state, synced: synced, phaseOffset: phaseOffset);
   if (timing != null) args.add('timing: const BeamTiming(\n$timing\n  )');
 
-  final playback = _playback(state);
+  final playback = _playback(state, synced: synced);
   if (playback != null) {
     args.add('playback: const BeamPlayback(\n$playback\n  )');
   }
@@ -97,10 +108,10 @@ String _beam(PlaygroundState state) {
   if (state.buildProgress() case final double progress) {
     args.add('progress: ${_num(progress)}');
   }
-  if (state.followsPointer) args.add('follow: pointer');
+  if (state.followsPointer && !synced) args.add('follow: pointer');
   if (state.strengthSignal) args.add('strengthListenable: level');
 
-  if (state.controllerMode) args.add('controller: controller');
+  if (state.controllerMode && !synced) args.add('controller: controller');
   args.add('child: child');
 
   final name = _constructorNames[state.variant]!;
@@ -184,7 +195,8 @@ String? _shape(PlaygroundState state) {
   final head = state.stadium
       ? 'const BeamShape.stadium'
       : 'const BeamShape.all';
-  final positional = state.stadium ? <String>[] : [_num(state.radius)];
+  final radius = state.radius ?? state.defaultRadius;
+  final positional = state.stadium ? <String>[] : [_num(radius)];
   if (contour != null) {
     return _shapeBlock(head, [
       for (final field in [...positional, ...extras]) '$field,',
@@ -192,7 +204,7 @@ String? _shape(PlaygroundState state) {
     ]);
   }
   if (!state.stadium && extras.isEmpty) {
-    return 'borderRadius: ${_num(state.radius)}';
+    return 'borderRadius: ${_num(radius)}';
   }
   return 'shape: $head(${[...positional, ...extras].join(', ')})';
 }
@@ -271,19 +283,23 @@ String? _style(PlaygroundState state) {
 
 const String _stockStyle = 'BeamStyle.pulseOutsideStock';
 
-String? _timing(PlaygroundState state) {
+String? _timing(
+  PlaygroundState state, {
+  bool synced = false,
+  double? phaseOffset,
+}) {
   final isLine = state.variant == BeamVariant.line;
   final travels = state.isTraveling;
   final fields = [
     if (state.cycleSeconds case final double v) 'cycle: ${_duration(v)}',
     if (state.cycleGapSeconds != 0)
       'cycleGap: ${_duration(state.cycleGapSeconds)}',
-    if (state.speed != 1 && !state.controllerMode)
+    if (state.speed != 1 && !state.controllerMode && !synced)
       'speed: ${_num(state.speed)}',
     if (travels && state.direction != BeamDirection.forward)
       'direction: BeamDirection.${state.direction.name}',
-    if (travels && state.phaseOffset != 0)
-      'phaseOffset: ${_num(state.phaseOffset)}',
+    if (travels && (phaseOffset ?? state.phaseOffset) != 0)
+      'phaseOffset: ${_num(phaseOffset ?? state.phaseOffset)}',
     if (travels && state.beamCount != 1) 'beamCount: ${state.beamCount}',
     if (state.huePeriodSeconds case final double v)
       'huePeriod: ${_duration(v)}',
@@ -297,7 +313,8 @@ String? _timing(PlaygroundState state) {
   return fields.isEmpty ? null : '    ${fields.join(',\n    ')},';
 }
 
-String? _playback(PlaygroundState state) {
+String? _playback(PlaygroundState state, {bool synced = false}) {
+  if (synced) return null;
   // A controller owns scheduling exclusively; repeat and reduced motion stay
   // the beam's own either way.
   final scheduled = !state.controllerMode;
@@ -309,7 +326,8 @@ String? _playback(PlaygroundState state) {
     if (state.repeatCycles case final int cycles) 'repeat: ${_repeat(cycles)}',
     if (state.reducedMotion case final BeamReducedMotion v)
       'reducedMotion: BeamReducedMotion.${v.name}',
-    if (state.pauseWhenOffscreen) 'pauseWhenOffscreen: true',
+    if (state.pauseWhenOffscreen case final bool value)
+      'pauseWhenOffscreen: $value',
     if (state.cssFadeCurve) 'fadeCurve: BeamPlayback.cssEase',
   ];
   return fields.isEmpty ? null : '    ${fields.join(',\n    ')},';

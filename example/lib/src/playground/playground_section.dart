@@ -60,16 +60,6 @@ class _PlaygroundSectionState extends State<PlaygroundSection> {
   }
 
   @override
-  void initState() {
-    super.initState();
-    if (_state.controllerMode) {
-      WidgetsBinding.instance.addPostFrameCallback(
-        (_) => _controllerDo((c) => c.start()),
-      );
-    }
-  }
-
-  @override
   void dispose() {
     _copiedTimer?.cancel();
     for (final controller in _controllers) {
@@ -102,13 +92,6 @@ class _PlaygroundSectionState extends State<PlaygroundSection> {
 
   void _setControllerMode(bool enabled) {
     _edit(() => _state.controllerMode = enabled);
-    if (enabled) {
-      // The beam starts hidden under a controller; kick it off once the
-      // controllers have attached so the preview is not blank.
-      WidgetsBinding.instance.addPostFrameCallback(
-        (_) => _controllerDo((c) => c.start()),
-      );
-    }
   }
 
   void _copy(String label, String text) {

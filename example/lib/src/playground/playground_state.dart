@@ -218,8 +218,8 @@ class PlaygroundState {
   /// Whether the four corners are set individually.
   bool perCorner = false;
 
-  /// Uniform corner radius, used when [perCorner] and [stadium] are false.
-  double radius = 16;
+  /// Uniform corner radius override. Null keeps the variant preset.
+  double? radius;
 
   /// Top-left radius in per-corner mode.
   double radiusTopLeft = 16;
@@ -394,8 +394,9 @@ class PlaygroundState {
   /// snippet.
   bool simulateReducedMotion = false;
 
-  /// Whether the beam stops painting while it is scrolled out of view.
-  bool pauseWhenOffscreen = false;
+  /// Whether the beam pauses while scrolled out of view. Null keeps the
+  /// package default (true), while false explicitly opts out.
+  bool? pauseWhenOffscreen;
 
   /// Whether the fades run on [BeamPlayback.cssEase] instead of the spring.
   bool cssFadeCurve = false;
@@ -508,7 +509,7 @@ class PlaygroundState {
           bottomRight: Radius.circular(radiusBottomRight),
           bottomLeft: Radius.circular(radiusBottomLeft),
         )
-      : BorderRadius.circular(radius);
+      : BorderRadius.circular(radius ?? defaultRadius);
 
   /// The same contour, sized for a concrete [size] — the preview surface's
   /// own decoration needs finite stadium radii.
@@ -524,7 +525,7 @@ class PlaygroundState {
       perCorner ||
       superellipse ||
       contour ||
-      radius != defaultRadius ||
+      radius != null ||
       borderWidth != 1 ||
       ringOffset != 0 ||
       segmentPreset != SegmentPreset.off ||
@@ -686,7 +687,7 @@ class PlaygroundState {
           : _durationOf(durationSeconds),
       repeat: buildRepeat(),
       reducedMotion: reducedMotion,
-      pauseWhenOffscreen: pauseWhenOffscreen ? true : null,
+      pauseWhenOffscreen: pauseWhenOffscreen,
       fadeCurve: cssFadeCurve ? BeamPlayback.cssEase : null,
     );
     return playback == const BeamPlayback() ? null : playback;

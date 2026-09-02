@@ -225,9 +225,10 @@ class ControlsPanel extends StatelessWidget {
               'keeps its own corners — the beam never reads the child.',
             ),
           if (!s.stadium && !s.perCorner)
-            SliderRow(
+            NullableSliderRow(
               label: 'Radius',
               value: s.radius,
+              fallback: s.defaultRadius,
               min: 0,
               max: 48,
               suffix: 'px',
@@ -399,8 +400,9 @@ class ControlsPanel extends StatelessWidget {
             min: 0.25,
             max: 4,
             suffix: '×',
-            // A controller owns the rate; its own slider takes over.
-            enabled: !s.controllerMode,
+            // A controller owns a single beam's rate; BeamSync owns the
+            // group's rate even when controller mode remains selected.
+            enabled: !s.controllerMode || s.syncDemo,
             onChanged: (v) => onEdit(() => s.speed = v),
           ),
           if (travels) ...[
@@ -730,9 +732,8 @@ class ControlsPanel extends StatelessWidget {
                 DemoChip(
                   label: s.active ? 'Active' : 'Inactive',
                   selected: s.active,
-                  onTap: s.controllerMode
-                      ? () {}
-                      : () => onEdit(() => s.active = !s.active),
+                  enabled: !s.controllerMode || s.syncDemo,
+                  onTap: () => onEdit(() => s.active = !s.active),
                 ),
                 DemoChip(
                   label: 'Controller',
@@ -786,6 +787,7 @@ class ControlsPanel extends StatelessWidget {
               min: 0,
               max: 3,
               suffix: 's',
+              enabled: !s.syncDemo,
               onChanged: (v) => onEdit(() => s.startAfterSeconds = v),
             ),
             SliderRow(
@@ -794,10 +796,12 @@ class ControlsPanel extends StatelessWidget {
               min: 0,
               max: 15,
               suffix: 's',
+              enabled: !s.syncDemo,
               onChanged: (v) => onEdit(() => s.durationSeconds = v),
             ),
           ],
           ControlRow(
+            enabled: !s.syncDemo,
             label: 'Repeat',
             child: ChipGroup(
               children: [
@@ -829,20 +833,30 @@ class ControlsPanel extends StatelessWidget {
             ),
           ),
           ControlRow(
+            enabled: !s.syncDemo,
             label: 'Offscreen',
             child: ChipGroup(
               children: [
                 DemoChip(
+                  label: 'Default',
+                  selected: s.pauseWhenOffscreen == null,
+                  onTap: () => onEdit(() => s.pauseWhenOffscreen = null),
+                ),
+                DemoChip(
                   label: 'Pause offscreen',
-                  selected: s.pauseWhenOffscreen,
-                  onTap: () => onEdit(
-                    () => s.pauseWhenOffscreen = !s.pauseWhenOffscreen,
-                  ),
+                  selected: s.pauseWhenOffscreen == true,
+                  onTap: () => onEdit(() => s.pauseWhenOffscreen = true),
+                ),
+                DemoChip(
+                  label: 'Keep running',
+                  selected: s.pauseWhenOffscreen == false,
+                  onTap: () => onEdit(() => s.pauseWhenOffscreen = false),
                 ),
               ],
             ),
           ),
           ControlRow(
+            enabled: !s.syncDemo,
             label: 'Fade curve',
             child: ChipGroup(
               children: [

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter_border_beam/flutter_border_beam.dart';
 
 import 'playground_state.dart';
@@ -38,7 +39,7 @@ String encodePlaygroundState(PlaygroundState state) {
 
   if (state.variant != d.variant) put('v', _variantIds[state.variant]!);
   if (state.palette != d.palette) put('p', state.palette.id);
-  if (state.palette == PalettePreset.custom) {
+  if (!listEquals(state.customColors, d.customColors)) {
     put('cc', state.customColors.join(','));
   }
   if (state.customBase != d.customBase) put('pb', state.customBase.id);
@@ -51,7 +52,7 @@ String encodePlaygroundState(PlaygroundState state) {
 
   flag('st', state.stadium);
   flag('pc', state.perCorner);
-  number('r', state.radius, d.radius);
+  optional('r', state.radius);
   number('rtl', state.radiusTopLeft, d.radiusTopLeft);
   number('rtr', state.radiusTopRight, d.radiusTopRight);
   number('rbr', state.radiusBottomRight, d.radiusBottomRight);
@@ -126,7 +127,9 @@ String encodePlaygroundState(PlaygroundState state) {
     put('rm', mode.name);
   }
   flag('srm', state.simulateReducedMotion);
-  flag('pwo', state.pauseWhenOffscreen);
+  if (state.pauseWhenOffscreen case final bool value) {
+    put('pwo', value ? 1 : 0);
+  }
   flag('fc', state.cssFadeCurve);
   flag('cm', state.controllerMode);
   number('cs', state.controllerSpeed, d.controllerSpeed);

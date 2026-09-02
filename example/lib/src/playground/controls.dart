@@ -167,6 +167,7 @@ class DemoChip extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.leading,
+    this.enabled = true,
   });
 
   /// Chip text.
@@ -178,41 +179,53 @@ class DemoChip extends StatelessWidget {
   /// Tap callback.
   final VoidCallback onTap;
 
+  /// Whether the chip accepts input.
+  final bool enabled;
+
   /// Optional widget ahead of the label (a color dot, for instance).
   final Widget? leading;
 
   @override
   Widget build(BuildContext context) {
     final t = DemoTheme.of(context).tokens;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        curve: const Cubic(0.22, 1, 0.36, 1),
-        height: 28,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected ? t.btnBgActive : t.btnBg,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (leading case final Widget widget) ...[
-              widget,
-              const SizedBox(width: 6),
-            ],
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: selected ? t.btnTextActive : t.btnText,
-                decoration: TextDecoration.none,
-              ),
+    return IgnorePointer(
+      ignoring: !enabled,
+      child: Opacity(
+        opacity: enabled ? 1 : 0.4,
+        child: GestureDetector(
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            curve: const Cubic(0.22, 1, 0.36, 1),
+            height: 28,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: selected ? t.btnBgActive : t.btnBg,
+              borderRadius: BorderRadius.circular(14),
             ),
-          ],
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (leading case final Widget widget) ...[
+                  widget,
+                  const SizedBox(width: 6),
+                ],
+                Flexible(
+                  child: Text(
+                    label,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: selected ? t.btnTextActive : t.btnText,
+                      decoration: TextDecoration.none,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -272,6 +285,7 @@ class MinimalSlider extends StatelessWidget {
           onTapDown: (d) => update(d.localPosition),
           onHorizontalDragUpdate: (d) => update(d.localPosition),
           child: SizedBox(
+            width: double.infinity,
             height: 28,
             child: Center(
               child: Stack(

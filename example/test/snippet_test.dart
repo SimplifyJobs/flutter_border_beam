@@ -24,9 +24,9 @@ void main() {
     }
   });
 
-  test('the small variant emits its radius, whose preset is 32', () {
+  test('the small variant leaves its preset radius inherited', () {
     final state = PlaygroundState()..variant = BeamVariant.small;
-    expect(buildSnippet(state), contains('borderRadius: 16'));
+    expect(buildSnippet(state), isNot(contains('borderRadius:')));
   });
 
   test('a plain radius uses the borderRadius shorthand', () {
@@ -456,8 +456,28 @@ void main() {
     final state = PlaygroundState()..syncDemo = true;
     final snippet = buildSnippet(state);
     expect(snippet, startsWith('BeamSync('));
-    expect(snippet, contains('  child: BorderBeam.rotate('));
+    expect(snippet, contains('child: Column('));
+    expect('BorderBeam.rotate('.allMatches(snippet), hasLength(3));
+    expect(snippet, contains('phaseOffset: 0.33'));
+    expect(snippet, contains('phaseOffset: 0.67'));
     expect(snippet, endsWith(')'));
+  });
+
+  test('the sync demo owns playback and never emits a controller', () {
+    final state = PlaygroundState()
+      ..syncDemo = true
+      ..controllerMode = true
+      ..active = false
+      ..speed = 2
+      ..reducedMotion = BeamReducedMotion.slow
+      ..repeatCycles = 3;
+    final snippet = buildSnippet(state);
+    expect(snippet, contains('active: false'));
+    expect(snippet, contains('speed: 2'));
+    expect(snippet, contains('reducedMotion: BeamReducedMotion.slow'));
+    expect(snippet, isNot(contains('BorderBeamController')));
+    expect(snippet, isNot(contains('controller: controller')));
+    expect(snippet, isNot(contains('repeat:')));
   });
 
   test('the sync demo nests inside the theme demo', () {
@@ -510,6 +530,11 @@ void main() {
       final snippet = buildSnippet(state);
       expect(snippet, contains('pauseWhenOffscreen: true'));
       expect(snippet, contains('fadeCurve: BeamPlayback.cssEase'));
+    });
+
+    test('offscreen pausing can be explicitly disabled', () {
+      final state = PlaygroundState()..pauseWhenOffscreen = false;
+      expect(buildSnippet(state), contains('pauseWhenOffscreen: false'));
     });
   });
 }

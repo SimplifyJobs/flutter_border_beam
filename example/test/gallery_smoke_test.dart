@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_border_beam_example/main.dart';
 import 'package:flutter_border_beam_example/src/mocks.dart';
 import 'package:flutter_border_beam_example/src/playground/controls_panel.dart';
@@ -360,6 +361,50 @@ void main() {
     for (final action in ['Pulse', 'Flash', 'Pause', 'Resume', 'Start']) {
       await tapControl(tester, action);
     }
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('playground: controllers start when previews attach or return '
+      'from sync mode', (tester) async {
+    tester.view.physicalSize = const Size(519, 3600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(const BorderBeamDemoApp());
+    await tester.pump(const Duration(milliseconds: 300));
+
+    await tapControl(tester, 'Controller');
+    var controlled = tester
+        .widgetList<BorderBeam>(find.byType(BorderBeam))
+        .where((beam) => beam.controller != null)
+        .toList();
+    expect(controlled, hasLength(1));
+    expect(controlled.single.controller!.isActive, isTrue);
+
+    tester.view.physicalSize = const Size(1200, 3600);
+    await settle(tester);
+    controlled = tester
+        .widgetList<BorderBeam>(find.byType(BorderBeam))
+        .where((beam) => beam.controller != null)
+        .toList();
+    expect(controlled, hasLength(2));
+    expect(controlled.every((beam) => beam.controller!.isActive), isTrue);
+
+    await tapControl(tester, 'Theme');
+    await tapControl(tester, 'BeamSync');
+    expect(
+      tester
+          .widgetList<BorderBeam>(find.byType(BorderBeam))
+          .where((beam) => beam.controller != null),
+      isEmpty,
+    );
+
+    await tapControl(tester, 'BeamSync');
+    controlled = tester
+        .widgetList<BorderBeam>(find.byType(BorderBeam))
+        .where((beam) => beam.controller != null)
+        .toList();
+    expect(controlled, hasLength(2));
+    expect(controlled.every((beam) => beam.controller!.isActive), isTrue);
     expect(tester.takeException(), isNull);
   });
 

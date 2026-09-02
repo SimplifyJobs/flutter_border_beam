@@ -50,6 +50,7 @@ class PlaygroundPreviews extends StatelessWidget {
     final isDark = DemoTheme.of(context).isDark;
     if (!bothThemes) {
       return _Preview(
+        key: GlobalObjectKey(controllers.first),
         state: state,
         brightness: isDark ? Brightness.dark : Brightness.light,
         controller: controllers.first,
@@ -60,6 +61,7 @@ class PlaygroundPreviews extends StatelessWidget {
       children: [
         Expanded(
           child: _Preview(
+            key: GlobalObjectKey(controllers[0]),
             state: state,
             brightness: Brightness.dark,
             controller: controllers[0],
@@ -68,6 +70,7 @@ class PlaygroundPreviews extends StatelessWidget {
         const SizedBox(width: 16),
         Expanded(
           child: _Preview(
+            key: GlobalObjectKey(controllers[1]),
             state: state,
             brightness: Brightness.light,
             controller: controllers[1],
@@ -80,6 +83,7 @@ class PlaygroundPreviews extends StatelessWidget {
 
 class _Preview extends StatefulWidget {
   const _Preview({
+    super.key,
     required this.state,
     required this.brightness,
     required this.controller,
@@ -103,11 +107,14 @@ class _PreviewState extends State<_Preview>
   // with something that is neither the clock nor a rebuild.
   final ValueNotifier<double> _level = ValueNotifier<double>(1);
   late final Ticker _ticker = createTicker(_tick);
+  late bool _controllerMode = widget.state.controllerMode;
+  late bool _syncDemo = widget.state.syncDemo;
 
   @override
   void initState() {
     super.initState();
     _syncSignal();
+    _startAttachedController();
   }
 
   @override
@@ -115,6 +122,18 @@ class _PreviewState extends State<_Preview>
     super.didUpdateWidget(oldWidget);
     _syncSignal();
     if (!widget.state.followsPointer) _follow = null;
+    if (_controllerMode && !widget.state.controllerMode) {
+      // Restore a visible clock before BorderBeam detaches the controller;
+      // otherwise disabling controller mode after Stop leaves a blank beam.
+      widget.controller.start();
+    }
+    final needsController =
+        widget.state.controllerMode &&
+        !widget.state.syncDemo &&
+        (!_controllerMode || _syncDemo);
+    _controllerMode = widget.state.controllerMode;
+    _syncDemo = widget.state.syncDemo;
+    if (needsController) _startAttachedController();
   }
 
   @override
@@ -141,10 +160,27 @@ class _PreviewState extends State<_Preview>
     _level.value = 0.575 + 0.425 * math.sin(turns * 2 * math.pi);
   }
 
+  void _startAttachedController() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          !widget.state.controllerMode ||
+          widget.state.syncDemo ||
+          !widget.controller.isAttached) {
+        return;
+      }
+      widget.controller
+        ..speed = widget.state.controllerSpeed
+        ..start();
+    });
+  }
+
   void _track(Offset local, Size size) {
     if (!widget.state.followsPointer) return;
     setState(() {
-      _follow = Offset(local.dx / size.width, local.dy / size.height);
+      _follow = Offset(
+        (local.dx / size.width).clamp(0.0, 1.0),
+        (local.dy / size.height).clamp(0.0, 1.0),
+      );
     });
   }
 
@@ -250,6 +286,7 @@ class _PreviewState extends State<_Preview>
     return BeamSync(
       active: state.active,
       speed: state.speed,
+      reducedMotion: state.reducedMotion ?? BeamReducedMotion.staticFrame,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

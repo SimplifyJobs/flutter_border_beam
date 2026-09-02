@@ -21,6 +21,22 @@ void main() {
       expect(encodePlaygroundState(state), 'bw=2');
     });
 
+    test('preserves custom swatches while another palette is selected', () {
+      final state = PlaygroundState()
+        ..palette = PalettePreset.ocean
+        ..customColors = [2, 5, 7];
+      final decoded = decodePlaygroundState(encodePlaygroundState(state));
+      expect(decoded.palette, PalettePreset.ocean);
+      expect(decoded.customColors, [2, 5, 7]);
+    });
+
+    test('preserves an explicit offscreen opt-out', () {
+      final state = PlaygroundState()..pauseWhenOffscreen = false;
+      final encoded = encodePlaygroundState(state);
+      expect(encoded, 'pwo=0');
+      expect(decodePlaygroundState(encoded).pauseWhenOffscreen, isFalse);
+    });
+
     test('emits only ASCII that needs no percent-escaping', () {
       final state = PlaygroundState()
         ..palette = PalettePreset.custom
