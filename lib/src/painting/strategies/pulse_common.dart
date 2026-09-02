@@ -29,7 +29,9 @@ void paintPulseBlob(
   required double sy,
   required double boost,
   required Color Function(Color) fold,
+  double alphaScale = 1,
 }) {
+  if (alphaScale <= 0) return;
   final r = region.index;
   BeamGradients.paintBlob(
     canvas,
@@ -40,7 +42,7 @@ void paintPulseBlob(
     radiusX: w * pulse.bw[r] * sx * boost,
     radiusY: h * pulse.bh[r] * pulse.bgh * sy * boost,
     color: fold(color),
-    alpha: quadOpacity(pulse, quad),
+    alpha: quadOpacity(pulse, quad) * alphaScale,
   );
 }
 
@@ -59,7 +61,9 @@ void paintFrozenPulseBlob(
   required double sy,
   required double boost,
   required Color Function(Color) fold,
+  double alphaScale = 1,
 }) {
+  if (alphaScale <= 0) return;
   BeamGradients.paintBlob(
     canvas,
     center: Offset(
@@ -68,6 +72,6 @@ void paintFrozenPulseBlob(
     ),
     radiusX: w * sx * boost,
     radiusY: h * sy * boost,
-    color: fold(color.withValues(alpha: frozenAlpha)),
+    color: fold(color.withValues(alpha: frozenAlpha * alphaScale)),
   );
 }

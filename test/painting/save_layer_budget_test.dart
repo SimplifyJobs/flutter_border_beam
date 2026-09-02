@@ -7,6 +7,7 @@ import 'package:flutter_border_beam/src/animation/beam_phases.dart';
 import 'package:flutter_border_beam/src/models/beam_colors.dart';
 import 'package:flutter_border_beam/src/models/beam_config.dart';
 import 'package:flutter_border_beam/src/models/beam_options.dart';
+import 'package:flutter_border_beam/src/models/beam_segment.dart';
 import 'package:flutter_border_beam/src/models/beam_shape.dart';
 import 'package:flutter_border_beam/src/models/beam_style.dart';
 import 'package:flutter_border_beam/src/models/beam_timing.dart';
@@ -167,6 +168,32 @@ void main() {
           shape: BeamShape(contour: _blobContour),
           timing: const BeamTiming(),
         ),
+        'segment: bottomHalf': (
+          style: const BeamStyle(),
+          shape: const BeamShape(segment: BeamSegment.bottomHalf),
+          timing: const BeamTiming(),
+        ),
+        'segment: bottomEdge': (
+          style: const BeamStyle(),
+          shape: const BeamShape(segment: BeamSegment.bottomEdge),
+          timing: const BeamTiming(),
+        ),
+        'segment feather: 0': (
+          style: const BeamStyle(),
+          shape: const BeamShape(
+            segment: BeamSegment(
+              start: BeamAnchor.rightCenter,
+              end: BeamAnchor.leftCenter,
+              feather: 0,
+            ),
+          ),
+          timing: const BeamTiming(),
+        ),
+        'line wrapCorners': (
+          style: const BeamStyle(),
+          shape: const BeamShape(wrapCorners: true),
+          timing: const BeamTiming(),
+        ),
         // renderScale is one canvas transform inside BeamPainter, so a
         // strategy frame is the same frame; innerSizeScale only resizes
         // blobs a layer already holds; and the stock pulse-outside table
@@ -228,11 +255,11 @@ void main() {
         }
         expect(
           worst,
-          lessThanOrEqualTo(budget[variant]!),
+          budget[variant],
           reason:
-              '$label pushed the $variant frame to $worst saveLayer calls '
-              '(worst case $worstCase). A surface option must fold into the '
-              'layers the variant already composites.',
+              '$label changed the $variant frame to $worst saveLayer calls '
+              '(worst case $worstCase). A surface option must use exactly '
+              'the layers the variant already composites.',
         );
       });
     }

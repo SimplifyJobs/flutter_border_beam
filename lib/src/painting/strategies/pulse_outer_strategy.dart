@@ -118,6 +118,7 @@ class PulseOuterStrategy extends BeamVariantStrategy {
   ) {
     if (phases.fadeOpacity <= 0) return;
     final rect = beamRect(size, config);
+    final geometry = beamGeometry(rect, config);
     final params = PulseParams.resolve(
       BeamVariant.pulseOutside,
       config.brightness,
@@ -128,6 +129,15 @@ class PulseOuterStrategy extends BeamVariantStrategy {
     final glow = _geometry(config, size);
     final boost = config.glowBoost * pulseOuterTunedBoost;
     final border = config.palette.data.border;
+    double blobWeight(Rect blobRect, Offset fractionalPos) {
+      final center = Offset(
+        blobRect.left + fractionalPos.dx * blobRect.width,
+        blobRect.top + fractionalPos.dy * blobRect.height,
+      );
+      return geometry.segmentWeightAt(
+        geometry.perimeter.nearestFraction(center),
+      );
+    }
 
     // Filter ordering: CSS runs `blur()` before the color terms, and Skia
     // runs a paint's colorFilter BEFORE its imageFilter, so the color matrix
@@ -167,8 +177,16 @@ class PulseOuterStrategy extends BeamVariantStrategy {
     final coreBlur = (config.coreBlur ?? glow.coreBlur) * spread;
     if (coreOpacity > 0) {
       final coreRect = rect.inflate(glow.coreInset * spread);
+      final layerBounds = coreRect.inflate(coreBlur * 3);
+      canvas.save();
+      BeamLayerUtils.clipSegment(
+        canvas,
+        geometry,
+        inward: 0,
+        outward: glow.coreInset * spread + coreBlur * 3,
+      );
       canvas.saveLayer(
-        coreRect.inflate(coreBlur * 3),
+        layerBounds,
         Paint()
           ..color = _white.withValues(alpha: coreOpacity)
           ..imageFilter = glowBlur(coreBlur),
@@ -189,9 +207,12 @@ class PulseOuterStrategy extends BeamVariantStrategy {
             sy: sy,
             boost: boost,
             fold: fold,
+            alphaScale: blobWeight(coreRect, _specPos(spec, border)),
           );
         }
       });
+      BeamLayerUtils.applySegmentFeather(canvas, layerBounds, geometry);
+      canvas.restore();
       canvas.restore();
     }
 
@@ -207,8 +228,16 @@ class PulseOuterStrategy extends BeamVariantStrategy {
     if (bloomOpacity > 0) {
       final bloomRect = rect.inflate(glow.bloomInset * spread);
       final frozenAlpha = 1 - params.op * 0.5;
+      final layerBounds = bloomRect.inflate(bloomBlur * 3);
+      canvas.save();
+      BeamLayerUtils.clipSegment(
+        canvas,
+        geometry,
+        inward: 0,
+        outward: glow.bloomInset * spread + bloomBlur * 3,
+      );
       canvas.saveLayer(
-        bloomRect.inflate(bloomBlur * 3),
+        layerBounds,
         Paint()
           ..color = _white.withValues(alpha: bloomOpacity)
           ..imageFilter = glowBlur(bloomBlur),
@@ -227,9 +256,12 @@ class PulseOuterStrategy extends BeamVariantStrategy {
             sy: sy,
             boost: boost,
             fold: fold,
+            alphaScale: blobWeight(bloomRect, _specPos(spec, border)),
           );
         }
       });
+      BeamLayerUtils.applySegmentFeather(canvas, layerBounds, geometry);
+      canvas.restore();
       canvas.restore();
     }
   }
@@ -253,6 +285,15 @@ class PulseOuterStrategy extends BeamVariantStrategy {
     final matrix = _matrix(config, phases);
     Color fold(Color c) => c;
     final border = config.palette.data.border;
+    double blobWeight(Offset fractionalPos) {
+      final center = Offset(
+        rect.left + fractionalPos.dx * rect.width,
+        rect.top + fractionalPos.dy * rect.height,
+      );
+      return geometry.segmentWeightAt(
+        geometry.perimeter.nearestFraction(center),
+      );
+    }
 
     final strokeOpacity = BeamLayerUtils.layerOpacity(
       config,
@@ -265,6 +306,7 @@ class PulseOuterStrategy extends BeamVariantStrategy {
 
     canvas.save();
     canvas.clipPath(geometry.ring);
+    BeamLayerUtils.clipSegment(canvas, geometry, inward: 0, outward: 0);
     canvas.saveLayer(
       rect,
       Paint()
@@ -298,6 +340,7 @@ class PulseOuterStrategy extends BeamVariantStrategy {
         sy: sy,
         boost: config.glowBoost,
         fold: fold,
+        alphaScale: blobWeight(_specPos(spec, border)),
       );
     }
     // The dashed-ring mask rides inside the ring layer; the outward glows are
@@ -311,6 +354,7 @@ class PulseOuterStrategy extends BeamVariantStrategy {
           ..shader = BeamGradients.segmentMask(rect, segments),
       );
     }
+    BeamLayerUtils.applySegmentFeather(canvas, rect, geometry);
     canvas.restore();
     canvas.restore();
   }

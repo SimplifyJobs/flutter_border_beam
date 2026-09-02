@@ -1,10 +1,10 @@
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'dart:ui';
 
 import '../models/beam_config.dart';
 import 'gradient_builders.dart';
+import 'ring_geometry.dart';
 
 /// Shared painting helpers used by every variant strategy.
 abstract final class BeamLayerUtils {
@@ -46,15 +46,11 @@ abstract final class BeamLayerUtils {
     required double radiusY,
     required List<Color> colors,
     required List<double> stops,
+    double rotation = 0,
   }) {
     final rx = math.max(radiusX, 0.01);
     final ry = math.max(radiusY, 0.01);
-    final matrix = Float64List.fromList([
-      1, 0, 0, 0, //
-      0, ry / rx, 0, 0, //
-      0, 0, 1, 0, //
-      0, center.dy - center.dy * (ry / rx), 0, 1,
-    ]);
+    final matrix = BeamGradients.ellipseTransform(center, ry / rx, rotation);
     final shader = ui.Gradient.radial(
       center,
       rx,
@@ -63,10 +59,153 @@ abstract final class BeamLayerUtils {
       TileMode.clamp,
       matrix,
     );
+    final extent = rotation == 0 ? null : math.max(rx, ry);
     canvas.drawRect(
-      Rect.fromCenter(center: center, width: rx * 2, height: ry * 2),
+      Rect.fromCenter(
+        center: center,
+        width: (extent ?? rx) * 2,
+        height: (extent ?? ry) * 2,
+      ),
       Paint()..shader = shader,
     );
+  }
+
+  /// Clips an existing layer scope to the configured perimeter segment.
+  ///
+  /// Call this after `canvas.save()` and before `saveLayer`. A null segment
+  /// deliberately performs no canvas operation, preserving the legacy paint
+  /// path exactly.
+  static void clipSegment(
+    Canvas canvas,
+    BeamRingGeometry geometry, {
+    required double inward,
+    required double outward,
+  }) {
+    if (geometry.segment == null) return;
+    canvas.clipPath(
+      segmentBandPath(geometry, inward: inward, outward: outward),
+    );
+  }
+
+  /// The band covering [geometry]'s segment, reaching [inward] px toward the
+  /// interior and [outward] px away from it.
+  ///
+  /// A contour offset inward by more than its local radius of curvature folds
+  /// back through the centre of that curvature: at a rounded corner the
+  /// offset arc reverses, sweeps across the far side of the segment, and — as
+  /// one polygon under the non-zero fill rule — both loses the interior it
+  /// was meant to cover and punches a spurious wedge where the two reversed
+  /// arcs cross. Each sample's inward depth is therefore capped at that
+  /// radius, which collapses a corner's inner boundary onto its own centre
+  /// instead of past it, leaving a simple polygon.
+  ///
+  /// Only the inward direction can fold — growing a convex contour outward
+  /// never does — so an [inward] of zero or less takes the perimeter's own
+  /// sampler unchanged.
+  static Path segmentBandPath(
+    BeamRingGeometry geometry, {
+    required double inward,
+    required double outward,
+  }) {
+    final range = geometry.segmentRange;
+    if (range == null || inward <= 0) {
+      return geometry.segmentBand(inward: inward, outward: outward);
+    }
+    final perimeter = geometry.perimeter;
+    final length = perimeter.length;
+    if (length <= 0) return Path();
+
+    final start = _fraction(range.from);
+    var span = _fraction(range.to - start);
+    if (span == 0) span = 1;
+    // Matches BeamPerimeter.band's sampling: ~2 logical px between samples.
+    final steps = math.max(8, (span * length / 2).ceil());
+    final step = span * length / steps;
+
+    final points = <Offset>[];
+    final normals = <Offset>[];
+    for (var i = 0; i <= steps; i++) {
+      final fraction = start + span * i / steps;
+      points.add(perimeter.pointAt(fraction));
+      normals.add(perimeter.normalAt(fraction));
+    }
+
+    final result = Path()
+      ..moveTo(
+        points.first.dx + normals.first.dx * outward,
+        points.first.dy + normals.first.dy * outward,
+      );
+    for (var i = 1; i < points.length; i++) {
+      result.lineTo(
+        points[i].dx + normals[i].dx * outward,
+        points[i].dy + normals[i].dy * outward,
+      );
+    }
+    for (var i = points.length - 1; i >= 0; i--) {
+      final depth = math.min(inward, _curvatureRadius(normals, step, i));
+      result.lineTo(
+        points[i].dx - normals[i].dx * depth,
+        points[i].dy - normals[i].dy * depth,
+      );
+    }
+    return result..close();
+  }
+
+  // How far sample [i] may be offset inward before the offset curve reverses:
+  // an outward normal turning by phi over an arc length [step] puts the centre
+  // of curvature step/phi inward. A normal that turns the other way (a concave
+  // stretch) curves away from the interior and never folds, so it is
+  // unbounded.
+  static double _curvatureRadius(List<Offset> normals, double step, int i) {
+    var radius = double.infinity;
+    for (final j in [i - 1, i + 1]) {
+      if (j < 0 || j >= normals.length) continue;
+      final (a, b) = i < j
+          ? (normals[i], normals[j])
+          : (normals[j], normals[i]);
+      final turn = math.atan2(
+        a.dx * b.dy - a.dy * b.dx,
+        a.dx * b.dx + a.dy * b.dy,
+      );
+      if (turn > 1e-9) radius = math.min(radius, step / turn);
+    }
+    return radius;
+  }
+
+  static double _fraction(double value) {
+    final result = value % 1;
+    return result < 0 ? result + 1 : result;
+  }
+
+  /// Multiplies the current layer by the two configured endpoint feathers.
+  ///
+  /// Both masks are radial gradients from transparent at the endpoint to
+  /// opaque at [BeamSegment.feather]. They are drawn into the layer that
+  /// already composites the variant, so segment painting adds no layer.
+  static void applySegmentFeather(
+    Canvas canvas,
+    Rect bounds,
+    BeamRingGeometry geometry,
+  ) {
+    final segment = geometry.segment;
+    final range = geometry.segmentRange;
+    if (segment == null || range == null || segment.feather <= 0) return;
+    final radius = math.max(segment.feather, 0.01);
+    for (final fraction in [range.from, range.to]) {
+      final center = geometry.perimeter.pointAt(fraction);
+      canvas.drawRect(
+        bounds,
+        Paint()
+          ..blendMode = BlendMode.dstIn
+          ..shader = ui.Gradient.radial(
+            center,
+            radius,
+            const [Color(0x00FFFFFF), Color(0xFFFFFFFF)],
+            const [0, 1],
+            TileMode.clamp,
+          ),
+      );
+    }
   }
 
   /// The point where a ray leaving the centre of [rect] at [angle] crosses

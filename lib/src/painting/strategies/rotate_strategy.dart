@@ -90,6 +90,12 @@ class RotateStrategy extends BeamVariantStrategy {
 
     canvas.save();
     canvas.clipPath(geometry.outer);
+    BeamLayerUtils.clipSegment(
+      canvas,
+      geometry,
+      inward: rect.shortestSide / 2,
+      outward: 0,
+    );
     canvas.saveLayer(rect, Paint()..color = _white.withValues(alpha: opacity));
 
     if (compact) {
@@ -168,6 +174,8 @@ class RotateStrategy extends BeamVariantStrategy {
       canvas.restore();
     }
 
+    BeamLayerUtils.applySegmentFeather(canvas, rect, geometry);
+
     canvas.restore();
     canvas.restore();
   }
@@ -192,6 +200,7 @@ class RotateStrategy extends BeamVariantStrategy {
 
     canvas.save();
     canvas.clipPath(geometry.ring);
+    BeamLayerUtils.clipSegment(canvas, geometry, inward: 0, outward: 0);
     canvas.saveLayer(rect, Paint()..color = _white.withValues(alpha: opacity));
 
     // Highlight sweep (white on dark, black on light).
@@ -240,11 +249,20 @@ class RotateStrategy extends BeamVariantStrategy {
         ),
     );
     _applySegments(canvas, rect, config);
+    BeamLayerUtils.applySegmentFeather(canvas, rect, geometry);
 
     canvas.restore();
     canvas.restore();
 
-    _paintSparkles(canvas, rect, config, phases, opacity, highlightBase);
+    _paintSparkles(
+      canvas,
+      rect,
+      geometry,
+      config,
+      phases,
+      opacity,
+      highlightBase,
+    );
   }
 
   void _paintBloom(
@@ -290,6 +308,12 @@ class RotateStrategy extends BeamVariantStrategy {
 
     canvas.save();
     canvas.clipPath(region);
+    BeamLayerUtils.clipSegment(
+      canvas,
+      geometry,
+      inward: 0,
+      outward: config.comet ? reach : 0,
+    );
     canvas.saveLayer(
       bounds,
       Paint()
@@ -317,6 +341,7 @@ class RotateStrategy extends BeamVariantStrategy {
     );
     canvas.restore();
     _applySegments(canvas, bounds, config);
+    BeamLayerUtils.applySegmentFeather(canvas, bounds, geometry);
     canvas.restore();
     canvas.restore();
   }
@@ -340,6 +365,7 @@ class RotateStrategy extends BeamVariantStrategy {
   void _paintSparkles(
     Canvas canvas,
     Rect rect,
+    BeamRingGeometry geometry,
     BeamConfig config,
     BeamFramePhases phases,
     double opacity,
@@ -353,12 +379,15 @@ class RotateStrategy extends BeamVariantStrategy {
     canvas.clipPath(_sparkleBand(rect, config));
     for (var k = 0; k < config.beamCount; k++) {
       final stop = (head + k) / config.beamCount;
+      final edgePoint = BeamLayerUtils.edgePointAt(
+        rect,
+        phases.angleRadians + stop * 2 * math.pi,
+      );
+      final headFraction = geometry.perimeter.nearestFraction(edgePoint);
+      if (geometry.segmentWeightAt(headFraction) == 0) continue;
       BeamLayerUtils.paintSparkles(
         canvas,
-        center: BeamLayerUtils.edgePointAt(
-          rect,
-          phases.angleRadians + stop * 2 * math.pi,
-        ),
+        center: edgePoint,
         density: config.sparkle,
         color: color,
         opacity: opacity,

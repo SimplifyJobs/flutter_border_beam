@@ -56,6 +56,14 @@ class PulseInnerStrategy extends BeamVariantStrategy {
     // innerSizeScale moves; the perimeter ring and the bloom keep their own
     // geometry so the border itself stays where it is.
     final innerScale = config.innerSizeScale;
+    double weightAt(Offset point) =>
+        geometry.segmentWeightAt(geometry.perimeter.nearestFraction(point));
+    double blobWeight(Rect blobRect, Offset fractionalPos) => weightAt(
+      Offset(
+        blobRect.left + fractionalPos.dx * blobRect.width,
+        blobRect.top + fractionalPos.dy * blobRect.height,
+      ),
+    );
 
     // ── z1: inner perimeter + corner accents (::before) ──
     final innerOpacity = BeamLayerUtils.layerOpacity(
@@ -67,6 +75,12 @@ class PulseInnerStrategy extends BeamVariantStrategy {
     if (innerOpacity > 0) {
       canvas.save();
       canvas.clipPath(geometry.outer);
+      BeamLayerUtils.clipSegment(
+        canvas,
+        geometry,
+        inward: rect.shortestSide / 2,
+        outward: 0,
+      );
       canvas.saveLayer(
         rect,
         Paint()..color = _white.withValues(alpha: innerOpacity),
@@ -88,6 +102,7 @@ class PulseInnerStrategy extends BeamVariantStrategy {
           sy: 1,
           boost: boost,
           fold: fold,
+          alphaScale: blobWeight(rect, blob.position),
         );
       }
       // Corner accents: fixed 60×60 ellipses whose alpha breathes with the
@@ -103,7 +118,11 @@ class PulseInnerStrategy extends BeamVariantStrategy {
         (pos: rect.bottomRight, quad: pulseRingMap[4].quad),
       ];
       for (final corner in corners) {
-        final a = cornerAlpha * quadOpacity(phases.pulse, corner.quad);
+        final a =
+            cornerAlpha *
+            quadOpacity(phases.pulse, corner.quad) *
+            weightAt(corner.pos);
+        if (a <= 0) continue;
         BeamLayerUtils.paintRadial(
           canvas,
           center: corner.pos,
@@ -131,6 +150,8 @@ class PulseInnerStrategy extends BeamVariantStrategy {
       );
       canvas.restore();
 
+      BeamLayerUtils.applySegmentFeather(canvas, rect, geometry);
+
       canvas.restore();
       canvas.restore();
     }
@@ -145,6 +166,7 @@ class PulseInnerStrategy extends BeamVariantStrategy {
     if (strokeOpacity > 0) {
       canvas.save();
       canvas.clipPath(geometry.ring);
+      BeamLayerUtils.clipSegment(canvas, geometry, inward: 0, outward: 0);
       canvas.saveLayer(
         rect,
         Paint()..color = _white.withValues(alpha: strokeOpacity),
@@ -165,6 +187,7 @@ class PulseInnerStrategy extends BeamVariantStrategy {
           sy: 1,
           boost: boost,
           fold: fold,
+          alphaScale: blobWeight(rect, blob.position),
         );
       }
       // The dashed-ring mask rides inside the ring layer, the one layer a
@@ -179,6 +202,7 @@ class PulseInnerStrategy extends BeamVariantStrategy {
             ..shader = BeamGradients.segmentMask(rect, segments),
         );
       }
+      BeamLayerUtils.applySegmentFeather(canvas, rect, geometry);
       canvas.restore();
       canvas.restore();
     }
@@ -194,6 +218,7 @@ class PulseInnerStrategy extends BeamVariantStrategy {
       final frozenAlpha = 1 - params.op * 0.5;
       canvas.save();
       canvas.clipPath(geometry.outer);
+      BeamLayerUtils.clipSegment(canvas, geometry, inward: 0, outward: 0);
       canvas.saveLayer(
         rect,
         Paint()
@@ -220,9 +245,11 @@ class PulseInnerStrategy extends BeamVariantStrategy {
           sy: 1,
           boost: boost,
           fold: fold,
+          alphaScale: blobWeight(rect, source.position),
         );
       }
       canvas.restore();
+      BeamLayerUtils.applySegmentFeather(canvas, rect, geometry);
       canvas.restore();
       canvas.restore();
     }

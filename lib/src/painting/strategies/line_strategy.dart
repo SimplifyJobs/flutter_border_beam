@@ -9,6 +9,7 @@ import '../../constants/line_keyframes.dart';
 import '../../models/beam_blob.dart';
 import '../../models/beam_config.dart';
 import '../../models/beam_options.dart';
+import '../../models/beam_segment.dart';
 import '../color_matrix.dart';
 import '../gradient_builders.dart';
 import '../layer_utils.dart';
@@ -33,7 +34,26 @@ const int _sparkleSeedSteps = 24;
 ///
 /// [band] is null for a lone beam — the ordinary case paints exactly as it
 /// always has, with no clip and no radius clamp.
-typedef _Traveller = ({double x, double w, double fade, Rect? band});
+typedef _Traveller = ({
+  double x,
+  double w,
+  double fade,
+  Rect? band,
+  double? fraction,
+  Path? pathBand,
+});
+
+/// The perimeter slice a path-mode frame is painted over: the geometry, the
+/// clockwise range, and whether travel runs against that range.
+///
+/// [mirrored] is set for the edge-derived range `wrapCorners` builds, where
+/// the beam must keep the planar variant's direction (see [_paintPathAbove]).
+typedef _PathContext = ({
+  BeamRingGeometry geometry,
+  double from,
+  double span,
+  bool mirrored,
+});
 
 /// The edge-riding traveling beam (React `line`): all masks are radial
 /// windows anchored at the traveling position on the edge, plus a bloom of
@@ -54,6 +74,12 @@ class LineStrategy extends BeamVariantStrategy {
     BeamFramePhases phases,
   ) {
     if (phases.fadeOpacity <= 0) return;
+
+    final pathMode = config.segment != null || config.wrapCorners;
+    if (pathMode) {
+      _paintPathAbove(canvas, size, config, phases);
+      return;
+    }
 
     // The rotations run counter-clockwise around the box, so a beam that
     // rides the bottom edge left-to-right rides the right edge
@@ -107,6 +133,100 @@ class LineStrategy extends BeamVariantStrategy {
     canvas.restore();
   }
 
+  // A configured segment owns line travel, so [BeamConfig.edge] is ignored:
+  // the beam runs the segment's own clockwise start → end.
+  //
+  // With wrapCorners alone the selected edge resolves to its straight run plus
+  // both adjacent corner arcs, and feeds the same path-space code with one
+  // rule attached: wrapCorners is a modifier on the ordinary line variant, so
+  // turning it on must not reverse the animation. The planar painting is
+  // authored on the bottom edge running left to right, and every other edge is
+  // that painting turned rigidly about the box's centre — which leaves travel
+  // running counter-clockwise around the box on all four edges (bottom left to
+  // right, top right to left, left top to bottom, right bottom to top), the
+  // opposite of the perimeter's clockwise parameterisation. An edge-derived
+  // range therefore carries `mirrored`, and every progress, spike fraction and
+  // blob offset goes through [_pathFraction] to flip. `BeamDirection` is
+  // already folded into `phases.travellers` and composes on top of this.
+  void _paintPathAbove(
+    Canvas canvas,
+    Size size,
+    BeamConfig config,
+    BeamFramePhases phases,
+  ) {
+    final rect = beamRect(size, config);
+    final segment = config.segment ?? _edgeSegment(config.edge);
+    final geometry = config.segment != null
+        ? beamGeometry(rect, config)
+        : BeamRingGeometry(
+            rect: rect,
+            radius: config.borderRadius,
+            borderWidth: config.borderWidth,
+            useSuperellipse: config.useSuperellipse,
+            contour: config.contour,
+            segment: segment,
+          );
+    final range = geometry.segmentRange!;
+    final span = _clockwiseSpan(range.from, range.to);
+    final path = (
+      geometry: geometry,
+      from: range.from,
+      span: span,
+      mirrored: config.segment == null,
+    );
+    final isDark = config.brightness == Brightness.dark;
+    final beams = _pathTravellers(path, phases);
+    var fadeMax = 0.0;
+    for (final beam in beams) {
+      fadeMax = math.max(fadeMax, beam.fade);
+    }
+    if (fadeMax <= 0) return;
+
+    final layerMatrix = config.staticColors
+        ? null
+        : BeamColorMatrix.beamFilter(
+            hueDegrees: phases.hueDegrees + config.hueBase,
+            brightness: config.brightnessFactor,
+            saturation: config.saturation,
+          );
+    Color fold(Color c) => layerMatrix?.transform(c) ?? c;
+
+    _paintInner(
+      canvas,
+      rect,
+      geometry,
+      config,
+      phases,
+      fold,
+      beams,
+      fadeMax,
+      path: path,
+    );
+    _paintStroke(
+      canvas,
+      rect,
+      geometry,
+      config,
+      phases,
+      fold,
+      isDark,
+      beams,
+      fadeMax,
+      path: path,
+    );
+    _paintBloom(
+      canvas,
+      rect,
+      geometry,
+      config,
+      phases,
+      isDark,
+      beams,
+      fadeMax,
+      path: path,
+    );
+  }
+
   // ─── Travel ─────────────────────────────────────────────────────────────
 
   // Resolves every beam travelling the edge this frame. With one beam the
@@ -119,7 +239,14 @@ class LineStrategy extends BeamVariantStrategy {
     final progress = phases.travellers;
     if (progress.length <= 1) {
       return [
-        (x: phases.lineX, w: phases.lineW, fade: phases.edge, band: null),
+        (
+          x: phases.lineX,
+          w: phases.lineW,
+          fade: phases.edge,
+          band: null,
+          fraction: null,
+          pathBand: null,
+        ),
       ];
     }
     final sorted = [...progress]
@@ -149,13 +276,84 @@ class LineStrategy extends BeamVariantStrategy {
           right,
           rect.bottom + _bandOverhang,
         ),
+        fraction: null,
+        pathBand: null,
       ));
     }
     return result;
   }
 
-  Offset _anchor(Rect rect, _Traveller beam, {double dy = 0}) =>
-      Offset(rect.left + beam.x * rect.width, rect.bottom + dy);
+  List<_Traveller> _pathTravellers(_PathContext path, BeamFramePhases phases) {
+    final sorted = [...phases.travellers]..sort();
+    return [
+      for (var i = 0; i < sorted.length; i++)
+        (
+          x: sampleKeyframes(lineTravelX, sorted[i]),
+          w: sampleKeyframes(lineTravelW, sorted[i]),
+          fade: sampleKeyframes(lineEdgeFade, sorted[i]),
+          band: null,
+          fraction: _pathFraction(path, sorted[i]),
+          pathBand: sorted.length == 1
+              ? null
+              : _pathBand(
+                  path,
+                  // The halfway points to each neighbour in travel order. A
+                  // mirrored range reverses them on the perimeter, so the
+                  // clockwise band runs from the later progress to the
+                  // earlier one.
+                  lower: i == 0 ? 0 : (sorted[i - 1] + sorted[i]) / 2,
+                  upper: i == sorted.length - 1
+                      ? 1
+                      : (sorted[i] + sorted[i + 1]) / 2,
+                ),
+        ),
+    ];
+  }
+
+  Path _pathBand(
+    _PathContext path, {
+    required double lower,
+    required double upper,
+  }) => path.geometry.perimeter.band(
+    from: _pathFraction(path, path.mirrored ? upper : lower),
+    to: _pathFraction(path, path.mirrored ? lower : upper),
+    inward: _bandOverhang,
+    outward: _bandOverhang,
+  );
+
+  Offset _anchor(
+    Rect rect,
+    _Traveller beam, {
+    double dy = 0,
+    _PathContext? path,
+  }) => path == null
+      ? Offset(rect.left + beam.x * rect.width, rect.bottom + dy)
+      : path.geometry.perimeter.offsetPointAt(beam.fraction!, -dy);
+
+  Offset _blobAnchor(
+    Rect rect,
+    _Traveller beam, {
+    required double offsetX,
+    required double inward,
+    _PathContext? path,
+  }) => path == null
+      ? Offset(rect.left + beam.x * rect.width + offsetX, rect.bottom - inward)
+      : path.geometry.perimeter.offsetPointAt(
+          // A blob's offsetX runs along the direction of travel, which is
+          // against the clockwise parameterisation on a mirrored range.
+          beam.fraction! +
+              (path.geometry.perimeter.length <= 0
+                  ? 0
+                  : (path.mirrored ? -offsetX : offsetX) /
+                        path.geometry.perimeter.length),
+          inward,
+        );
+
+  double _rotation(_Traveller beam, _PathContext? path) {
+    if (path == null) return 0;
+    final tangent = path.geometry.perimeter.tangentAt(beam.fraction!);
+    return math.atan2(tangent.dy, tangent.dx);
+  }
 
   // The widest a traveller's mask may reach without spilling into a
   // neighbour's band, where the clip would cut it while it is still opaque.
@@ -174,12 +372,14 @@ class LineStrategy extends BeamVariantStrategy {
   ) {
     for (final beam in beams) {
       final band = beam.band;
-      if (band == null) {
+      final pathBand = beam.pathBand;
+      if (band == null && pathBand == null) {
         paint(beam);
         continue;
       }
       canvas.save();
-      canvas.clipRect(band);
+      if (band != null) canvas.clipRect(band);
+      if (pathBand != null) canvas.clipPath(pathBand);
       paint(beam);
       canvas.restore();
     }
@@ -195,8 +395,9 @@ class LineStrategy extends BeamVariantStrategy {
     BeamFramePhases phases,
     Color Function(Color) fold,
     List<_Traveller> beams,
-    double fadeMax,
-  ) {
+    double fadeMax, {
+    _PathContext? path,
+  }) {
     // The line variant does not apply the mono ×0.5 multiplier — its mono
     // treatment lives in the bloom spike attenuation.
     final opacity =
@@ -210,6 +411,12 @@ class LineStrategy extends BeamVariantStrategy {
 
     canvas.save();
     canvas.clipPath(geometry.outer);
+    BeamLayerUtils.clipSegment(
+      canvas,
+      geometry,
+      inward: rect.shortestSide / 2,
+      outward: 0,
+    );
     canvas.saveLayer(rect, Paint()..color = _white.withValues(alpha: opacity));
 
     _forEachTraveller(canvas, beams, (beam) {
@@ -217,13 +424,17 @@ class LineStrategy extends BeamVariantStrategy {
       for (final blob in config.palette.data.lineInner) {
         BeamGradients.paintBlob(
           canvas,
-          center: Offset(
-            rect.left + beam.x * rect.width + blob.offsetX,
-            rect.bottom - blob.offsetY.abs(),
+          center: _blobAnchor(
+            rect,
+            beam,
+            offsetX: blob.offsetX,
+            inward: blob.offsetY.abs(),
+            path: path,
           ),
           radiusX: blob.sizeW * beam.w,
           radiusY: blob.sizeH * phases.lineH,
           color: tint(blob.color),
+          rotation: _rotation(beam, path),
         );
       }
     });
@@ -251,10 +462,12 @@ class LineStrategy extends BeamVariantStrategy {
         rect,
         Paint()
           ..blendMode = BlendMode.dstIn
-          ..shader = _window(rect, beam, phases),
+          ..shader = _window(rect, beam, phases, path: path),
       );
     });
     canvas.restore();
+
+    BeamLayerUtils.applySegmentFeather(canvas, rect, geometry);
 
     canvas.restore();
     canvas.restore();
@@ -269,8 +482,9 @@ class LineStrategy extends BeamVariantStrategy {
     Color Function(Color) fold,
     bool isDark,
     List<_Traveller> beams,
-    double fadeMax,
-  ) {
+    double fadeMax, {
+    _PathContext? path,
+  }) {
     final opacity =
         (phases.fadeOpacity *
                 fadeMax *
@@ -282,6 +496,7 @@ class LineStrategy extends BeamVariantStrategy {
 
     canvas.save();
     canvas.clipPath(geometry.ring);
+    BeamLayerUtils.clipSegment(canvas, geometry, inward: 0, outward: 0);
     canvas.saveLayer(rect, Paint()..color = _white.withValues(alpha: opacity));
 
     _forEachTraveller(canvas, beams, (beam) {
@@ -293,7 +508,7 @@ class LineStrategy extends BeamVariantStrategy {
           : lineHighlightAlphasLight;
       BeamLayerUtils.paintRadial(
         canvas,
-        center: _anchor(rect, beam, dy: lineHighlightOffsetY),
+        center: _anchor(rect, beam, dy: lineHighlightOffsetY, path: path),
         radiusX:
             (isDark ? lineHighlightRadiusXDark : lineHighlightRadiusXLight) *
             beam.w,
@@ -302,6 +517,7 @@ class LineStrategy extends BeamVariantStrategy {
             phases.lineH,
         colors: [for (final a in alphas) tint(base.withValues(alpha: a))],
         stops: isDark ? lineHighlightStopsDark : lineHighlightStopsLight,
+        rotation: _rotation(beam, path),
       );
       final blobs = isDark
           ? config.palette.data.lineDark
@@ -309,27 +525,33 @@ class LineStrategy extends BeamVariantStrategy {
       for (final blob in blobs) {
         BeamGradients.paintBlob(
           canvas,
-          center: Offset(
-            rect.left + beam.x * rect.width + blob.offsetX,
-            rect.bottom + blob.offsetY,
+          center: _blobAnchor(
+            rect,
+            beam,
+            offsetX: blob.offsetX,
+            inward: -blob.offsetY,
+            path: path,
           ),
           radiusX: blob.sizeW * beam.w,
           radiusY: blob.sizeH * phases.lineH,
           color: tint(blob.color),
+          rotation: _rotation(beam, path),
         );
       }
       canvas.drawRect(
         rect,
         Paint()
           ..blendMode = BlendMode.dstIn
-          ..shader = _window(rect, beam, phases),
+          ..shader = _window(rect, beam, phases, path: path),
       );
     });
 
+    BeamLayerUtils.applySegmentFeather(canvas, rect, geometry);
+
     canvas.restore();
     canvas.restore();
 
-    _paintSparkles(canvas, rect, config, beams, opacity, isDark);
+    _paintSparkles(canvas, rect, config, beams, opacity, isDark, path: path);
   }
 
   void _paintBloom(
@@ -340,8 +562,9 @@ class LineStrategy extends BeamVariantStrategy {
     BeamFramePhases phases,
     bool isDark,
     List<_Traveller> beams,
-    double fadeMax,
-  ) {
+    double fadeMax, {
+    _PathContext? path,
+  }) {
     final opacity =
         (phases.fadeOpacity *
                 fadeMax *
@@ -380,6 +603,12 @@ class LineStrategy extends BeamVariantStrategy {
 
     canvas.save();
     canvas.clipPath(geometry.outer);
+    BeamLayerUtils.clipSegment(
+      canvas,
+      geometry,
+      inward: rect.shortestSide / 2,
+      outward: 0,
+    );
     canvas.saveLayer(rect, layerPaint);
 
     _forEachTraveller(canvas, beams, (beam) {
@@ -392,33 +621,42 @@ class LineStrategy extends BeamVariantStrategy {
         mono,
         _tint(fold, beam, fadeMax),
         beam,
+        path: path,
       );
       canvas.drawRect(
         rect,
         Paint()
           ..blendMode = BlendMode.dstIn
           ..shader = BeamGradients.radialWindow(
-            center: _anchor(rect, beam),
+            center: _anchor(rect, beam, path: path),
             radiusX: _maskRadiusX(rect, beam, lineBloomWindowRadiusX * beam.w),
             radiusY: lineBloomWindowRadiusY * phases.lineH,
             midStop: lineBloomWindowMidStop,
             midAlpha: lineBloomWindowMidAlpha,
+            rotation: _rotation(beam, path),
           ),
       );
     });
+
+    BeamLayerUtils.applySegmentFeather(canvas, rect, geometry);
 
     canvas.restore();
     canvas.restore();
   }
 
-  Shader _window(Rect rect, _Traveller beam, BeamFramePhases phases) =>
-      BeamGradients.radialWindow(
-        center: _anchor(rect, beam),
-        radiusX: _maskRadiusX(rect, beam, lineWindowRadiusX * beam.w),
-        radiusY: lineWindowRadiusY * phases.lineH,
-        midStop: lineWindowMidStop,
-        midAlpha: lineWindowMidAlpha,
-      );
+  Shader _window(
+    Rect rect,
+    _Traveller beam,
+    BeamFramePhases phases, {
+    _PathContext? path,
+  }) => BeamGradients.radialWindow(
+    center: _anchor(rect, beam, path: path),
+    radiusX: _maskRadiusX(rect, beam, lineWindowRadiusX * beam.w),
+    radiusY: lineWindowRadiusY * phases.lineH,
+    midStop: lineWindowMidStop,
+    midAlpha: lineWindowMidAlpha,
+    rotation: _rotation(beam, path),
+  );
 
   // A traveller's colour treatment: the shared fold, then the share of the
   // edge fade the group opacity did not already carry.
@@ -443,21 +681,37 @@ class LineStrategy extends BeamVariantStrategy {
     BeamConfig config,
     List<_Traveller> beams,
     double opacity,
-    bool isDark,
-  ) {
+    bool isDark, {
+    _PathContext? path,
+  }) {
     if (config.sparkle <= 0 || rect.isEmpty) return;
+    if (path != null) {
+      canvas.save();
+      canvas.clipPath(
+        BeamLayerUtils.segmentBandPath(
+          path.geometry,
+          inward: _sparkleSpread,
+          outward: _sparkleSpread,
+        ),
+      );
+    }
     for (var i = 0; i < beams.length; i++) {
       final beam = beams[i];
+      final weight = path == null
+          ? 1.0
+          : path.geometry.segmentWeightAt(beam.fraction!);
+      if (weight <= 0) continue;
       BeamLayerUtils.paintSparkles(
         canvas,
-        center: _anchor(rect, beam),
+        center: _anchor(rect, beam, path: path),
         density: config.sparkle,
         color: isDark ? _white : _black,
-        opacity: opacity * beam.fade,
+        opacity: opacity * beam.fade * weight,
         spread: _sparkleSpread,
         seed: (beam.x * _sparkleSeedSteps).floor() * 7 + i,
       );
     }
+    if (path != null) canvas.restore();
   }
 
   // The fixed bloom spikes at 8/22/36/50/64/78/92% of the edge, plus the
@@ -471,8 +725,9 @@ class LineStrategy extends BeamVariantStrategy {
     bool isDark,
     bool mono,
     Color Function(Color) fold,
-    _Traveller beam,
-  ) {
+    _Traveller beam, {
+    _PathContext? path,
+  }) {
     final palette = config.palette.data;
     final spikeColors = isDark ? palette.spike : palette.spikeLt;
     final table = isDark ? palette.lineBloomDark : palette.lineBloomLight;
@@ -527,16 +782,30 @@ class LineStrategy extends BeamVariantStrategy {
       required Color cMid,
     }) {
       final geometry = lineSpikes[index];
+      // The spike table is authored from the start of the planar edge, so on
+      // a mirrored range its fractions flip with the travel direction and the
+      // seven spikes keep the screen positions the planar variant gives them.
+      final fraction = path == null ? 0.0 : _pathFraction(path, geometry.fx);
+      final center = path == null
+          ? Offset(
+              rect.left + geometry.fx * rect.width,
+              rect.bottom - geometry.yInset,
+            )
+          : path.geometry.perimeter.offsetPointAt(fraction, geometry.yInset);
+      final rotation = path == null
+          ? 0.0
+          : () {
+              final tangent = path.geometry.perimeter.tangentAt(fraction);
+              return math.atan2(tangent.dy, tangent.dx);
+            }();
       BeamLayerUtils.paintRadial(
         canvas,
-        center: Offset(
-          rect.left + geometry.fx * rect.width,
-          rect.bottom - geometry.yInset,
-        ),
+        center: center,
         radiusX: rx,
         radiusY: ry,
         colors: [fold(c0), fold(cMid), fold(cMid.withValues(alpha: 0))],
         stops: [0, geometry.midStop, geometry.endStop],
+        rotation: rotation,
       );
     }
 
@@ -602,7 +871,7 @@ class LineStrategy extends BeamVariantStrategy {
       final dot50 = _white.withValues(alpha: dot[2]);
       BeamLayerUtils.paintRadial(
         canvas,
-        center: _anchor(rect, beam, dy: lineDotOffsetY),
+        center: _anchor(rect, beam, dy: lineDotOffsetY, path: path),
         radiusX: lineDotRadiusX * s,
         radiusY: lineDotRadiusY * s2,
         colors: [
@@ -612,6 +881,7 @@ class LineStrategy extends BeamVariantStrategy {
           fold(dot50.withValues(alpha: 0)),
         ],
         stops: lineDotStops,
+        rotation: _rotation(beam, path),
       );
       final ambient = mono ? lineAmbientAlphasMono : lineAmbientAlphas;
       final ambC = _white.withValues(alpha: ambient[0]);
@@ -619,7 +889,7 @@ class LineStrategy extends BeamVariantStrategy {
       final amb55 = _white.withValues(alpha: ambient[2]);
       BeamLayerUtils.paintRadial(
         canvas,
-        center: _anchor(rect, beam),
+        center: _anchor(rect, beam, path: path),
         radiusX: lineAmbientRadiusX * beam.w,
         radiusY: lineAmbientRadiusY * h,
         colors: [
@@ -629,22 +899,47 @@ class LineStrategy extends BeamVariantStrategy {
           fold(amb55.withValues(alpha: 0)),
         ],
         stops: lineAmbientStops,
+        rotation: _rotation(beam, path),
       );
     } else {
       // Light theme: a traveling dark shadow blob instead of the bright dot.
       BeamLayerUtils.paintRadial(
         canvas,
-        center: _anchor(rect, beam),
+        center: _anchor(rect, beam, path: path),
         radiusX: lineShadowRadiusX * beam.w,
         radiusY: lineShadowRadiusY * h,
         colors: [
           for (final a in lineShadowAlphas) fold(_black.withValues(alpha: a)),
         ],
         stops: lineShadowStops,
+        rotation: _rotation(beam, path),
       );
     }
   }
 }
+
+double _fraction(double value) {
+  final result = value % 1;
+  return result < 0 ? result + 1 : result;
+}
+
+// Where progress [t] along a path-mode run lands on the perimeter. A mirrored
+// range walks its clockwise span backwards, which is what keeps wrapCorners
+// travelling the way the planar variant does.
+double _pathFraction(_PathContext path, double t) =>
+    _fraction(path.from + path.span * (path.mirrored ? 1 - t : t));
+
+double _clockwiseSpan(double from, double to) {
+  final span = _fraction(to - from);
+  return span == 0 ? 1 : span;
+}
+
+BeamSegment _edgeSegment(BeamEdge edge) => switch (edge) {
+  BeamEdge.top => BeamSegment.topEdge,
+  BeamEdge.right => BeamSegment.rightEdge,
+  BeamEdge.bottom => BeamSegment.bottomEdge,
+  BeamEdge.left => BeamSegment.leftEdge,
+};
 
 // Turns the canvas so the authored bottom-edge painting lands on [edge], and
 // returns the size it should be authored against — swapped for the two

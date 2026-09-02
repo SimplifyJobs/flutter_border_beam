@@ -46,18 +46,14 @@ abstract final class BeamGradients {
     required double radiusY,
     required Color color,
     double alpha = 1,
+    double rotation = 0,
   }) {
     final rx = math.max(radiusX, 0.01);
     final ry = math.max(radiusY, 0.01);
     final c = alpha >= 1 ? color : color.withValues(alpha: color.a * alpha);
     if (c.a <= 0) return;
     // Circular gradient of radius rx, scaled vertically to ry about center.
-    final matrix = Float64List.fromList([
-      1, 0, 0, 0, //
-      0, ry / rx, 0, 0, //
-      0, 0, 1, 0, //
-      0, center.dy - center.dy * (ry / rx), 0, 1,
-    ]);
+    final matrix = ellipseTransform(center, ry / rx, rotation);
     final shader = ui.Gradient.radial(
       center,
       rx,
@@ -66,8 +62,13 @@ abstract final class BeamGradients {
       TileMode.clamp,
       matrix,
     );
+    final extent = rotation == 0 ? null : math.max(rx, ry);
     canvas.drawRect(
-      Rect.fromCenter(center: center, width: rx * 2, height: ry * 2),
+      Rect.fromCenter(
+        center: center,
+        width: (extent ?? rx) * 2,
+        height: (extent ?? ry) * 2,
+      ),
       Paint()..shader = shader,
     );
   }
@@ -115,15 +116,11 @@ abstract final class BeamGradients {
     required double radiusY,
     required double midStop,
     required double midAlpha,
+    double rotation = 0,
   }) {
     final rx = math.max(radiusX, 0.01);
     final ry = math.max(radiusY, 0.01);
-    final matrix = Float64List.fromList([
-      1, 0, 0, 0, //
-      0, ry / rx, 0, 0, //
-      0, 0, 1, 0, //
-      0, center.dy - center.dy * (ry / rx), 0, 1,
-    ]);
+    final matrix = ellipseTransform(center, ry / rx, rotation);
     return ui.Gradient.radial(
       center,
       rx,
@@ -169,6 +166,42 @@ abstract final class BeamGradients {
   }
 
   static const Color _white = Color(0xFFFFFFFF);
+
+  /// Scales a circular radial shader into an ellipse and rotates its width
+  /// axis by [rotation] around [center].
+  ///
+  /// The zero-rotation matrix is intentionally the historical matrix byte
+  /// for byte, so callers that do not opt into path-space painting retain
+  /// their existing raster output.
+  static Float64List ellipseTransform(
+    Offset center,
+    double yScale,
+    double rotation,
+  ) {
+    if (rotation == 0) {
+      return Float64List.fromList([
+        1, 0, 0, 0, //
+        0, yScale, 0, 0, //
+        0, 0, 1, 0, //
+        0, center.dy - center.dy * yScale, 0, 1,
+      ]);
+    }
+    final c = math.cos(rotation);
+    final s = math.sin(rotation);
+    final m0 = c;
+    final m1 = s;
+    final m4 = -s * yScale;
+    final m5 = c * yScale;
+    return Float64List.fromList([
+      m0, m1, 0, 0, //
+      m4, m5, 0, 0, //
+      0, 0, 1, 0, //
+      center.dx - m0 * center.dx - m4 * center.dy,
+      center.dy - m1 * center.dx - m5 * center.dy,
+      0,
+      1,
+    ]);
+  }
 }
 
 /// A conic gradient's stop table: parallel stop and alpha lists, as the
