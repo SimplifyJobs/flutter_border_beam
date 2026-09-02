@@ -46,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out flutter_border_beam
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Fetch upstream spec and styles.ts
         run: |

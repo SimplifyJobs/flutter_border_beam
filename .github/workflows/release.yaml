@@ -76,7 +76,7 @@ jobs:
       # Lets `gh release create` write the GitHub Release.
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Order matters — see the header. This step configures the pub.dev
       # credential; the Flutter SDK installed next provides the toolchain.
