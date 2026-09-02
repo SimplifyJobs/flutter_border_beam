@@ -394,9 +394,29 @@ class BeamRingGeometry {
         );
 
   /// The border ring: [outer] minus [inner].
-  late final Path ring = rect.isEmpty
-      ? Path()
-      : Path.combine(PathOperation.difference, outer, inner);
+  late final Path ring = rect.isEmpty ? Path() : _subtract(outer, inner);
+
+  // Subtracts the nested [hole] from [shell].
+  //
+  // `Path.combine(PathOperation.difference, ...)` is unreliable on Flutter web
+  // (CanvasKit): it silently returns the first operand, so the ring collapses
+  // back into the filled shape and every ring-confined layer washes across the
+  // whole child. For the built-in shapes both contours are simple and nested,
+  // so the even-odd fill of the two in one path describes the same region
+  // without a path-ops pass, and renders identically on every backend.
+  //
+  // A custom [contour] can be self-intersecting (a star is), where even-odd
+  // and non-zero disagree and the shortcut would punch a hole of its own — so
+  // those keep the path-ops route.
+  Path _subtract(Path shell, Path hole) {
+    if (contour != null) {
+      return Path.combine(PathOperation.difference, shell, hole);
+    }
+    return Path()
+      ..fillType = PathFillType.evenOdd
+      ..addPath(shell, Offset.zero)
+      ..addPath(hole, Offset.zero);
+  }
 
   Path _shapePath(Rect r, BorderRadius cornerRadii) {
     // A rect with no area (or an inverted one, from deflating past the
@@ -433,9 +453,8 @@ class BeamRingGeometry {
   /// The halo a comet bloom fills: the shape grown by [reach], minus the
   /// content box, so the glow hugs the border and spills outward instead of
   /// washing across the child.
-  Path halo(double reach) => rect.isEmpty
-      ? Path()
-      : Path.combine(PathOperation.difference, grown(reach), inner);
+  Path halo(double reach) =>
+      rect.isEmpty ? Path() : _subtract(grown(reach), inner);
 
   /// [outer] grown outward by [reach], in the shape's own family.
   Path grown(double reach) => contour != null
