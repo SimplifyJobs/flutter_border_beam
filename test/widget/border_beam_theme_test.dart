@@ -5,6 +5,8 @@ import 'package:flutter_border_beam/src/models/beam_config.dart';
 import 'package:flutter_border_beam/src/painting/beam_painter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'test_utils.dart';
+
 Widget _host(Widget child, {bool disableAnimations = false}) => MaterialApp(
   theme: ThemeData(brightness: Brightness.dark),
   builder: (context, app) => MediaQuery(
@@ -266,7 +268,8 @@ void main() {
     testWidgets('a controller with a theme startAfter asserts', (tester) async {
       final controller = BorderBeamController();
       addTearDown(controller.dispose);
-      await tester.pumpWidget(
+      await pumpExpectingAssertion(
+        tester,
         _host(
           BorderBeamTheme(
             data: const BorderBeamThemeData(
@@ -278,14 +281,15 @@ void main() {
             ),
           ),
         ),
+        message: 'When a BorderBeamController is attached it owns playback',
       );
-      expect(tester.takeException(), isAssertionError);
     });
 
     testWidgets('a controller with a theme duration asserts', (tester) async {
       final controller = BorderBeamController();
       addTearDown(controller.dispose);
-      await tester.pumpWidget(
+      await pumpExpectingAssertion(
+        tester,
         _host(
           BorderBeamTheme(
             data: const BorderBeamThemeData(
@@ -297,8 +301,8 @@ void main() {
             ),
           ),
         ),
+        message: 'When a BorderBeamController is attached it owns playback',
       );
-      expect(tester.takeException(), isAssertionError);
     });
 
     testWidgets('an outer theme startAfter reaches a beam under an inner '

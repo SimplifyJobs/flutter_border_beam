@@ -4,6 +4,8 @@ import 'package:flutter_border_beam/src/animation/beam_clock.dart';
 import 'package:flutter_border_beam/src/painting/beam_painter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'test_utils.dart';
+
 Widget _host(Widget child) => MaterialApp(
   theme: ThemeData(brightness: Brightness.dark),
   home: Scaffold(
@@ -155,15 +157,16 @@ void main() {
   });
 
   testWidgets('a non-positive speed asserts', (tester) async {
-    await tester.pumpWidget(
+    await pumpExpectingAssertion(
+      tester,
       _host(
         const BorderBeam.rotate(
           timing: BeamTiming(speed: 0),
           child: SizedBox.expand(),
         ),
       ),
+      message: 'speed must be positive',
     );
-    expect(tester.takeException(), isAssertionError);
   });
 
   group('with a controller attached', () {

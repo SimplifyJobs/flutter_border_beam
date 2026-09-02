@@ -4,6 +4,8 @@ import 'package:flutter_border_beam/src/animation/beam_clock.dart';
 import 'package:flutter_border_beam/src/painting/beam_painter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'test_utils.dart';
+
 Widget _host(Widget child, {bool disableAnimations = false}) => MaterialApp(
   theme: ThemeData(brightness: Brightness.dark),
   builder: (context, app) => MediaQuery(
@@ -261,9 +263,15 @@ void main() {
   testWidgets('a controller inside a group asserts', (tester) async {
     final controller = BorderBeamController();
     addTearDown(controller.dispose);
-    await tester.pumpWidget(
+    // The group is stopped so it never starts a ticker: a build that throws
+    // leaves a tree Flutter 3.35 cannot unmount (`InheritedElement.unmount`
+    // asserts on its dependents), so a ticker started here would outlive the
+    // test and count against the next one.
+    await pumpExpectingAssertion(
+      tester,
       _host(
         BeamSync(
+          active: false,
           child: SizedBox(
             width: 120,
             height: 60,
@@ -274,8 +282,8 @@ void main() {
           ),
         ),
       ),
+      message: 'A BorderBeam under a BeamSync runs on the group clock',
     );
-    expect(tester.takeException(), isAssertionError);
   });
 
   testWidgets('leaving the group hands the beam its own clock', (tester) async {

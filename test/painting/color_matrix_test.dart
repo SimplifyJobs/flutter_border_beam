@@ -125,8 +125,19 @@ void main() {
           useSuperellipse: superellipse,
         );
         expect(g.inner.getBounds().isEmpty, isTrue);
-        // Nothing is carved out: the ring is the whole box.
-        expect(g.ring.getBounds(), g.outer.getBounds());
+        // Nothing is carved out: the ring is the whole box. The ring is
+        // `Path.combine`d rather than added directly, and combining
+        // re-flattens the contour — a superellipse corner comes back a few
+        // ten-thousandths of a pixel off the contour it was built from, by a
+        // margin that varies with the engine's flattening tolerance. Compare
+        // edge by edge with a tolerance instead of asking two Rects to be
+        // bit-identical.
+        final ring = g.ring.getBounds();
+        final outer = g.outer.getBounds();
+        expect(ring.left, closeTo(outer.left, 1e-3));
+        expect(ring.top, closeTo(outer.top, 1e-3));
+        expect(ring.right, closeTo(outer.right, 1e-3));
+        expect(ring.bottom, closeTo(outer.bottom, 1e-3));
         expect(g.ring.contains(const Offset(0.5, 0.5)), isTrue);
       }
     });

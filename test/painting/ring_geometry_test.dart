@@ -64,12 +64,19 @@ void main() {
     useSuperellipse: superellipse,
   );
 
-  void expectBounds(Path path, Rect rect) {
+  // How far a flattened `RSuperellipse` contour may sit from the rect it was
+  // built on. The engine approximates the squircle with curves rather than
+  // tracing it exactly, and that approximation differs between Flutter 3.35
+  // (this package's floor) and current stable by up to 0.12px. Half a pixel
+  // covers both; the rrect family stays pinned to a hundredth.
+  const superellipseSlack = 0.5;
+
+  void expectBounds(Path path, Rect rect, {double tolerance = 0.01}) {
     final bounds = path.getBounds();
-    expect(bounds.left, closeTo(rect.left, 0.01));
-    expect(bounds.top, closeTo(rect.top, 0.01));
-    expect(bounds.right, closeTo(rect.right, 0.01));
-    expect(bounds.bottom, closeTo(rect.bottom, 0.01));
+    expect(bounds.left, closeTo(rect.left, tolerance));
+    expect(bounds.top, closeTo(rect.top, tolerance));
+    expect(bounds.right, closeTo(rect.right, tolerance));
+    expect(bounds.bottom, closeTo(rect.bottom, tolerance));
   }
 
   group('per-corner radii', () {
@@ -88,6 +95,7 @@ void main() {
         expectBounds(
           geometry(rect, radius, superellipse: superellipse).outer,
           rect,
+          tolerance: superellipse ? superellipseSlack : 0.01,
         );
       });
 
@@ -195,7 +203,7 @@ void main() {
 
     test('superellipse clamps too and stays inside the rect', () {
       final outer = geometry(rect, radius, superellipse: true).outer;
-      expectBounds(outer, rect);
+      expectBounds(outer, rect, tolerance: superellipseSlack);
       final corners = cornersOf(rect);
       final (tlPoint, tlInward) = corners['topLeft']!;
       final (trPoint, trInward) = corners['topRight']!;
@@ -260,7 +268,7 @@ void main() {
     test('superellipse stadium is symmetric across all four corners', () {
       const rect = Rect.fromLTWH(0, 0, 200, 40);
       final outer = geometry(rect, infinite, superellipse: true).outer;
-      expectBounds(outer, rect);
+      expectBounds(outer, rect, tolerance: superellipseSlack);
       final entries = [
         for (final (point, inward) in cornersOf(rect).values)
           diagonalEntry(outer, point, inward, 20),

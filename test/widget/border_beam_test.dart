@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'test_utils.dart';
+
 Widget _host(Widget child, {bool disableAnimations = false}) => MaterialApp(
   theme: ThemeData(brightness: Brightness.dark),
   builder: (context, app) => MediaQuery(
@@ -161,7 +163,8 @@ void main() {
     ) async {
       final controller = BorderBeamController();
       addTearDown(controller.dispose);
-      await tester.pumpWidget(
+      await pumpExpectingAssertion(
+        tester,
         _host(
           BorderBeam.rotate(
             controller: controller,
@@ -169,8 +172,8 @@ void main() {
             child: const SizedBox.expand(),
           ),
         ),
+        message: 'When a BorderBeamController is attached it owns playback',
       );
-      expect(tester.takeException(), isAssertionError);
     });
 
     testWidgets('asserts when duration is set with a controller', (
@@ -178,7 +181,8 @@ void main() {
     ) async {
       final controller = BorderBeamController();
       addTearDown(controller.dispose);
-      await tester.pumpWidget(
+      await pumpExpectingAssertion(
+        tester,
         _host(
           BorderBeam.rotate(
             controller: controller,
@@ -186,8 +190,8 @@ void main() {
             child: const SizedBox.expand(),
           ),
         ),
+        message: 'When a BorderBeamController is attached it owns playback',
       );
-      expect(tester.takeException(), isAssertionError);
     });
 
     testWidgets('controller owns playback end to end', (tester) async {
