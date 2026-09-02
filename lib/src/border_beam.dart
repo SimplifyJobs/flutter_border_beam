@@ -562,7 +562,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
   BeamClock? _ownClock;
   BeamClock? _sharedClock;
   Timer? _startTimer;
-  Timer? _durationTimer;
+  double? _durationStartedAt;
 
   BeamConfig? _config;
   BeamPhaseResolver? _resolver;
@@ -646,10 +646,23 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     validateBeamTiming(timing);
     validateRepeat(playback.repeat);
     final previousCycle = _cycleSeconds;
+    final previousGap =
+        (_timing.cycleGap ?? Duration.zero).inMicroseconds /
+        Duration.microsecondsPerSecond;
     _playback = playback;
     _timing = timing;
     _cycleSeconds = _cycleSecondsOf(timing, widget.variant);
-    if (retime) _retimeToNewCycle(previousCycle, _cycleSeconds);
+    final nextGap =
+        (timing.cycleGap ?? Duration.zero).inMicroseconds /
+        Duration.microsecondsPerSecond;
+    if (retime) {
+      _retimeToNewCycle(
+        previousCycle,
+        _cycleSeconds,
+        oldGap: previousGap,
+        newGap: nextGap,
+      );
+    }
     _applySpeed();
     _applyFadeCurve();
     _syncResolverPlayback();
@@ -680,6 +693,98 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     _clock.speed = base * factor;
   }
 
+  void _scheduleAutoplayStart() {
+    _startTimer?.cancel();
+    _startTimer = null;
+    if (_synced ||
+        widget.controller != null ||
+        !_autoPlay ||
+        !_active ||
+        _frozen ||
+        _clock.isVisible) {
+      return;
+    }
+    final delay = _playback.startAfter;
+    if (delay == null) {
+      _start();
+      return;
+    }
+    _startTimer = Timer(delay, () {
+      _startTimer = null;
+      if (!mounted ||
+          _synced ||
+          widget.controller != null ||
+          !_autoPlay ||
+          !_active) {
+        return;
+      }
+      _start();
+    });
+  }
+
+  void _applyReducedMotionChange() {
+    final reduced = _reduced;
+    if (reduced == _reducedApplied) return;
+    _reducedApplied = reduced;
+    _applySpeed();
+    // A group clock follows BeamSync's group-level policy.
+    if (_synced) return;
+    if (_motionFrozen) {
+      _pauseForReducedMotion();
+    } else {
+      _leaveReducedMotion();
+    }
+  }
+
+  void _applySchedulingTransition(
+    BeamPlayback previous, {
+    required bool controllerChanged,
+  }) {
+    final wasActive = previous.active ?? true;
+    final wasAutoPlay = previous.autoPlay ?? true;
+    final activeChanged = wasActive != _active;
+
+    if (_synced || widget.controller != null) {
+      _startTimer?.cancel();
+      _startTimer = null;
+      _clearDurationBudget();
+      return;
+    }
+
+    if (activeChanged) {
+      _startTimer?.cancel();
+      _startTimer = null;
+      if (_active) {
+        _start();
+      } else {
+        _clearDurationBudget();
+        _clock.deactivate();
+      }
+      return;
+    }
+
+    final startScheduleChanged =
+        wasAutoPlay != _autoPlay ||
+        previous.startAfter != _playback.startAfter ||
+        controllerChanged;
+    if (startScheduleChanged && !_hasStarted) {
+      if (_autoPlay) {
+        _scheduleAutoplayStart();
+      } else {
+        _startTimer?.cancel();
+        _startTimer = null;
+      }
+    }
+
+    if (previous.duration != _playback.duration) {
+      if (_clock.isVisible && _playback.duration != null) {
+        _armDurationBudget();
+      } else {
+        _clearDurationBudget();
+      }
+    }
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -687,33 +792,18 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     // initState. Reduced motion is also tracked here, where a change to it
     // is delivered, as is the enclosing BeamSync.
     final first = !_autoPlayScheduled;
+    final previousPlayback = _playback;
     _adoptSharedClock(BeamSync.clockOf(context));
     _resolveScheduling(retime: !first);
-    final reduced = _reduced;
     if (first) {
       _autoPlayScheduled = true;
-      _reducedApplied = reduced;
+      _reducedApplied = _reduced;
       _applySpeed();
-      if (!_synced && widget.controller == null && _autoPlay && _active) {
-        final startAfter = _playback.startAfter;
-        if (startAfter != null) {
-          _startTimer = Timer(startAfter, _start);
-        } else {
-          _start();
-        }
-      }
+      _scheduleAutoplayStart();
       return;
     }
-    if (reduced == _reducedApplied) return;
-    _reducedApplied = reduced;
-    _applySpeed();
-    // A group clock is BeamSync's to freeze, not one member's.
-    if (_synced) return;
-    if (_motionFrozen) {
-      _pauseForReducedMotion();
-    } else {
-      _leaveReducedMotion();
-    }
+    _applyReducedMotionChange();
+    _applySchedulingTransition(previousPlayback, controllerChanged: false);
   }
 
   // Moves this beam onto (or off) a BeamSync group clock.
@@ -727,6 +817,9 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     );
     _detachTickListener();
     if (shared != null) {
+      _startTimer?.cancel();
+      _startTimer = null;
+      _durationStartedAt = null;
       final own = _ownClock;
       _ownClock = null;
       _sharedClock = shared;
@@ -785,7 +878,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     // the timeline, and keeps the shift.
     if (!_clock.isVisible) _setHueTimeOffset(0);
     _clock.activate();
-    _armDurationTimer();
+    _armDurationBudget();
   }
 
   void _setHueTimeOffset(double seconds) {
@@ -799,19 +892,54 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
   // the fixed-period hue tracks, which do not scale with the cycle. A
   // cycle-gap change needs none of this: the sweep keeps its position and the
   // rest simply appears at the next cycle end.
-  void _retimeToNewCycle(double oldCycle, double newCycle) {
+  void _retimeToNewCycle(
+    double oldCycle,
+    double newCycle, {
+    required double oldGap,
+    required double newGap,
+  }) {
     if (!_clock.isVisible || oldCycle <= 0 || oldCycle == newCycle) return;
+    if (widget.variant.isPulse) {
+      oldGap = 0;
+      newGap = 0;
+    }
     final before = _clock.elapsedSeconds;
-    _clock.retime(newCycle / oldCycle);
+    final oldPeriod = oldCycle + oldGap;
+    final newPeriod = newCycle + newGap;
+    final completed = oldPeriod <= 0 ? 0 : (before / oldPeriod).floor();
+    final local = oldPeriod <= 0 ? before : before - completed * oldPeriod;
+    final newLocal = local < oldCycle || oldGap <= 0
+        ? local * newCycle / oldCycle
+        : newCycle + (local - oldCycle) * newGap / oldGap;
+    final target = completed * newPeriod + newLocal;
+    _clock.retime(before == 0 ? newCycle / oldCycle : target / before);
     _setHueTimeOffset(_hueTimeOffset + before - _clock.elapsedSeconds);
   }
 
-  void _armDurationTimer() {
-    _durationTimer?.cancel();
+  void _armDurationBudget() {
     final duration = _playback.duration;
     if (widget.controller == null && duration != null) {
-      _durationTimer = Timer(duration, _clock.deactivate);
+      _durationStartedAt = _clock.activeSeconds;
+    } else {
+      _durationStartedAt = null;
     }
+    _syncTickListener();
+  }
+
+  void _clearDurationBudget() {
+    _durationStartedAt = null;
+    _syncTickListener();
+  }
+
+  void _checkDurationBudget() {
+    final startedAt = _durationStartedAt;
+    final duration = _playback.duration;
+    if (startedAt == null || duration == null) return;
+    final allowed = duration.inMicroseconds / Duration.microsecondsPerSecond;
+    if (_clock.activeSeconds - startedAt < allowed) return;
+    _durationStartedAt = null;
+    _clock.deactivate();
+    _syncTickListener();
   }
 
   void _onFadeComplete(bool active) {
@@ -826,7 +954,10 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
   /// asking for it (or this beam ignores the ask).
   BeamReducedMotion? get _reduced {
     if (!(MediaQuery.maybeDisableAnimationsOf(context) ?? false)) return null;
-    final mode = _playback.reducedMotion ?? BeamReducedMotion.staticFrame;
+    final mode =
+        BeamSync.reducedMotionOf(context) ??
+        _playback.reducedMotion ??
+        BeamReducedMotion.staticFrame;
     return mode == BeamReducedMotion.animate ? null : mode;
   }
 
@@ -849,6 +980,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     final needed =
         widget.follow != null ||
         _followValue != null ||
+        _durationStartedAt != null ||
         (!_synced && _playback.repeat?.cycles != null);
     if (!needed) {
       _detachTickListener();
@@ -872,6 +1004,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     // A restart rewinds the timeline and a retime rescales it; neither step
     // is a frame's worth of time, so it is dropped rather than eased across.
     if (dt > 0 && dt < 0.25) _advanceFollow(dt);
+    _checkDurationBudget();
     _checkRepeatBudget();
   }
 
@@ -1035,8 +1168,9 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
   @override
   void didUpdateWidget(BorderBeam oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final wasActive = _active;
-    if (oldWidget.controller != widget.controller) {
+    final previousPlayback = _playback;
+    final controllerChanged = oldWidget.controller != widget.controller;
+    if (controllerChanged) {
       oldWidget.controller?.detach(_clock);
       widget.controller?.attach(_clock);
     }
@@ -1059,27 +1193,23 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
       _syncTickListener();
       if (wasVisible && widget.controller == null && _active) _start();
     }
+    _applyReducedMotionChange();
+    _applySchedulingTransition(
+      previousPlayback,
+      controllerChanged: controllerChanged,
+    );
     // The pointer left: release now rather than waiting for a tick, which a
     // paused or stopped clock would never deliver.
     if (widget.follow == null && _followValue != null) {
       _releaseFollow();
       _syncTickListener();
     }
-    if (!_synced && widget.controller == null && wasActive != _active) {
-      _startTimer?.cancel();
-      if (_active) {
-        _start();
-      } else {
-        _durationTimer?.cancel();
-        _clock.deactivate();
-      }
-    }
   }
 
   @override
   void dispose() {
     _startTimer?.cancel();
-    _durationTimer?.cancel();
+    _durationStartedAt = null;
     widget.speedListenable?.removeListener(_applySpeed);
     _scrollPosition?.removeListener(_onScrollChanged);
     _scrollPosition = null;

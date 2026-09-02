@@ -450,6 +450,45 @@ void main() {
       }
     });
 
+    testWidgets('offscreen time does not consume a duration budget', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _app(
+          ListView.builder(
+            // ignore: deprecated_member_use
+            cacheExtent: 4000,
+            itemCount: 12,
+            itemBuilder: (context, index) => index == 6
+                ? SizedBox(
+                    key: const ValueKey(6),
+                    height: 200,
+                    child: const BorderBeam.rotate(
+                      playback: BeamPlayback(duration: Duration(seconds: 1)),
+                      child: SizedBox.expand(),
+                    ),
+                  )
+                : const SizedBox(height: 200),
+          ),
+          size: const Size(400, 600),
+        ),
+      );
+      await tester.pump();
+      final clock = _clockAt(tester, 6);
+      expect(clock.isRunning, isFalse, reason: 'the beam starts offscreen');
+
+      await tester.pump(const Duration(seconds: 2));
+      expect(clock.isVisible, isTrue);
+      expect(clock.stage, isNot(BeamFadeStage.fadingOut));
+
+      await tester.drag(find.byType(ListView), const Offset(0, -1200));
+      await tester.pump();
+      await tester.pump();
+      expect(clock.isRunning, isTrue);
+      await tester.pump(const Duration(milliseconds: 1100));
+      expect(clock.stage, BeamFadeStage.fadingOut);
+    });
+
     testWidgets('a beam outside any scrollable is never paused', (
       tester,
     ) async {

@@ -199,6 +199,36 @@ void main() {
       await tester.pumpWidget(build(0.5));
       expect(_beamPainter(tester).clock.elapsedSeconds, closeTo(0.9, 1e-9));
     });
+
+    testWidgets('retiming during a gap preserves the gap phase', (
+      tester,
+    ) async {
+      Widget build(Duration cycle) => _host(
+        BorderBeam.rotate(
+          timing: BeamTiming(
+            cycle: cycle,
+            cycleGap: const Duration(seconds: 1),
+          ),
+          child: const SizedBox.expand(),
+        ),
+      );
+
+      await tester.pumpWidget(build(const Duration(seconds: 2)));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 2500));
+      final before = _frame(tester);
+      expect(before.phases.travelProgress, 1);
+      expect(before.phases.fadeOpacity, 0);
+
+      await tester.pumpWidget(build(const Duration(seconds: 4)));
+      final after = _frame(tester);
+      expect(after.painter.clock.elapsedSeconds, closeTo(4.5, 1e-9));
+      expect(after.phases.travelProgress, 1);
+      expect(
+        after.phases.fadeOpacity,
+        closeTo(before.phases.fadeOpacity, 1e-9),
+      );
+    });
   });
 
   group('reduced motion', () {
@@ -343,6 +373,69 @@ void main() {
   });
 
   group('widget updates', () {
+    testWidgets('enabling autoPlay applies startAfter from the new schedule', (
+      tester,
+    ) async {
+      Widget build(bool autoPlay) => _host(
+        BorderBeam.rotate(
+          playback: BeamPlayback(
+            autoPlay: autoPlay,
+            startAfter: const Duration(milliseconds: 500),
+          ),
+          child: const SizedBox.expand(),
+        ),
+      );
+
+      await tester.pumpWidget(build(false));
+      await tester.pump(const Duration(seconds: 1));
+      expect(_beamPainter(tester).clock.isVisible, isFalse);
+
+      await tester.pumpWidget(build(true));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(_beamPainter(tester).clock.isVisible, isFalse);
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(_beamPainter(tester).clock.isVisible, isTrue);
+    });
+
+    testWidgets('changing a pending startAfter reschedules the start', (
+      tester,
+    ) async {
+      Widget build(Duration delay) => _host(
+        BorderBeam.rotate(
+          playback: BeamPlayback(startAfter: delay),
+          child: const SizedBox.expand(),
+        ),
+      );
+
+      await tester.pumpWidget(build(const Duration(seconds: 2)));
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpWidget(build(const Duration(milliseconds: 100)));
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(_beamPainter(tester).clock.isVisible, isTrue);
+    });
+
+    testWidgets('changing duration starts a fresh budget from the update', (
+      tester,
+    ) async {
+      Widget build(Duration? duration) => _host(
+        BorderBeam.rotate(
+          playback: BeamPlayback(duration: duration),
+          child: const SizedBox.expand(),
+        ),
+      );
+
+      await tester.pumpWidget(build(null));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 800));
+      final clock = _beamPainter(tester).clock;
+
+      await tester.pumpWidget(build(const Duration(seconds: 1)));
+      await tester.pump(const Duration(milliseconds: 900));
+      expect(clock.stage, isNot(BeamFadeStage.fadingOut));
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(clock.stage, BeamFadeStage.fadingOut);
+    });
+
     testWidgets('a variant swap keeps visibility and restarts the clock', (
       tester,
     ) async {

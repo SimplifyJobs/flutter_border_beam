@@ -356,6 +356,34 @@ void main() {
       expect(clock.boost, 1);
     });
 
+    testWidgets('cycle retiming preserves a pulse envelope in progress', (
+      tester,
+    ) async {
+      final controller = BorderBeamController();
+      addTearDown(controller.dispose);
+      Widget build(Duration cycle) => _host(
+        BorderBeam.rotate(
+          controller: controller,
+          timing: BeamTiming(cycle: cycle),
+          child: const SizedBox.expand(),
+        ),
+      );
+
+      await tester.pumpWidget(build(const Duration(seconds: 2)));
+      controller.start();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 700));
+      final clock = _clock(tester);
+      controller.pulse();
+      await tester.pump(const Duration(milliseconds: 100));
+      final before = clock.boost;
+
+      await tester.pumpWidget(build(const Duration(seconds: 4)));
+      expect(clock.boost, closeTo(before, 1e-9));
+      await tester.pump(const Duration(milliseconds: 140));
+      expect(clock.boost, closeTo(BeamClock.pulsePeak, 1e-6));
+    });
+
     testWidgets('both are no-ops while the beam is hidden', (tester) async {
       final controller = BorderBeamController();
       addTearDown(controller.dispose);

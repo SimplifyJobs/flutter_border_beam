@@ -78,6 +78,7 @@ class BeamClock extends ChangeNotifier {
   Ticker? _ticker;
   Duration _lastRaw = Duration.zero;
   double _elapsed = 0;
+  double _activeSeconds = 0;
   double _speed = 1;
   BeamFadeStage _stage = BeamFadeStage.none;
   double _fadeStart = 0;
@@ -88,6 +89,13 @@ class BeamClock extends ChangeNotifier {
 
   /// Elapsed animation time in (speed-scaled) seconds.
   double get elapsedSeconds => _elapsed;
+
+  /// Unscaled wall time accumulated while the ticker is running.
+  ///
+  /// Unlike [elapsedSeconds], this is unaffected by playback speed and does
+  /// not advance while paused. Scheduling uses it for duration limits so an
+  /// offscreen pause suspends the remaining play time too.
+  double get activeSeconds => _activeSeconds;
 
   /// Whether the ticker is currently producing frames.
   bool get isRunning => _ticker?.isActive ?? false;
@@ -227,6 +235,7 @@ class BeamClock extends ChangeNotifier {
     _elapsed += shift;
     _fadeStart += shift;
     _lastNotify += shift;
+    _boost = _boost?.shiftedBy(shift);
     notifyListeners();
   }
 
@@ -235,6 +244,7 @@ class BeamClock extends ChangeNotifier {
   void showStatic() {
     _visible = true;
     _stage = BeamFadeStage.none;
+    _ticker?.stop();
     notifyListeners();
   }
 
@@ -252,6 +262,7 @@ class BeamClock extends ChangeNotifier {
     final deltaSeconds =
         (raw - _lastRaw).inMicroseconds / Duration.microsecondsPerSecond;
     _lastRaw = raw;
+    _activeSeconds += deltaSeconds;
     _elapsed += deltaSeconds * _speed;
 
     var mustNotify = true;
@@ -320,6 +331,14 @@ class _Boost {
 
   _Boost startingAt(double now) =>
       _Boost(peak: peak, rise: rise, hold: hold, fall: fall, startedAt: now);
+
+  _Boost shiftedBy(double shift) => _Boost(
+    peak: peak,
+    rise: rise,
+    hold: hold,
+    fall: fall,
+    startedAt: startedAt + shift,
+  );
 
   bool isDoneAt(double now) => now - startedAt >= _total;
 

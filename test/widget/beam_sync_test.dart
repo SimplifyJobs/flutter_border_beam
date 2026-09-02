@@ -220,6 +220,55 @@ void main() {
     expect(_painters(tester).first.staticMode, isFalse);
   });
 
+  testWidgets('returning to active under reduced motion stops a fade ticker', (
+    tester,
+  ) async {
+    Widget build(bool active) => _host(
+      disableAnimations: true,
+      BeamSync(active: active, child: _beam()),
+    );
+
+    await tester.pumpWidget(build(true));
+    expect(tester.binding.transientCallbackCount, 0);
+    await tester.pumpWidget(build(false));
+    expect(tester.binding.transientCallbackCount, 1);
+    await tester.pumpWidget(build(true));
+    expect(tester.binding.transientCallbackCount, 0);
+    expect(_painters(tester).first.clock.isRunning, isFalse);
+  });
+
+  testWidgets('the group can opt into full motion under reduced motion', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _host(
+        disableAnimations: true,
+        BeamSync(reducedMotion: BeamReducedMotion.animate, child: _beam()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    final painter = _painters(tester).first;
+    expect(painter.staticMode, isFalse);
+    expect(painter.clock.isRunning, isTrue);
+    expect(painter.clock.elapsedSeconds, closeTo(0.2, 1e-9));
+  });
+
+  testWidgets('the group slow policy scales its shared clock', (tester) async {
+    await tester.pumpWidget(
+      _host(
+        disableAnimations: true,
+        BeamSync(reducedMotion: BeamReducedMotion.slow, child: _beam()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    final painter = _painters(tester).first;
+    expect(painter.staticMode, isFalse);
+    expect(painter.clock.speed, 0.25);
+    expect(painter.clock.elapsedSeconds, closeTo(0.25, 1e-9));
+  });
+
   testWidgets('disposing the group leaves no ticker behind', (tester) async {
     await tester.pumpWidget(
       _host(

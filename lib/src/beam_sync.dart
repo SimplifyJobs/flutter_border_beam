@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'animation/beam_clock.dart';
+import 'models/beam_options.dart';
 
 /// Runs every [BorderBeam] below it off one shared clock, so a group of
 /// beams animates in lockstep.
@@ -40,8 +41,10 @@ import 'animation/beam_clock.dart';
 /// and [speed] here instead. A `BorderBeamController` is playback control
 /// for one beam and asserts if it meets a [BeamSync].
 ///
-/// Reduced motion pauses the shared clock for the whole group; each beam
-/// still paints according to its own `BeamPlayback.reducedMotion`.
+/// Reduced motion is necessarily group-owned too: one shared clock cannot
+/// simultaneously be static for one member and run slowly for another. Set
+/// [reducedMotion] here; per-beam reduced-motion settings are ignored while
+/// they are below a [BeamSync].
 class BeamSync extends StatefulWidget {
   /// Creates a scope whose descendant beams share one clock.
   const BeamSync({
@@ -49,6 +52,7 @@ class BeamSync extends StatefulWidget {
     required this.child,
     this.active = true,
     this.speed = 1,
+    this.reducedMotion = BeamReducedMotion.staticFrame,
   });
 
   /// The subtree whose beams share the clock.
@@ -61,10 +65,19 @@ class BeamSync extends StatefulWidget {
   /// Playback rate for the group; must be positive.
   final double speed;
 
+  /// How the whole group responds to the platform reduced-motion request.
+  final BeamReducedMotion reducedMotion;
+
   /// The shared clock for [context], or null when there is no enclosing
   /// [BeamSync]. Internal — do not call from application code.
   static BeamClock? clockOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<BeamSyncScope>()?.clock;
+
+  /// The reduced-motion policy owned by the nearest group, or null when the
+  /// beam is not synchronized.
+  static BeamReducedMotion? reducedMotionOf(BuildContext context) => context
+      .dependOnInheritedWidgetOfExactType<BeamSyncScope>()
+      ?.reducedMotion;
 
   @override
   State<BeamSync> createState() => _BeamSyncState();
@@ -74,7 +87,8 @@ class BeamSync extends StatefulWidget {
     super.debugFillProperties(properties);
     properties
       ..add(FlagProperty('active', value: active, ifFalse: 'stopped'))
-      ..add(DoubleProperty('speed', speed, defaultValue: 1.0));
+      ..add(DoubleProperty('speed', speed, defaultValue: 1.0))
+      ..add(EnumProperty<BeamReducedMotion>('reducedMotion', reducedMotion));
   }
 }
 
@@ -85,6 +99,35 @@ class _BeamSyncState extends State<BeamSync>
 
   bool _started = false;
   bool _reduced = false;
+
+  void _applySpeed() {
+    final factor = _reduced && widget.reducedMotion == BeamReducedMotion.slow
+        ? 0.25
+        : 1.0;
+    _clock.speed = widget.speed * factor;
+  }
+
+  void _applyReducedMotion() {
+    _applySpeed();
+    if (!widget.active) return;
+    if (!_reduced || widget.reducedMotion == BeamReducedMotion.animate) {
+      if (_clock.isVisible) {
+        _clock.resume();
+      } else {
+        _clock.activate();
+      }
+      return;
+    }
+    if (widget.reducedMotion == BeamReducedMotion.slow) {
+      if (_clock.isVisible) {
+        _clock.resume();
+      } else {
+        _clock.activate();
+      }
+      return;
+    }
+    _clock.showStatic();
+  }
 
   @override
   void didChangeDependencies() {
@@ -98,31 +141,22 @@ class _BeamSyncState extends State<BeamSync>
     if (!_started) {
       _started = true;
       if (!widget.active) return;
-      if (reduced) {
-        _clock.showStatic();
-      } else {
-        _clock.activate();
-      }
+      _applyReducedMotion();
       return;
     }
-    if (reduced) {
-      _clock.pause();
-    } else {
-      _clock.resume();
-    }
+    _applyReducedMotion();
   }
 
   @override
   void didUpdateWidget(BeamSync oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.speed != oldWidget.speed) _clock.speed = widget.speed;
+    if (widget.speed != oldWidget.speed ||
+        widget.reducedMotion != oldWidget.reducedMotion) {
+      _applyReducedMotion();
+    }
     if (widget.active == oldWidget.active) return;
     if (widget.active) {
-      if (_reduced) {
-        _clock.showStatic();
-      } else {
-        _clock.activate();
-      }
+      _applyReducedMotion();
     } else {
       _clock.deactivate();
     }
@@ -135,19 +169,31 @@ class _BeamSyncState extends State<BeamSync>
   }
 
   @override
-  Widget build(BuildContext context) =>
-      BeamSyncScope(clock: _clock, child: widget.child);
+  Widget build(BuildContext context) => BeamSyncScope(
+    clock: _clock,
+    reducedMotion: widget.reducedMotion,
+    child: widget.child,
+  );
 }
 
 /// Carries a [BeamSync]'s shared clock down the tree. Internal — read it
 /// through [BeamSync.clockOf].
 class BeamSyncScope extends InheritedWidget {
   /// Creates the scope for [clock].
-  const BeamSyncScope({super.key, required this.clock, required super.child});
+  const BeamSyncScope({
+    super.key,
+    required this.clock,
+    required this.reducedMotion,
+    required super.child,
+  });
 
   /// The clock every beam in this subtree runs on.
   final BeamClock clock;
 
+  /// Group-owned reduced-motion behavior.
+  final BeamReducedMotion reducedMotion;
+
   @override
-  bool updateShouldNotify(BeamSyncScope oldWidget) => oldWidget.clock != clock;
+  bool updateShouldNotify(BeamSyncScope oldWidget) =>
+      oldWidget.clock != clock || oldWidget.reducedMotion != reducedMotion;
 }

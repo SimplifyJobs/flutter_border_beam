@@ -243,7 +243,8 @@ class BeamPhaseResolver {
       t + config.phaseOffset * config.cycleSeconds + travelTimeOffset;
 
   int _cycleIndex(double shifted) {
-    final period = config.cycleSeconds + config.gapSeconds;
+    final period =
+        config.cycleSeconds + (config.variant.isPulse ? 0 : config.gapSeconds);
     return period <= 0 ? 0 : (shifted / period).floor();
   }
 

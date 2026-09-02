@@ -306,9 +306,11 @@ void main() {
       expect(resolver.finishedAt(cycleSeconds * 0.6), isTrue);
     });
 
-    test('the pulse variants report it too', () {
-      final resolver = resolverFor(variant: BeamVariant.pulseInside)
-        ..repeatCycles = 2;
+    test('pulse repeat ignores a configured cycle gap', () {
+      final resolver = resolverFor(
+        variant: BeamVariant.pulseInside,
+        cycleGap: const Duration(seconds: 1),
+      )..repeatCycles = 2;
       final period = resolver.config.cycleSeconds;
       expect(resolver.sample(2 * period - 0.01, 1).finished, isFalse);
       expect(resolver.sample(2 * period + 0.01, 1).finished, isTrue);
