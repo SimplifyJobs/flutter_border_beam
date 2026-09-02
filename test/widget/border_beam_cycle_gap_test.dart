@@ -229,6 +229,56 @@ void main() {
       expect(phases.travelProgress, closeTo(1, 1e-9));
     });
 
+    testWidgets('a follow hand-back survives a cycle change', (tester) async {
+      Widget build({required Duration cycle, Offset? follow}) => _host(
+        BorderBeam.rotate(
+          timing: BeamTiming(cycle: cycle),
+          follow: follow,
+          child: const SizedBox.expand(),
+        ),
+      );
+
+      const short = Duration(seconds: 4);
+      await tester.pumpWidget(build(cycle: short));
+      await tester.pump();
+
+      // Hand the sweep to a pointer parked most of a cycle behind the clock,
+      // let it settle, then let go: the beam carries a large negative travel
+      // offset from here on, which puts the shifted timeline behind zero.
+      await tester.pumpWidget(
+        build(cycle: short, follow: const Offset(0, 0.5)),
+      );
+      for (var i = 0; i < 40; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await tester.pumpWidget(build(cycle: short));
+      final before = _painter(tester);
+      final offset = before.resolver.travelTimeOffset;
+      expect(
+        offset,
+        lessThan(-before.clock.elapsedSeconds),
+        reason:
+            'the hand-back must outweigh elapsed for the shift to go '
+            'negative',
+      );
+      final progress = before.resolver
+          .sample(before.clock.elapsedSeconds, 1)
+          .travelProgress;
+
+      await tester.pumpWidget(build(cycle: const Duration(seconds: 16)));
+      final after = _painter(tester);
+      expect(
+        after.resolver.travelTimeOffset,
+        closeTo(offset, 1e-9),
+        reason: 'a rebuilt resolver keeps the hand-back',
+      );
+      expect(
+        after.resolver.sample(after.clock.elapsedSeconds, 1).travelProgress,
+        closeTo(progress, 1e-6),
+        reason: 'the retime target is lifted by whole periods, not refused',
+      );
+    });
+
     testWidgets('adding a gap to a running beam needs no retime either', (
       tester,
     ) async {

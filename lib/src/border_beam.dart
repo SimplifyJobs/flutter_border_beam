@@ -611,6 +611,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
   ScrollPosition? _scrollPosition;
   bool _offscreenCheckScheduled = false;
   double _hueTimeOffset = 0;
+  double _travelTimeOffset = 0;
 
   @override
   void initState() {
@@ -889,6 +890,11 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     _resolver?.hueTimeOffset = seconds;
   }
 
+  void _setTravelTimeOffset(double seconds) {
+    _travelTimeOffset = seconds;
+    _resolver?.travelTimeOffset = seconds;
+  }
+
   // A cycle-duration change mid-run must not snap the beam. Rescaling
   // elapsed time by the cycle ratio holds every cycle-derived track at its
   // current fraction; shifting the hue clock back by the same amount holds
@@ -916,7 +922,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     // in the gap sits at a different point of the period than its elapsed
     // time alone says, and segmenting the raw timeline would drop it into
     // the middle of the sweep.
-    final travel = _resolver?.travelTimeOffset ?? 0;
+    final travel = _travelTimeOffset;
     final shifted = before + oldPhase * oldCycle + travel;
     final completed = oldPeriod <= 0 ? 0 : (shifted / oldPeriod).floor();
     final local = oldPeriod <= 0 ? shifted : shifted - completed * oldPeriod;
@@ -926,8 +932,16 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     // Back out of the shifted timeline: the resolver re-applies the new
     // offset and the unchanged travel hand-back on top of what the clock
     // reports.
-    final target =
+    var target =
         completed * newPeriod + newLocal - newPhase * newCycle - travel;
+    // A follow hand-back leaves a negative travel offset behind, so backing
+    // it out can put the target at or below zero even though the phase it
+    // names is perfectly valid. Every track the target feeds is periodic, so
+    // lift it by whole periods into a clock time that exists rather than
+    // refusing the retime and letting the beam jump.
+    if (target <= 0 && newPeriod > 0) {
+      target += newPeriod * (1 + (-target / newPeriod).floor());
+    }
     final factor = before == 0 ? newCycle / oldCycle : target / before;
     if (!factor.isFinite || factor <= 0) return;
     _clock.retime(factor);
@@ -1099,7 +1113,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     // Travel time always runs forward; a mirrored cycle spends it backwards.
     if (phases.reversedNow) delta = -delta;
     delta = ((delta + 0.5) % 1.0) - 0.5;
-    resolver.travelTimeOffset += delta * _cycleSeconds;
+    _setTravelTimeOffset(_travelTimeOffset + delta * _cycleSeconds);
   }
 
   // ─── Offscreen pause ────────────────────────────────────────────────────
@@ -1266,7 +1280,12 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
         timing: timing,
         textDirection: textDirection,
       );
-      _resolver = BeamPhaseResolver(_config!)..hueTimeOffset = _hueTimeOffset;
+      // A config change rebuilds the resolver, and both time offsets are
+      // timeline state the beam has already committed to: dropping them would
+      // snap the hue back and throw away a follow hand-back.
+      _resolver = BeamPhaseResolver(_config!)
+        ..hueTimeOffset = _hueTimeOffset
+        ..travelTimeOffset = _travelTimeOffset;
       _syncResolverPlayback();
     }
     return _config!;

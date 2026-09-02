@@ -7,8 +7,8 @@ import '../gradient_builders.dart';
 /// Reads a pulse table's color source, cycling a short custom spec palette.
 ///
 /// [border] is never empty: every palette that reaches the painter resolves
-/// through `BeamColors`, which asserts on an empty table in debug and
-/// substitutes the default one in release.
+/// through `BeamColors`, and `validateColorTable` rejects an empty table
+/// there — in release builds as well as debug ones.
 BeamBlob pulseBlobAt(List<BeamBlob> border, int index) =>
     border[index % border.length];
 
