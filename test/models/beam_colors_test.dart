@@ -163,6 +163,39 @@ void main() {
       expect(identical(spec.resolve(), spec.resolve()), isTrue);
     });
 
+    test('mutable custom inputs cannot corrupt the value cache', () {
+      final colors = <Color>[const Color(0xFFFF0000)];
+      final custom = BeamColors.custom(colors);
+      final red = custom.resolve();
+
+      colors[0] = const Color(0xFF0000FF);
+      final blue = custom.resolve();
+
+      expect(identical(blue, red), isFalse);
+      expect(blue.data.border.first.color, const Color(0xFF0000FF));
+      expect(
+        identical(blue, BeamColors.custom(const [Color(0xFF0000FF)]).resolve()),
+        isTrue,
+        reason: 'the mutated value should use a new stable cache key',
+      );
+    });
+
+    test('mutable spec inputs cannot corrupt the value cache', () {
+      final border = <BeamBlob>[_blobA];
+      final spec = BeamColors.spec(border: border);
+      final first = spec.resolve();
+
+      border[0] = _blobB;
+      final second = spec.resolve();
+
+      expect(identical(second, first), isFalse);
+      expect(second.data.border, [_blobB]);
+      expect(
+        identical(second, const BeamColors.spec(border: [_blobB]).resolve()),
+        isTrue,
+      );
+    });
+
     test('custom distributes colors and preserves preset alpha', () {
       final palette = BeamColors.custom(const [Color(0xFFFF00AA)]).resolve();
       final reference = BeamColors.colorful.resolve();
@@ -368,6 +401,15 @@ void main() {
           h: BeamColors.fromSeed(_brand, harmony: h).resolve().data.border[1],
       };
       expect(tables.values.map((b) => b.color).toSet(), hasLength(4));
+    });
+
+    test('analogous harmony wraps hues below zero', () {
+      final palette = const BeamColors.fromSeed(Color(0xFFFF0000)).resolve();
+      expect(palette.data.border, hasLength(9));
+      expect(
+        HSLColor.fromColor(palette.data.border[2].color).hue,
+        closeTo(335, 1),
+      );
     });
 
     test('triadic spreads the seed hue by 120 degrees', () {

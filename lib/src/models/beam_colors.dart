@@ -63,6 +63,9 @@ enum BeamSeedHarmony {
 sealed class BeamColors {
   const BeamColors._();
 
+  /// Immutable value used by the resolved-palette LRU.
+  Object get _cacheKey;
+
   /// Rainbow spectrum. The default.
   static const BeamColors colorful = _PresetBeamColors(colorfulPreset);
 
@@ -226,21 +229,42 @@ const int _paletteCacheCapacity = 32;
 
 // Insertion-ordered, so the first key is the least recently used: a hit
 // re-inserts its key at the end, and an overflowing insert drops the front.
-final LinkedHashMap<BeamColors, BeamPalette> _paletteCache =
-    LinkedHashMap<BeamColors, BeamPalette>();
+final LinkedHashMap<Object, BeamPalette> _paletteCache =
+    LinkedHashMap<Object, BeamPalette>();
 
 BeamPalette _resolveCached(BeamColors colors) {
-  final hit = _paletteCache.remove(colors);
+  // User-provided tables may come from growable lists. Never put the public
+  // value object itself in a hash map: mutating one of those source lists
+  // would change its hash while it was resident and make the entry
+  // unreachable. Each implementation supplies an immutable snapshot of the
+  // inputs that affect resolution instead.
+  final key = colors._cacheKey;
+  final hit = _paletteCache.remove(key);
   if (hit != null) {
-    _paletteCache[colors] = hit;
+    _paletteCache[key] = hit;
     return hit;
   }
   final built = colors._buildPalette();
-  _paletteCache[colors] = built;
+  _paletteCache[key] = built;
   if (_paletteCache.length > _paletteCacheCapacity) {
     _paletteCache.remove(_paletteCache.keys.first);
   }
   return built;
+}
+
+/// A hash-stable snapshot of a list used by a palette cache key.
+class _ListKey<T> {
+  _ListKey(Iterable<T> values) : values = List<T>.unmodifiable(values);
+
+  final List<T> values;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is _ListKey<T> && listEquals(values, other.values);
+
+  @override
+  int get hashCode => Object.hashAll(values);
 }
 
 // The presets bypass the LRU: they are canonicalized const instances, so an
@@ -422,7 +446,7 @@ List<Color> _seedColors(Color seed, BeamSeedHarmony harmony) {
 
   Color at(double hueDelta, [double lightnessDelta = 0]) => HSLColor.fromAHSL(
     1,
-    (hue + hueDelta) % 360,
+    ((hue + hueDelta) % 360 + 360) % 360,
     saturation,
     clampDouble(
       lightness + lightnessDelta,
@@ -459,6 +483,9 @@ class _PresetBeamColors extends BeamColors {
 
   final BeamPresetData preset;
   final bool isMono;
+
+  @override
+  Object get _cacheKey => (#preset, preset, isMono);
 
   @override
   BeamPalette resolve() => _presetPaletteCache[this] ??= _buildPalette();
@@ -501,6 +528,10 @@ class _CustomBeamColors extends BeamColors {
   final bool staticHue;
 
   @override
+  Object get _cacheKey =>
+      (#custom, _ListKey(colors), base._cacheKey, staticHue);
+
+  @override
   BeamPalette _buildPalette() {
     assert(colors.isNotEmpty, 'BeamColors.custom requires at least one color');
     return BeamPalette(
@@ -532,6 +563,9 @@ class _SeedBeamColors extends BeamColors {
   final BeamSeedHarmony harmony;
 
   @override
+  Object get _cacheKey => (#seed, seed, harmony);
+
+  @override
   BeamPalette _buildPalette() => BeamPalette(
     data: _distribute(_seedColors(seed, harmony), colorfulPreset),
   );
@@ -556,6 +590,9 @@ class _LerpBeamColors extends BeamColors {
   final BeamColors a;
   final BeamColors b;
   final double t;
+
+  @override
+  Object get _cacheKey => (#lerp, a._cacheKey, b._cacheKey, t);
 
   @override
   BeamPalette _buildPalette() {
@@ -591,6 +628,9 @@ class _ScaledBeamColors extends BeamColors {
 
   final BeamColors source;
   final double factor;
+
+  @override
+  Object get _cacheKey => (#scaled, source._cacheKey, factor);
 
   @override
   BeamPalette _buildPalette() {
@@ -631,6 +671,14 @@ class _SpecBeamColors extends BeamColors {
   final List<BeamBlob> border;
   final List<BeamBlob>? smallBorder;
   final List<LineBlob>? lineBlobs;
+
+  @override
+  Object get _cacheKey => (
+    #spec,
+    _ListKey(border),
+    smallBorder == null ? null : _ListKey(smallBorder!),
+    lineBlobs == null ? null : _ListKey(lineBlobs!),
+  );
 
   @override
   BeamPalette _buildPalette() {

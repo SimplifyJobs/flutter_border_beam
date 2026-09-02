@@ -10,6 +10,7 @@ import 'beam_style.dart';
 import 'beam_theme_config.dart';
 import 'beam_timing.dart';
 import 'beam_variant.dart';
+import 'model_validation.dart';
 
 // The line variant's breathe/spike tracks run at multiples of the cycle.
 const double _defaultBreatheFactor = 1.3;
@@ -94,6 +95,7 @@ class BeamConfig {
     BeamTiming timing = const BeamTiming(),
     TextDirection textDirection = TextDirection.ltr,
   }) {
+    validateBeamTiming(timing);
     final theme =
         style.themeConfig ?? BeamThemeConfig.presetFor(variant, brightness);
     final cycleSeconds = _seconds(timing.cycle ?? variant.defaultCycleDuration);

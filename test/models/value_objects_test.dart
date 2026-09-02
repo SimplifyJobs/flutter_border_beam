@@ -340,6 +340,20 @@ void main() {
   });
 
   group('BeamTiming', () {
+    test('rejects values that would make phase arithmetic invalid', () {
+      final zero = double.parse('0');
+      final nan = double.parse('NaN');
+
+      expect(() => BeamTiming(speed: zero), throwsAssertionError);
+      expect(() => BeamTiming(speed: nan), throwsAssertionError);
+      expect(() => BeamTiming(phaseOffset: -0.01), throwsAssertionError);
+      expect(() => BeamTiming(phaseOffset: 1.01), throwsAssertionError);
+      expect(() => BeamTiming(beamCount: 0), throwsAssertionError);
+      expect(() => BeamTiming(breatheFactor: zero), throwsAssertionError);
+      expect(() => BeamTiming(spikeFactor: nan), throwsAssertionError);
+      expect(() => BeamTiming(spike2Factor: -1), throwsAssertionError);
+    });
+
     test('merge lets the argument win field by field', () {
       const base = BeamTiming(cycle: Duration(seconds: 2), speed: 2);
       const over = BeamTiming(cycleGap: Duration(seconds: 1));

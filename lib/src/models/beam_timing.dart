@@ -34,7 +34,33 @@ class BeamTiming {
     this.breatheFactor,
     this.spikeFactor,
     this.spike2Factor,
-  });
+  }) : assert(
+         speed == null || (speed > 0 && speed < double.infinity),
+         'speed must be finite and positive',
+       ),
+       assert(
+         phaseOffset == null || (phaseOffset >= 0 && phaseOffset <= 1),
+         'phaseOffset must be between 0 and 1',
+       ),
+       assert(
+         beamCount == null || beamCount >= 1,
+         'beamCount must be at least 1',
+       ),
+       assert(
+         breatheFactor == null ||
+             (breatheFactor > 0 && breatheFactor < double.infinity),
+         'breatheFactor must be finite and positive',
+       ),
+       assert(
+         spikeFactor == null ||
+             (spikeFactor > 0 && spikeFactor < double.infinity),
+         'spikeFactor must be finite and positive',
+       ),
+       assert(
+         spike2Factor == null ||
+             (spike2Factor > 0 && spike2Factor < double.infinity),
+         'spike2Factor must be finite and positive',
+       );
 
   /// Length of one animation cycle. Defaults to the variant preset: 1.96s for
   /// rotate and small, 3.1s for line, 2.3s for the pulse variants.

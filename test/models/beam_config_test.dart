@@ -81,6 +81,28 @@ Widget _host(Widget child) => MaterialApp(
 /// same inputs must be `==` (so a rebuilt-inline style never repaints), and
 /// every input that reaches a painted value must break that equality.
 void main() {
+  test('resolution rejects invalid durations in release builds', () {
+    final zero = Duration.zero;
+    final negative = const Duration(microseconds: -1);
+
+    expect(
+      () => _resolve(timing: BeamTiming(cycle: zero)),
+      throwsArgumentError,
+    );
+    expect(
+      () => _resolve(timing: BeamTiming(cycleGap: negative)),
+      throwsArgumentError,
+    );
+    expect(
+      () => _resolve(timing: BeamTiming(huePeriod: zero)),
+      throwsArgumentError,
+    );
+    expect(
+      () => _resolve(timing: BeamTiming(bloomHuePeriod: zero)),
+      throwsArgumentError,
+    );
+  });
+
   group('equality', () {
     test('two resolutions of the same inputs are equal', () {
       final a = _resolve();

@@ -18,6 +18,7 @@ import 'models/beam_style.dart';
 import 'models/beam_theme.dart';
 import 'models/beam_timing.dart';
 import 'models/beam_variant.dart';
+import 'models/model_validation.dart';
 import 'painting/beam_painter.dart';
 import 'painting/variant_strategy.dart';
 
@@ -619,6 +620,8 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     // until didChangeDependencies resolves them properly, before first build.
     _timing = widget.timing ?? const BeamTiming();
     _playback = widget._playbackInput ?? const BeamPlayback();
+    validateBeamTiming(_timing);
+    validateRepeat(_playback.repeat);
     _cycleSeconds = _cycleSecondsOf(_timing, widget.variant);
     _applySpeed();
     _applyFadeCurve();
@@ -640,6 +643,8 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
       'and duration must not be set, on the widget or on a BorderBeamTheme.',
     );
     final timing = (data.timing ?? const BeamTiming()).merge(widget.timing);
+    validateBeamTiming(timing);
+    validateRepeat(playback.repeat);
     final previousCycle = _cycleSeconds;
     _playback = playback;
     _timing = timing;
@@ -836,7 +841,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
   void _syncResolverPlayback() {
     // Playback belongs to the group under a BeamSync, so one member's repeat
     // budget must not stop everyone's clock.
-    _resolver?.repeatCycles = _synced ? null : _playback.repeat?.cycles;
+    _resolver?.repeatCycles = _synced ? null : validateRepeat(_playback.repeat);
   }
 
   // The per-frame hook is only worth its cost while something needs it.
