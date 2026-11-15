@@ -344,11 +344,18 @@ final class BeamFrameData {
     for (var i = 0; i < 4; i++) data[_h(k, 2) + i],
   ];
 
-  /// Lays an overlay table under layer [k]'s blobs, in white or black.
-  void setOverlay(int k, BeamTable table, {required bool white}) {
+  /// Lays an overlay table under layer [k]'s blobs — or, with [above],
+  /// over them — in white or black.
+  void setOverlay(
+    int k,
+    BeamTable table, {
+    required bool white,
+    bool above = false,
+  }) {
     assert(table == BeamTable.overlayA || table == BeamTable.overlayB);
     data[_h(k, 1) + 2] = table == BeamTable.overlayA ? 1 : 2;
     data[_h(k, 1) + 3] = white ? 1 : 0;
+    data[_h(k, 5) + 3] = above ? 1 : 0;
   }
 
   /// How layer [k]'s blobs are placed; [blur] (px) blurs them in the

@@ -68,6 +68,15 @@ final class BeamFrame {
   /// How far `BeamStyle.glow` grows the glows.
   double get glowSize => math.max(config.glow, 0.05);
 
+  /// How far in from the edge an inner glow fades out: the design's 28 px,
+  /// grown by `BeamStyle.glow`, but never more than 0.4 of the box, so a
+  /// chip keeps a clear band through its middle.
+  double get edgeFade =>
+      math.min(innerEdgeFade * glowSize, rect.shortestSide * 0.4);
+
+  /// Whether the box is small enough for the compact chip treatment.
+  bool get compact => rect.shortestSide <= compactMaxExtent;
+
   /// Whether the hue holds still.
   bool get staticHue => config.hueMode == BeamHueMode.none;
 
@@ -342,7 +351,7 @@ void _rotate(BeamFrame f, RotateEffect e) {
       opacity: base * preset.innerOpacity * f.glowOpacity,
     )
     ..setConicWindow(0, compact ? BeamTable.windowB : BeamTable.windowA);
-  if (!compact) d.setEdgeFade(0, innerEdgeFade * f.glowSize);
+  if (!compact) d.setEdgeFade(0, f.edgeFade);
   _shadow(
     f,
     0,
@@ -484,7 +493,7 @@ void _line(BeamFrame f, LineEffect e) {
       BeamGeometry.fill,
       opacity: base * preset.innerOpacity * f.glowOpacity,
     )
-    ..setEdgeFade(0, innerEdgeFade * f.glowSize);
+    ..setEdgeFade(0, f.edgeFade);
   frame.space(0);
   frame.window(
     0,
@@ -974,7 +983,7 @@ void _pulse(BeamFrame f) {
       BeamGeometry.fill,
       opacity: base * preset.innerOpacity * f.glowOpacity,
     )
-    ..setEdgeFade(0, innerEdgeFade * f.glowSize);
+    ..setEdgeFade(0, f.edgeFade);
   _filter(f, 0, preset, keepTone: true);
   for (final (i, b) in border.indexed) {
     final map = pulseRingMap[i % pulseRingMap.length];
@@ -1200,10 +1209,40 @@ void _halo(BeamFrame f) {
   }
 }
 
-// ─── The palette ring (flow, spin, shimmer, charge) ─────────────────────────
+// ─── Blobs along the outline (flow, spin, shimmer, charge) ──────────────────
 
-/// Lays [count] blobs evenly around the outline in path space, coloured from
-/// the palette where each sits, shifted [shift] turns along it.
+/// Adds a blob centred on the outline at perimeter [u], [depth] px in, with
+/// radius [along] the outline and [inward] across it. The ellipse's axes
+/// follow the outline's normal there, blending smoothly through a corner.
+void _onOutline(
+  BeamFrame f,
+  int k,
+  double u, {
+  required double along,
+  required double inward,
+  required Color color,
+  double depth = 0,
+  double alpha = 1,
+  Offset drift = Offset.zero,
+  Offset stretch = const Offset(1, 1),
+}) {
+  final n = f.outline.normalAt(u);
+  final c = f.outline.pointAt(u) - n * depth + drift;
+  final nx = n.dx * n.dx;
+  final ny = n.dy * n.dy;
+  f.data.addSimpleBlob(
+    k,
+    cx: c.dx,
+    cy: c.dy,
+    rx: (along * ny + inward * nx) * stretch.dx,
+    ry: (along * nx + inward * ny) * stretch.dy,
+    color: color,
+    alpha: alpha,
+  );
+}
+
+/// Lays [count] blobs evenly around the outline, each coloured from the
+/// palette where it starts and carried [shift] turns along it.
 void _paletteRing(
   BeamFrame f,
   int k, {
@@ -1213,30 +1252,86 @@ void _paletteRing(
   double shift = 0,
   double overlap = 1.25,
 }) {
-  final len = f.length;
-  final along = len / count * overlap;
+  final along = f.length / count * overlap;
   final palette = f.config.palette;
   for (var i = 0; i < count; i++) {
     final u = (i + 0.5) / count;
-    var s = (u + shift) * len;
-    s -= (s / len).floorToDouble() * len;
-    f.data.addSimpleBlob(
+    _onOutline(
+      f,
       k,
-      cx: s,
-      cy: 0,
-      rx: along,
-      ry: inward,
+      u + shift,
+      along: along,
+      inward: inward,
       color: palette.sample(u),
       alpha: alpha,
     );
   }
 }
 
+// The strength of a full colour ring's hairline, which — unlike the rotate
+// beam's — carries the whole look.
+const double _ringStrokeDark = 0.85;
+const double _ringStrokeLight = 0.55;
+
+/// The inner glow under a colour ring: its blobs at the rotate beam's inner
+/// alpha, edge-faded, with the inset shadow — on a compact chip with the
+/// chip's tuning. With [head] set it is seen through the rotate window
+/// (the chip's wider one on a chip) led by that stop of the turn.
+void _ringInnerGlow(
+  BeamFrame f, {
+  double? head,
+  bool reversed = false,
+  double tail = 1,
+  double shift = 0,
+}) {
+  final d = f.data;
+  final compact = f.compact;
+  final preset = presetFor(
+    compact ? compactPresets : rotatePresets,
+    dark: f.dark,
+  );
+  d
+    ..setLayer(
+      0,
+      BeamGeometry.fill,
+      opacity:
+          f.alpha * (f.mono ? 0.5 : 1) * preset.innerOpacity * f.glowOpacity,
+    )
+    ..setEdgeFade(0, f.edgeFade);
+  if (head != null) {
+    _conicTable(
+      d,
+      BeamTable.windowB,
+      compact ? compactWindowStops : rotateWindowStops,
+      compact ? compactWindowAlphas : rotateWindowAlphas,
+      reversed: reversed,
+      tail: tail,
+      shift: head - (compact ? 0.82 : 0.80),
+    );
+    d.setConicWindow(0, BeamTable.windowB);
+  }
+  _shadow(
+    f,
+    0,
+    preset.innerShadow,
+    compact ? compactInnerShadowBlur : rotateInnerShadowBlur,
+  );
+  _filter(f, 0, preset);
+  _paletteRing(
+    f,
+    0,
+    count: 12,
+    inward: math.min(36, f.rect.shortestSide / 2),
+    alpha: rotateInnerBlobAlpha,
+    shift: shift,
+  );
+}
+
 // ─── Spin ───────────────────────────────────────────────────────────────────
 
-// A long window: the whole ring lit, brightening toward the head.
-const List<double> _spinWindowStops = [0.0, 0.45, 0.80, 0.90, 0.93, 1.0];
-const List<double> _spinWindowAlphas = [0.38, 0.6, 0.95, 1.0, 0.7, 0.38];
+// The whole ring stays lit, brightening into the head.
+const List<double> _spinWindowStops = [0.0, 0.40, 0.75, 0.88, 0.93, 1.0];
+const List<double> _spinWindowAlphas = [0.6, 0.66, 0.85, 1.0, 0.8, 0.6];
 const double _spinHead = 0.9;
 
 void _spin(BeamFrame f) {
@@ -1244,10 +1339,10 @@ void _spin(BeamFrame f) {
   final dark = f.dark;
   final preset = presetFor(rotatePresets, dark: dark);
   final base = f.alpha * (f.mono ? 0.5 : 1);
-  final dir = f.phases.reversedNow ? -1.0 : 1.0;
-  final turn = dir * f.phases.cycles;
   final reversed = f.phases.reversedNow;
+  final turn = (reversed ? -1.0 : 1.0) * f.phases.cycles;
   final sigma = rotateBloomBlur * f.glowSize;
+  final head = reversed ? 1 - _spinHead : _spinHead;
 
   _conicTable(
     d,
@@ -1273,36 +1368,21 @@ void _spin(BeamFrame f) {
     shift: _spinHead - rotateHeadStop,
     blur: sigma / math.max(f.length, 1),
   );
-  final head = reversed ? 1 - _spinHead : _spinHead;
+  // The colours turn with the head.
   d.setConic(f.rect.center, turn - head, 1);
+
+  _ringInnerGlow(f, head: _spinHead, reversed: reversed, shift: turn);
 
   d
     ..setLayer(
-      0,
-      BeamGeometry.fill,
-      opacity: base * preset.innerOpacity * f.glowOpacity,
+      1,
+      BeamGeometry.ring,
+      opacity: base * (dark ? _ringStrokeDark : _ringStrokeLight),
     )
-    ..setConicWindow(0, BeamTable.windowA)
-    ..setEdgeFade(0, innerEdgeFade * f.glowSize)
-    ..setBlobSpace(0, BeamBlobSpace.path);
-  _shadow(f, 0, preset.innerShadow, rotateInnerShadowBlur);
-  _filter(f, 0, preset, keepTone: true);
-  _paletteRing(
-    f,
-    0,
-    count: 12,
-    inward: 34,
-    alpha: rotateInnerBlobAlpha,
-    shift: turn,
-  );
-
-  d
-    ..setLayer(1, BeamGeometry.ring, opacity: base * preset.strokeOpacity * 2.2)
     ..setConicWindow(1, BeamTable.windowA)
-    ..setOverlay(1, BeamTable.overlayA, white: dark)
-    ..setDashed(1)
-    ..setBlobSpace(1, BeamBlobSpace.path);
-  _filter(f, 1, preset, keepTone: true);
+    ..setOverlay(1, BeamTable.overlayA, white: dark, above: dark)
+    ..setDashed(1);
+  _filter(f, 1, preset);
   _paletteRing(f, 1, count: 10, inward: 30, shift: turn);
 
   d
@@ -1333,13 +1413,13 @@ void _flow(BeamFrame f) {
     dark: dark,
     cycleSeconds: f.config.cycleSeconds,
   );
-  final dir = f.phases.reversedNow ? -1.0 : 1.0;
-  // The colour field streams half a turn per cycle.
-  final shift = dir * f.phases.cycles * 0.5;
-  final len = f.length;
+  // The pulse's colour field streams half a turn per cycle while it
+  // breathes.
+  final shift = (f.phases.reversedNow ? -1.0 : 1.0) * f.phases.cycles * 0.5;
+  final rect = f.rect;
   final border = f.tables.border;
 
-  void pathBlob(
+  void streamed(
     int k,
     BeamBlob b,
     double w,
@@ -1347,34 +1427,33 @@ void _flow(BeamFrame f) {
     double alpha = 1,
     PulseRegion? region,
     PulseQuad? quad,
-    bool breathe = true,
   }) {
-    final point = f.at(b.position.dx, b.position.dy);
-    final loc = f.outline.locate(point);
-    final rect = f.rect;
+    final at = f.at(b.position.dx, b.position.dy);
+    final loc = f.outline.locate(at);
+    // Which way the blob lies: along its edge, and across it.
     final vertical =
         math.min(b.position.dx, 1 - b.position.dx) * rect.width <
         math.min(b.position.dy, 1 - b.position.dy) * rect.height;
-    var along = vertical ? h : w;
-    var inward = vertical ? w : h;
-    var s = (loc.u + shift) * len;
+    var drift = Offset.zero;
+    var stretch = const Offset(1, 1);
     var a = alpha;
-    if (breathe && region != null && quad != null) {
+    if (region != null && quad != null) {
       final r = region.index;
-      along *= vertical ? pulse.bh[r] * pulse.bgh : pulse.bw[r];
-      inward *= vertical ? pulse.bw[r] : pulse.bh[r] * pulse.bgh;
-      s += vertical ? pulse.by[r] : pulse.bx[r];
+      drift = Offset(pulse.bx[r], pulse.by[r]);
+      stretch = Offset(pulse.bw[r], pulse.bh[r] * pulse.bgh);
       a *= _quad(pulse, quad);
     }
-    s -= (s / len).floorToDouble() * len;
-    d.addSimpleBlob(
+    _onOutline(
+      f,
       k,
-      cx: s,
-      cy: -loc.distance,
-      rx: along,
-      ry: inward,
+      loc.u + shift,
+      along: vertical ? h : w,
+      inward: vertical ? w : h,
+      depth: -loc.distance,
       color: b.color,
       alpha: a,
+      drift: drift,
+      stretch: stretch,
     );
   }
 
@@ -1384,13 +1463,12 @@ void _flow(BeamFrame f) {
       BeamGeometry.fill,
       opacity: base * preset.innerOpacity * f.glowOpacity,
     )
-    ..setEdgeFade(0, innerEdgeFade * 1.3 * f.glowSize)
-    ..setBlobSpace(0, BeamBlobSpace.path);
+    ..setEdgeFade(0, f.edgeFade);
   _filter(f, 0, preset, keepTone: true);
   for (final (i, b) in border.indexed) {
     final map = pulseRingMap[i % pulseRingMap.length];
     final size = pulseInnerSizes[i % pulseInnerSizes.length];
-    pathBlob(
+    streamed(
       0,
       b,
       size.width * f.glowSize,
@@ -1402,12 +1480,11 @@ void _flow(BeamFrame f) {
 
   d
     ..setLayer(1, BeamGeometry.ring, opacity: base * preset.strokeOpacity)
-    ..setDashed(1)
-    ..setBlobSpace(1, BeamBlobSpace.path);
+    ..setDashed(1);
   _filter(f, 1, preset, keepTone: true);
   for (final (i, b) in border.indexed) {
     final map = pulseRingMap[i % pulseRingMap.length];
-    pathBlob(
+    streamed(
       1,
       b,
       b.size.width,
@@ -1417,31 +1494,24 @@ void _flow(BeamFrame f) {
     );
   }
 
-  d
-    ..setLayer(
-      2,
-      BeamGeometry.blurredRing,
-      opacity: base * preset.bloomOpacity * f.glowOpacity,
-      sigma: pulseBloomBlur * f.glowSize,
-    )
-    ..setBlobSpace(2, BeamBlobSpace.path);
+  d.setLayer(
+    2,
+    BeamGeometry.blurredRing,
+    opacity: base * preset.bloomOpacity * f.glowOpacity,
+    sigma: pulseBloomBlur * f.glowSize,
+  );
   _filter(f, 2, preset, keepTone: true);
   for (final spec in pulseInnerBloom) {
     final src = _borderAt(f.tables, spec.ci);
-    pathBlob(
-      2,
-      src,
-      spec.w,
-      spec.h,
-      alpha: params.frozenBloomAlpha,
-      breathe: false,
-    );
+    streamed(2, src, spec.w, spec.h, alpha: params.frozenBloomAlpha);
   }
 }
 
 // ─── Shimmer ────────────────────────────────────────────────────────────────
 
 const List<double> _flatStops = [0.0, 1.0];
+const List<double> _glintAlphas = [0.5, 0.5];
+const List<double> _fullAlphas = [1.0, 1.0];
 
 void _shimmer(BeamFrame f, ShimmerEffect e) {
   final d = f.data;
@@ -1457,37 +1527,26 @@ void _shimmer(BeamFrame f, ShimmerEffect e) {
   final py = math.sin(a) * r.height;
   final norm = math.max(px.abs() + py.abs(), 1e-6);
   final dir = Offset(px / norm, py / norm);
-  const half = 0.22;
+  const half = 0.2;
   final pos = -half + (1 + 2 * half) * f.phases.travelProgress;
 
   d
-    ..setTable(BeamTable.overlayA, _flatStops, const [0.3, 0.3], 2)
-    ..setTable(BeamTable.overlayB, _flatStops, const [1.0, 1.0], 2);
+    ..setTable(BeamTable.overlayA, _flatStops, _glintAlphas, 2)
+    ..setTable(BeamTable.overlayB, _flatStops, _fullAlphas, 2);
 
-  d
-    ..setLayer(
-      0,
-      BeamGeometry.fill,
-      opacity: base * preset.innerOpacity * f.glowOpacity,
-    )
-    ..setLinearWindow(0, dir, pos, half)
-    ..setEdgeFade(0, innerEdgeFade * f.glowSize)
-    ..setBlobSpace(0, BeamBlobSpace.path);
-  _shadow(f, 0, preset.innerShadow, rotateInnerShadowBlur);
-  _filter(f, 0, preset, keepTone: true);
-  _paletteRing(f, 0, count: 12, inward: 34, alpha: rotateInnerBlobAlpha);
+  _ringInnerGlow(f);
+  d.setLinearWindow(0, dir, pos, half * 1.2);
 
   d
     ..setLayer(
       1,
       BeamGeometry.ring,
-      opacity: base * math.min(preset.strokeOpacity * 3.4, 1),
+      opacity: base * (dark ? _ringStrokeDark : _ringStrokeLight),
     )
     ..setLinearWindow(1, dir, pos, half)
-    ..setOverlay(1, BeamTable.overlayA, white: dark)
-    ..setDashed(1)
-    ..setBlobSpace(1, BeamBlobSpace.path);
-  _filter(f, 1, preset, keepTone: true);
+    ..setDashed(1);
+  if (dark) d.setOverlay(1, BeamTable.overlayA, white: true, above: true);
+  _filter(f, 1, preset);
   _paletteRing(f, 1, count: 10, inward: 30);
 
   d
@@ -1495,9 +1554,9 @@ void _shimmer(BeamFrame f, ShimmerEffect e) {
       2,
       BeamGeometry.blurredRing,
       opacity: base * preset.bloomOpacity * 2 * f.glowOpacity,
-      sigma: 5 * f.glowSize,
+      sigma: 6 * f.glowSize,
     )
-    ..setLinearWindow(2, dir, pos, half * 0.5)
+    ..setLinearWindow(2, dir, pos, half * 0.45)
     ..setOverlay(2, BeamTable.overlayB, white: dark)
     ..setDashed(2);
 }
@@ -1505,8 +1564,8 @@ void _shimmer(BeamFrame f, ShimmerEffect e) {
 // ─── Charge ─────────────────────────────────────────────────────────────────
 
 // Behind the head, the filled border dims gently away from it.
-const List<double> _chargeWindowStops = [0.0, 0.40, 0.62, 0.66, 0.70, 1.0];
-const List<double> _chargeWindowAlphas = [0.45, 0.55, 0.9, 1.0, 0.45, 0.45];
+const List<double> _chargeWindowStops = [0.0, 0.30, 0.58, 0.66, 0.70, 1.0];
+const List<double> _chargeWindowAlphas = [0.5, 0.55, 0.85, 1.0, 0.5, 0.5];
 const double _chargeHead = 0.66;
 
 void _charge(BeamFrame f) {
@@ -1531,6 +1590,7 @@ void _charge(BeamFrame f) {
   );
   final sigma = rotateBloomBlur * f.glowSize;
   final tipAngle = conicFraction(f.outline.pointAt(tip), f.rect.center);
+  final h = reversed ? 1 - _chargeHead : _chargeHead;
 
   _conicTable(
     d,
@@ -1545,7 +1605,7 @@ void _charge(BeamFrame f) {
     rotateHighlightStops,
     dark ? rotateHighlightAlphasDark : rotateHighlightAlphasLight,
     reversed: reversed,
-    tail: 0.8,
+    tail: 0.7,
     shift: _chargeHead - 0.66,
   );
   _conicTable(
@@ -1557,33 +1617,20 @@ void _charge(BeamFrame f) {
     shift: _chargeHead - rotateHeadStop,
     blur: sigma / math.max(f.length, 1),
   );
-  final h = reversed ? 1 - _chargeHead : _chargeHead;
   d.setConic(f.rect.center, tipAngle - h, 1);
 
-  d
-    ..setLayer(
-      0,
-      BeamGeometry.fill,
-      opacity: base * preset.innerOpacity * f.glowOpacity,
-    )
-    ..setConicWindow(0, BeamTable.windowA)
-    ..setEdgeFade(0, innerEdgeFade * f.glowSize)
-    ..setBlobSpace(0, BeamBlobSpace.path);
-  _shadow(f, 0, preset.innerShadow, rotateInnerShadowBlur);
-  _filter(f, 0, preset, keepTone: true);
-  _paletteRing(f, 0, count: 12, inward: 34, alpha: rotateInnerBlobAlpha);
+  _ringInnerGlow(f, head: _chargeHead, reversed: reversed, tail: 0.8);
 
   d
     ..setLayer(
       1,
       BeamGeometry.ring,
-      opacity: base * math.min(preset.strokeOpacity * 2.6, 1),
+      opacity: base * (dark ? _ringStrokeDark : _ringStrokeLight),
     )
     ..setConicWindow(1, BeamTable.windowA)
-    ..setOverlay(1, BeamTable.overlayA, white: dark)
-    ..setDashed(1)
-    ..setBlobSpace(1, BeamBlobSpace.path);
-  _filter(f, 1, preset, keepTone: true);
+    ..setOverlay(1, BeamTable.overlayA, white: dark, above: dark)
+    ..setDashed(1);
+  _filter(f, 1, preset);
   _paletteRing(f, 1, count: 10, inward: 30);
 
   d
