@@ -21,7 +21,7 @@
 //
 // Uniforms are vec4s and vec4 arrays only, so the float layout is identical on
 // every backend (Impeller Metal / Vulkan / GLES, and Skia's SkSL). The Dart
-// packer in lib/src/render/beam_uniforms.dart mirrors this order exactly.
+// packer (`_pack` in lib/src/render/beam_renderer.dart) mirrors this order exactly.
 
 #version 460 core
 
@@ -41,8 +41,8 @@ uniform vec4 uEmit;      // x base, y bump count, z opacity, w additive share
 uniform vec4 uNoise;     // x amplitude, y frequency (cycles / perimeter), z phase, w light count
 uniform vec4 uMask;      // x segment start u, y segment span (0 = all), z feather (u), w dashes
 uniform vec4 uColorMap;  // x origin u, y scale, z wrap (1) or clamp (0), w colour count
-uniform vec4 uSweep;     // xy direction (unit), z position, w half width
-uniform vec4 uSweepAmp;  // x sweep amplitude, yzw unused
+uniform vec4 uSweep;     // xy direction (box-normalised, not unit), z position, w half width
+uniform vec4 uExtra;     // x sweep amplitude, y bump plateau (>= 1), z highlight ink (0 or 1), w unused
 uniform vec4 uBumps[8];  // x centre u, y lead width, z tail width, w amplitude
 uniform vec4 uColors[8]; // straight RGBA
 uniform vec4 uStops[8];  // x stop position (0..1)
@@ -125,8 +125,12 @@ float emission(float u, float widen) {
     if (float(i) >= uEmit.y) break;
     vec4 bp = uBumps[i];
     float delta = wrapDelta(u - bp.x);
-    float width = (delta >= 0.0 ? bp.y : bp.z) * widen;
-    float f = max(1.0 - abs(delta) / max(width, 1e-5), 0.0);
+    // Capped at half the ring: a wider bump would wrap onto itself and
+    // leave a seam where the wrapped distance flips sign.
+    float width = min((delta >= 0.0 ? bp.y : bp.z) * widen, 0.5);
+    // plateau > 1 flattens the top of every bump: full strength over the
+    // inner part of its width, then the same smooth falloff.
+    float f = clamp((1.0 - abs(delta) / max(width, 1e-5)) * uExtra.y, 0.0, 1.0);
     e += bp.w * f * f * (3.0 - 2.0 * f) / widen;
   }
   return e;
@@ -141,21 +145,26 @@ float ringNoise(float u) {
        + 0.15 * sin(TAU * (u * (3.0 * f + 2.0) + 2.3 * t + 0.67));
 }
 
-float segmentMask(float u) {
+// The visible track. Like the dashes, its ends soften with [spread] (px from
+// the stroke), so a glow fades out toward the end of the track instead of
+// stopping at a hard line across it.
+float segmentMask(float u, float spread) {
   if (uMask.y > 0.0) {
     float x = fract(u - uMask.x);
     if (x > uMask.y) return 0.0;
-    float fe = max(uMask.z, 1e-5);
+    float fe = max(uMask.z + spread / uPerim.x, 1e-5);
     return smoothstep(0.0, fe, x) * smoothstep(0.0, fe, uMask.y - x);
   }
   return 1.0;
 }
 
-float dashMask(float u, float px) {
+// Dashes cover 60% of each period. [spread] (px) softens their ends the way
+// a blur would: crisp on the stroke, rounder the further light is from it.
+float dashMask(float u, float px, float spread) {
   if (uMask.w < 2.0) return 1.0;
-  float x = fract(u * uMask.w);
-  float aa = max(1.5 * px * uMask.w / uPerim.x, 1e-4);
-  return smoothstep(0.0, aa, x) * (1.0 - smoothstep(0.6 - aa, 0.6, x));
+  float t = abs(fract(u * uMask.w + 0.2) - 0.5); // distance from dash centre
+  float aa = max((1.5 * px + spread) * uMask.w / uPerim.x, 1e-4);
+  return 1.0 - smoothstep(0.3 - 0.5 * aa, 0.3 + 0.5 * aa, t);
 }
 
 // Gamma-aware mix: interpolating squared (≈ linear) channels keeps the midpoint
@@ -208,19 +217,20 @@ void main() {
   float alpha = 0.0;
 
   // ── 1. Border light ──
-  float mask = segmentMask(u) * dashMask(u, px);
+  float w = uShape.z;
+  float centre = d + 0.5 * w;
+  float spread = abs(centre);
+  float mask = segmentMask(u, spread) * dashMask(u, px, spread);
   float shimmer = 0.0;
-  if (uSweepAmp.x > 0.0) {
+  if (uExtra.x > 0.0) {
     vec2 rel = p / max(uRect.zw, vec2(1.0));
     float x = dot(rel, uSweep.xy) + 0.5;
     float f = max(1.0 - abs(x - uSweep.z) / max(uSweep.w, 1e-4), 0.0);
-    shimmer = uSweepAmp.x * f * f * (3.0 - 2.0 * f);
+    shimmer = uExtra.x * f * f * (3.0 - 2.0 * f);
   }
   float swell = 1.0;
   if (uNoise.x > 0.0) swell = max(1.0 + uNoise.x * ringNoise(u), 0.0);
 
-  float w = uShape.z;
-  float centre = d + 0.5 * w;
   float stroke = clamp((0.5 * w - abs(centre)) / px + 0.5, 0.0, 1.0);
 
   float bloom = 0.0;
@@ -252,7 +262,11 @@ void main() {
     vec4 c = paletteAt(cu);
     float hot = clamp(uHighlight.a * e * e * e * (stroke + 0.5 * bloom), 0.0, 1.0);
     float a = borderAlpha * c.a;
-    premul += mix(c.rgb, uHighlight.rgb, hot) * a;
+    // Dark surfaces whiten the hottest light; light ones deepen it into its
+    // own ink (squared ≈ darker and more saturated) rather than toward grey,
+    // which turns warm colours muddy.
+    vec3 target = mix(uHighlight.rgb, c.rgb * c.rgb, uExtra.z);
+    premul += mix(c.rgb, target, hot) * a;
     alpha += a;
   }
 

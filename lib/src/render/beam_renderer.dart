@@ -172,8 +172,7 @@ class BeamRenderer {
     v4(o.quadStarts[0], o.quadStarts[1], o.quadStarts[2], o.quadStarts[3]);
     v4(e.stroke, e.bloom, e.outer, e.lights);
     v4(e.bloomSigma, e.outerReach, e.outerPlateau, e.outerWiden);
-    final hl = config.isDark ? 1.0 : 0.08;
-    v4(hl, hl, hl, e.highlight);
+    v4(1, 1, 1, e.highlight);
     v4(e.base, e.bumpCount.toDouble(), opacity, e.additive);
     v4(
       e.noiseAmplitude,
@@ -200,7 +199,7 @@ class BeamRenderer {
       e.sweepPosition,
       e.sweepHalfWidth,
     );
-    v4(e.sweepAmplitude, 0, 0, 0);
+    v4(e.sweepAmplitude, e.bumpPlateau, config.isDark ? 0 : 1, 0);
     for (var k = 0; k < beamSlots * 4; k++) {
       f(e.bumps[k]);
     }

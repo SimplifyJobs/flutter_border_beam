@@ -31,6 +31,11 @@ final class BeamEmission {
   /// Number of bumps in use.
   int bumpCount = 0;
 
+  /// Flattens the top of every bump (1 = a plain smooth peak). At `k` the
+  /// inner `1 - 1/k` of each bump's width runs at full strength before the
+  /// usual smooth falloff.
+  double bumpPlateau = 1;
+
   /// Colour coordinate origin (perimeter `u` that maps to palette 0).
   double colorOrigin = 0;
 
@@ -86,13 +91,16 @@ final class BeamEmission {
   /// Shimmer sweep amplitude (0 = no sweep).
   double sweepAmplitude = 0;
 
-  /// Unit direction the sweep travels along, in box-normalised space.
+  /// Direction the sweep travels along, in box-normalised space: the band's
+  /// coordinate at a box-normalised point `p` (centre at 0) is
+  /// `p · sweepDirection + 0.5`. Not necessarily unit length — scaling it by
+  /// the box size keeps the sweep's angle true in pixels.
   Offset sweepDirection = const Offset(1, 0);
 
-  /// Sweep band centre along [sweepDirection] (0–1 spans the box).
+  /// Sweep band centre in the band coordinate (see [sweepDirection]).
   double sweepPosition = 0;
 
-  /// Sweep band half width (box-normalised).
+  /// Sweep band half width, in the band coordinate.
   double sweepHalfWidth = 0.1;
 
   /// Visible track start `u` and span (span 0 = whole border).
@@ -126,6 +134,7 @@ final class BeamEmission {
   void reset() {
     base = 0;
     bumpCount = 0;
+    bumpPlateau = 1;
     colorOrigin = 0;
     colorScale = 1;
     colorWrap = true;
