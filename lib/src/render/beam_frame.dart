@@ -55,8 +55,8 @@ enum BeamGeometry {
   /// The ring blurred by the layer's sigma, clipped to the shape.
   blurredRing,
 
-  /// The shape grown by the layer's inflate and blurred by its sigma, seen
-  /// only outside the outline.
+  /// Outside the outline only: a glow behind the child. Its inflate and
+  /// sigma say how far it reaches (its blobs carry the blur).
   halo,
 }
 
@@ -588,6 +588,7 @@ final class BeamFrameData {
     required Color color,
     double alpha = 1,
     double end = 1,
+    ({int axis, double at, bool keepBelow})? clip,
   }) {
     final a = color.a * alpha;
     addBlob(
@@ -603,6 +604,7 @@ final class BeamFrameData {
       p2: end * 2 / 3,
       a2: a / 3,
       p3: end,
+      clip: clip,
     );
   }
 

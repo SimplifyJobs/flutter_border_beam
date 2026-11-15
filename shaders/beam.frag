@@ -16,9 +16,9 @@
 // colour matrix (hue rotation, brightness, saturation) and the layer opacity.
 //
 // Every blur of the reference design is replaced by its analytic equivalent:
-// a blurred 1px ring is a gaussian across the distance to the ring, a blurred
-// blob is an energy-preserving gaussian blob, and a blurred filled shape is a
-// smooth step across its edge. One draw, no offscreen passes, no filters.
+// a blurred 1px ring is a gaussian across the distance to the ring, and a
+// blurred blob — cut where its layer's shape ends — is an energy-preserving
+// gaussian. One draw, no offscreen passes, no filters.
 //
 // Uniforms are vec4s and vec4 arrays only, so the float layout is identical on
 // every backend (Impeller Metal / Vulkan / GLES, and Skia's SkSL). The Dart
@@ -39,7 +39,7 @@ uniform vec4 uQuads;  // arc length where each quadrant starts: TR, BR, BL, TL
 uniform vec4 uMask;   // x segment start u, y segment span (0 = all), z feather (u), w dashes
 uniform vec4 uConic;  // xy conic centre, z conic start (turns), w repeats around the turn
 // Per layer, 9 vec4s:
-//   0: x geometry kind, y blur sigma, z inflate, w opacity
+//   0: x geometry kind, y blur sigma, z reach (halo), w opacity
 //   1: x edge fade px, y window kind, z overlay table (0 none, 1 A, 2 B), w overlay ink (0 black, 1 white)
 //   2: window parameters (radial: centre, radii; linear: direction, position, half width)
 //   3: x radial mid stop, y radial mid alpha, z blob mode (0 planar, 1 path,
@@ -257,10 +257,9 @@ float layerMask(vec4 h0, vec4 h1, vec4 h2, vec4 h3, vec2 pos, vec2 pathP, float 
     float c = (d + 0.5 * w) / sigma;
     m = w / sigma * INV_SQRT_TAU * exp(-0.5 * c * c) * inside;
   } else {
-    // A blurred filled shape grown by [inflate], seen only outside the
-    // outline (the child covers the inside).
-    float sigma = max(h0.y, 1e-3);
-    m = phi((h0.z - d) / sigma) * (1.0 - inside);
+    // Outside the outline only: a glow behind the child, which covers the
+    // inside.
+    m = 1.0 - inside;
   }
   if (m <= 0.0) return 0.0;
 
