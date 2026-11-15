@@ -8,27 +8,36 @@ flutter run          # phone / desktop
 flutter run -d chrome
 ```
 
+`main()` awaits `BorderBeam.precache()` after
+`WidgetsFlutterBinding.ensureInitialized()`, so the beam shader is loaded
+before the first frame.
+
 ## What's in it
 
 - **Rotate** and **Pulse** example tabs, wrapping mock chat inputs, task cards,
-  and search bars — the same surfaces the original demo uses.
-- **Themed** — three variants under a single `BorderBeamTheme`. Each card sets
-  nothing but its variant, so colors, shape, and cycle all come from the theme.
+  and search bars — the same surfaces the original demo uses. The Pulse tab's
+  halo (the old pulse-outside) breathes outside its card, unclipped.
+- **Flow, spin, shimmer, charge** — the four effects beyond the original
+  library, each on the surface it suits: a listening assistant, a "Get started"
+  button, an "Upgrade to Pro" call to action, and a saving pill.
+- **Every effect** — `BeamEffect.values`, one card each.
+- **Driven progress** — `progress:` fed by a looping `AnimationController`:
+  charge filling an upload row to the value, and a rotate ring parked on it.
+- **Palettes** — a card per entry of `BeamColors.presets`, all nineteen, with
+  the eight added in 0.2 tagged.
+- **Themed** — three effects under a single `BorderBeamTheme`. Each card sets
+  nothing but its effect, so colors, shape, and cycle all come from the theme.
 - **Rest between sweeps** — a `cycleGap` beam that parks at the end of its
   travel and fades away before the next sweep.
-- **Partial contours** — the half-phone composition on rotate, line, and
-  pulse-inside, plus a full line bending through adjacent corners.
-- **Palettes** — a card per preset: colorful, mono, ocean, sunset, aurora, neon,
-  candy, ember, ice, gold, holographic.
+- **Partial contours** — the half-phone `BeamSegment` on rotate, line, and
+  pulse, plus spin held to `BeamSegment.bottomEdge`.
 - **Surfaces** — the beam reached without the wrapper: a `BeamDecoration` in a
   `Container`'s `foregroundDecoration`, a `BeamFocusRing` around a focusable
   field, and `BeamHover` / `BeamPress` cards.
 - **Motion** — one card each for `direction: reverse`, `direction: bounce`,
-  `beamCount: 3`, `segments: 8`, and the comet tail.
-- **Driven progress** — a rotate ring whose sweep is parked by a looping
-  `AnimationController` value instead of the clock.
+  `BeamEffect.rotate(count: 3)`, `dashes: 8`, the comet tail, and `glow: 2`.
 - **Sync** — four cards on one `BeamSync` clock, spaced by `phaseOffset`.
-- **Playground** — every meaningful field of the API, live (below).
+- **Playground** — every field of the API, live (below).
 - A dark/light theme toggle. Styling comes from the demo's own design tokens
   (`lib/src/demo_theme.dart`), not Material defaults.
 
@@ -46,40 +55,38 @@ Controls are grouped into collapsible sections:
 
 | Section | Controls |
 | --- | --- |
-| Variant & colors | variant; palette — the eleven presets plus three assembled modes: **Custom** (2–4 swatches over a base preset, fed to `BeamColors.custom`), **Seed** (one swatch + a `BeamSeedHarmony`, fed to `BeamColors.fromSeed`), and **Lerp** (two presets and a blend slider, fed to `BeamColors.lerp`); an alpha-scale slider over any of them (`BeamColors.scaleAlpha`) |
-| Shape | stadium, per-corner, squircle, and star-contour toggles; a corner-radius slider (or four, in per-corner mode); border width; ring offset; segment presets or custom edge anchors with feathering; the travelled edge and corner wrap on a segment-free line |
-| Timing | cycle, cycle gap, speed, hue period; direction, phase offset, and beam count on the traveling variants; breathe / spike / spike 2 on the line variant; a static-colors toggle |
-| Style | strength, brightness, saturation, hue range, hue mode, hue base, the three layer-opacity factors, glow spread, render scale; tail length and the comet tail on rotate and small; sparkle on the traveling variants; ring segments off the line variant; `glowBoost` and inner size on the pulse variants; the stock recipe, core blur, bloom blur, glow brightness, and glow saturation on pulse-outside |
-| Playback | active toggle; controller mode with start / pause / resume / stop / pulse / flash and its own speed; `startAfter` and `duration` outside controller mode; repeat (forever / once / 3 cycles); reduced motion, with a toggle that simulates it; offscreen pause; the fade curve (spring or `BeamPlayback.cssEase`) |
+| Effect | the eight effects; length, count, and comet on rotate; the edge on line; the angle on shimmer |
+| Colors | every preset in `BeamColors.presets`, plus three factories: **Custom** (2–6 swatches, fed to `BeamColors([...])`), **Seed** (one swatch + a `BeamSeedHarmony`, fed to `BeamColors.fromSeed`), and **Lerp** (two presets and a blend slider, fed to `BeamColors.lerp`); an alpha-scale slider over any of them (`BeamColors.scaleAlpha`) |
+| Style | theme (auto / dark / light), strength, glow, hue mode (auto / ping-pong / continuous / none), hue shift, hue base |
+| Shape | stadium, per-corner, and squircle toggles; a corner-radius slider (or four, in per-corner mode); border width; ring offset; dashes; segment presets or custom edge anchors with feathering |
+| Timing | cycle, cycle gap, speed, direction, phase offset, hue period |
+| Playback | active toggle; controller mode with `start()` / `pause()` / `resume()` / `stop()` / `pulse()` / `flash()` and its own speed; `startAfter` and `duration` outside controller mode; repeat (forever / once / 3 cycles); reduced motion, with a toggle that simulates it; offscreen pause; the fade curve (spring or `BeamPlayback.cssEase`) |
 | Drive | `progress:` with a position slider, `follow:` fed by the pointer over the preview, and `strengthListenable:` fed by a sine wave |
-| Theme | wraps the preview in a `BorderBeamTheme` carrying ocean colors and a squircle-20 shape, and swaps it for three `BeamSync` beams a third of a cycle apart |
+| Theme & sync | wraps the preview in a `BorderBeamTheme` carrying ocean colors and a squircle-20 shape, and swaps it for three `BeamSync` beams a third of a cycle apart |
 
 A few conventions worth knowing:
 
-- **The preview and the snippet come from the same rule.** Both emit only what
-  differs from the package default, so a fresh playground prints the one-liner,
-  and with the theme toggle on, a control left at its default inherits from the
+- **The preview and the snippet come from the same rule.** The effect is always
+  written out; everything else only where it differs from the package default.
+  With the theme toggle on, a control left at its default inherits from the
   `BorderBeamTheme` while anything you set wins.
-- **`auto` means "let the package decide".** Fields whose default depends on the
-  variant or a theme preset (cycle, hue period, brightness, saturation, and the
-  pulse-outside glow overrides) carry an `auto` chip that clears the override.
+- **The snippet compiles as written.** Every value object is `const`, and the
+  pointer, the controller, and the strength signal print as the variables the
+  surrounding widget would hold (`follow: pointer`, `controller: controller`,
+  `strengthListenable: level`), declared above the beam.
+- **`auto` means "let the effect decide".** Cycle, cycle gap, and hue period
+  default per effect (shimmer and charge rest between sweeps, for instance);
+  their `auto` chip clears the override.
+- **Controls that cannot reach the beam are disabled or explained, and drop out
+  of the snippet.** Cycle gap, progress, and follow need a travelling effect; direction
+  does nothing on pulse and halo; hue shift only moves a ping-pong drift; the
+  hue period does nothing once the hue mode is none.
 - **Controller mode owns playback.** With a controller attached, `startAfter`,
   `duration`, `active`, and `timing.speed` belong to it, so those controls are
   disabled and drop out of the snippet.
 - **Two previews.** When the window is wide enough the configuration renders on
   a dark and a light backdrop at once. `BeamTheme.auto` reads the ambient
-  brightness, so neither preview sets `theme:` — the snippet stays faithful.
-- **Per-variant controls.** A field only appears where it reaches the painter:
-  the travelled edge on the line variant, tail length and comet on rotate and
-  small, sparkle on the traveling variants, inner size on pulse-inside. The
-  snippet drops the same fields on the same variants.
-- **Segments own line travel.** Selecting one hides the line edge and corner
-  wrap controls because `segment` defines the path-space endpoints. Custom
-  segments expose start/end edge anchors and a 0–120px feather.
-- **What the snippet cannot write, it names.** A `BeamPathContour` takes a
-  builder, so the star contour prints as a commented placeholder; the pointer
-  and the strength signal print as the variables the surrounding widget would
-  hold (`follow: pointer`, `strengthListenable: level`).
+  brightness, so neither preview sets `theme:` unless you pick one.
 - **Static frame is the reduced-motion default**, so that chip sets no field.
   **Simulate reduced motion** is a preview concern — it wraps the preview in a
   `MediaQuery` asking for reduced motion and changes nothing in the snippet.
@@ -95,25 +102,30 @@ copies the current URL on the web, and off the web a link into the published
 example:
 
 ```
-https://simplifyjobs.github.io/flutter_border_beam/#v=line&str=0.6
+https://simplifyjobs.github.io/flutter_border_beam/#v=shimmer&p=gold
 ```
 
 Unknown keys, malformed pairs, and out-of-range values are ignored on the way
-in, so a truncated or hand-edited link still opens a usable playground.
+in, so a truncated or hand-edited link still opens a usable playground. Links
+from the 0.1 playground open too: `small` maps to rotate, `pulse-inside` to
+pulse, `pulse-outside` to halo, and the fields that moved (line edge, tail
+length, beam count, comet, ring segments, static colors) are read from their
+old keys.
 
 ## Demo reels
 
 Entry points other than `lib/main.dart` are recording reels driven by
 `lib/demo_harness.dart`: a reel is a map of scene name → widget, and the
-harness mounts each scene centered on the demo backdrop, printing the markers
-the recorder keys off (`<PREFIX>:<name>:START/END`, then `<PREFIX>:DONE`).
-`lib/showcase.dart` is the README reel; `lib/pulse_outside_demo.dart` is a
-single long take of the pulse-outside halo. Record with the repo's
-`tool/record_demo.sh`:
+harness precaches the shader, then mounts each scene centered on the demo
+backdrop, printing the markers the recorder keys off
+(`<PREFIX>:<name>:START/END`, then `<PREFIX>:DONE`). `lib/showcase.dart` is the
+README reel — the eight effects, palettes, and a squircle; `lib/halo_demo.dart`
+is a long take of the halo. Record with the repo's `tool/record_demo.sh`:
 
 ```bash
 # from the package root, with a booted iOS simulator and ffmpeg installed
 tool/record_demo.sh --target lib/showcase.dart --prefix SHOWCASE --contact
+tool/record_demo.sh --target lib/halo_demo.dart --prefix HALO --contact
 ```
 
 Output mp4s land in `.demos/` (gitignored), center-cropped at 60fps, with an

@@ -8,12 +8,12 @@ import '../demo_theme.dart';
 import 'playground_state.dart';
 
 // The theme the "Theme demo" toggle installs above the preview.
-final BorderBeamThemeData _demoThemeData = BorderBeamThemeData(
-  style: const BeamStyle(colors: BeamColors.ocean),
-  shape: BeamShape.circular(20, superellipse: true),
+const BorderBeamThemeData _demoThemeData = BorderBeamThemeData(
+  style: BeamStyle(colors: BeamColors.ocean),
+  shape: BeamShape.all(20, superellipse: true),
 );
 
-// The preview surface, and the frame that gives pulse-outside room to bloom.
+// The preview surface, and the frame that leaves the halo room to bloom.
 const double _surfaceHeight = 128;
 const double _maxSurfaceWidth = 320;
 const double _frameHeight = 240;
@@ -26,6 +26,8 @@ const double _syncGap = 14;
 // One full swing of the strength signal.
 const Duration _signalPeriod = Duration(milliseconds: 2400);
 
+/// The playground's live preview: one beam on the page's own backdrop, or
+/// the dark and light backdrops side by side when there is room.
 class PlaygroundPreviews extends StatelessWidget {
   /// Creates the preview area.
   const PlaygroundPreviews({
@@ -247,7 +249,7 @@ class _PreviewState extends State<_Preview>
       width: size.width,
       height: size.height,
       child: BorderBeam(
-        variant: state.variant,
+        effect: state.buildEffect(),
         active: state.buildActive(),
         style: state.buildStyle(),
         shape: state.buildShape(),
@@ -296,7 +298,7 @@ class _PreviewState extends State<_Preview>
               width: width,
               height: _syncSurfaceHeight,
               child: BorderBeam(
-                variant: state.variant,
+                effect: state.buildEffect(),
                 style: state.buildStyle(),
                 shape: state.buildShape(),
                 timing: base.copyWith(phaseOffset: i / _syncBeams),

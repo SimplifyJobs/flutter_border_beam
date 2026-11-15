@@ -5,12 +5,18 @@ import 'src/demo_theme.dart';
 import 'src/mocks.dart';
 import 'src/playground.dart';
 
-void main() => runApp(const BorderBeamDemoApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Load the beam shader before the first frame, so no beam on the page
+  // waits for it.
+  await BorderBeam.precache();
+  runApp(const BorderBeamDemoApp());
+}
 
 /// The flutter_border_beam gallery — a Flutter recreation of the original React
 /// demo (https://beam.jakubantalik.com): hero, Rotate/Pulse example tabs,
-/// and an interactive playground, styled with the demo's own tokens instead
-/// of Material defaults.
+/// the newer effects, and an interactive playground, styled with the demo's
+/// own tokens instead of Material defaults.
 class BorderBeamDemoApp extends StatefulWidget {
   /// Const constructor.
   const BorderBeamDemoApp({super.key});
@@ -31,6 +37,9 @@ class _BorderBeamDemoAppState extends State<BorderBeamDemoApp> {
       toggle: () => setState(() => _dark = !_dark),
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
+        // Beams default to BeamTheme.auto, which reads this brightness — so
+        // the gallery's beams follow the toggle without a `theme:` of their
+        // own.
         theme: ThemeData(
           brightness: _dark ? Brightness.dark : Brightness.light,
           scaffoldBackgroundColor: tokens.bg,
@@ -87,10 +96,48 @@ class _DemoPageState extends State<_DemoPage> {
                           : const _RotateExamples(key: ValueKey('rotate')),
                     ),
                     const SizedBox(height: 56),
+                    const _SectionTitle('Flow, spin, shimmer, charge'),
+                    const _SectionCaption(
+                      'Four effects beyond the original library: colours '
+                      'streaming round an assistant, a spinning gradient '
+                      'ring, a glint across a call to action, and a border '
+                      'that fills.',
+                    ),
+                    const SizedBox(height: 16),
+                    const _NewEffectExamples(),
+                    const SizedBox(height: 40),
+                    const _SectionTitle('Every effect'),
+                    const _SectionCaption(
+                      'BeamEffect.values on the same card. One shader draws '
+                      'all eight in a single pass, so pick for the look, not '
+                      'the cost.',
+                    ),
+                    const SizedBox(height: 16),
+                    const _EffectGrid(),
+                    const SizedBox(height: 40),
+                    const _SectionTitle('Driven progress'),
+                    const _SectionCaption(
+                      'progress: places the sweep where a value says. Charge '
+                      'fills the border to it; rotate parks a glowing ring on '
+                      'it. The clock keeps running underneath, so the beam '
+                      'stays lit rather than frozen.',
+                    ),
+                    const SizedBox(height: 16),
+                    const _ProgressExamples(),
+                    const SizedBox(height: 40),
+                    const _SectionTitle('Palettes'),
+                    const _SectionCaption(
+                      'All nineteen entries of BeamColors.presets, each on the '
+                      'same card — eight of them new. Custom, seeded, and '
+                      'blended palettes live in the playground.',
+                    ),
+                    const SizedBox(height: 16),
+                    const _PaletteExamples(),
+                    const SizedBox(height: 40),
                     const _SectionTitle('Themed'),
                     const _SectionCaption(
                       'One BorderBeamTheme above all three — each card sets '
-                      'only its variant and inherits ocean + squircle 20.',
+                      'only its effect and inherits ocean + squircle 20.',
                     ),
                     const SizedBox(height: 16),
                     const _ThemedExamples(),
@@ -105,19 +152,12 @@ class _DemoPageState extends State<_DemoPage> {
                     const SizedBox(height: 40),
                     const _SectionTitle('Partial contours'),
                     const _SectionCaption(
-                      'One segment across rotate, line, and pulse, plus a '
-                      'full line that bends around its adjacent corners.',
+                      'A BeamSegment masks the border: the same lower half '
+                      'across rotate, line, and pulse, and spin held to the '
+                      'bottom edge and its two corners.',
                     ),
                     const SizedBox(height: 16),
                     const _PartialContourExamples(),
-                    const SizedBox(height: 40),
-                    const _SectionTitle('Palettes'),
-                    const _SectionCaption(
-                      'The eleven presets, each on the same card. Custom, '
-                      'seeded, and blended palettes live in the playground.',
-                    ),
-                    const SizedBox(height: 16),
-                    const _PaletteExamples(),
                     const SizedBox(height: 40),
                     const _SectionTitle('Surfaces'),
                     const _SectionCaption(
@@ -130,20 +170,11 @@ class _DemoPageState extends State<_DemoPage> {
                     const SizedBox(height: 40),
                     const _SectionTitle('Motion'),
                     const _SectionCaption(
-                      'Direction, beam count, ring segments, and the comet '
-                      'tail — one card each.',
+                      'Direction, beam count, dashes, the comet tail, and '
+                      'glow — one card each.',
                     ),
                     const SizedBox(height: 16),
                     const _MotionExamples(),
-                    const SizedBox(height: 40),
-                    const _SectionTitle('Driven progress'),
-                    const _SectionCaption(
-                      'progress: parks the sweep where a value says, turning '
-                      'the ring into a readout. The clock keeps running, so '
-                      'the beam stays lit rather than frozen.',
-                    ),
-                    const SizedBox(height: 16),
-                    const _ProgressExample(),
                     const SizedBox(height: 40),
                     const _SectionTitle('Sync'),
                     const _SectionCaption(
@@ -301,7 +332,9 @@ class ExampleFrame extends StatelessWidget {
   /// Frame height.
   final double height;
 
-  /// Whether to clip (pulse-outside frames must NOT clip the halo).
+  /// Whether to clip. Light that reaches outward — a halo, a comet, a
+  /// positive ring offset — paints past the beam's bounds, so those frames
+  /// must not clip it.
   final bool clip;
 
   @override
@@ -320,117 +353,348 @@ class ExampleFrame extends StatelessWidget {
   }
 }
 
+/// Lays [children] out in rows of equal-width cells: [wideColumns] a row
+/// when the column is at least [breakpoint] wide, [narrowColumns] below it.
+class _Grid extends StatelessWidget {
+  const _Grid({
+    required this.children,
+    this.wideColumns = 3,
+    this.narrowColumns = 2,
+    this.breakpoint = 420,
+    this.spacing = 12,
+    this.height = 64,
+  });
+
+  final List<Widget> children;
+  final int wideColumns;
+  final int narrowColumns;
+  final double breakpoint;
+  final double spacing;
+
+  /// Cell height; null lets each cell size itself.
+  final double? height;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final columns = constraints.maxWidth >= breakpoint
+          ? wideColumns
+          : narrowColumns;
+      final width = (constraints.maxWidth - (columns - 1) * spacing) / columns;
+      return Wrap(
+        spacing: spacing,
+        runSpacing: spacing,
+        children: [
+          for (final child in children)
+            SizedBox(width: width, height: height, child: child),
+        ],
+      );
+    },
+  );
+}
+
 class _RotateExamples extends StatelessWidget {
   const _RotateExamples({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final theme = DemoTheme.of(context);
-    final beamTheme = theme.isDark ? BeamTheme.dark : BeamTheme.light;
-    return Column(
-      children: [
-        ExampleFrame(
-          child: BorderBeam.rotate(
-            style: BeamStyle(theme: beamTheme),
-            borderRadius: 20,
-            child: const MockChatInput(),
+  Widget build(BuildContext context) => const Column(
+    children: [
+      ExampleFrame(
+        child: BorderBeam(
+          effect: BeamEffect.rotate(),
+          borderRadius: 20,
+          child: MockChatInput(),
+        ),
+      ),
+      SizedBox(height: 16),
+      Row(
+        children: [
+          Expanded(
+            child: ExampleFrame(
+              height: 140,
+              // The 0.1 `small` variant is rotate on a small box: the
+              // beam scales its tail and glow to the surface.
+              child: BorderBeam(
+                effect: BeamEffect.rotate(),
+                borderRadius: 18,
+                child: MockIconButton(),
+              ),
+            ),
           ),
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: ExampleFrame(
-                height: 140,
-                child: BorderBeam.small(
-                  style: BeamStyle(theme: beamTheme),
-                  borderRadius: 20,
-                  child: const MockIconButton(),
-                ),
+          SizedBox(width: 16),
+          Expanded(
+            flex: 2,
+            child: ExampleFrame(
+              height: 140,
+              child: BorderBeam(
+                effect: BeamEffect.line(),
+                borderRadius: 21,
+                child: MockSearchBar(),
               ),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              flex: 2,
-              child: ExampleFrame(
-                height: 140,
-                child: BorderBeam.line(
-                  style: BeamStyle(theme: beamTheme),
-                  borderRadius: 20,
-                  child: const MockSearchBar(),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
+          ),
+        ],
+      ),
+    ],
+  );
 }
 
 class _PulseExamples extends StatelessWidget {
   const _PulseExamples({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final theme = DemoTheme.of(context);
-    final beamTheme = theme.isDark ? BeamTheme.dark : BeamTheme.light;
-    return Column(
+  Widget build(BuildContext context) => const Column(
+    children: [
+      ExampleFrame(
+        height: 300,
+        child: BorderBeam(
+          effect: BeamEffect.pulse(),
+          borderRadius: 20,
+          child: MockWorkingCard(),
+        ),
+      ),
+      SizedBox(height: 16),
+      Row(
+        children: [
+          Expanded(
+            child: ExampleFrame(
+              height: 160,
+              child: BorderBeam(
+                effect: BeamEffect.pulse(),
+                shape: BeamShape.stadium(),
+                child: MockSubscribeButton(),
+              ),
+            ),
+          ),
+          SizedBox(width: 16),
+          Expanded(
+            flex: 2,
+            child: ExampleFrame(
+              height: 220,
+              // The halo breathes outside the card's bounds.
+              clip: false,
+              child: BorderBeam(
+                effect: BeamEffect.halo(),
+                borderRadius: 20,
+                child: MockChatInput(),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ],
+  );
+}
+
+/// Flow, spin, shimmer, and charge, each on the surface it suits.
+class _NewEffectExamples extends StatelessWidget {
+  const _NewEffectExamples();
+
+  @override
+  Widget build(BuildContext context) => const _Grid(
+    wideColumns: 2,
+    narrowColumns: 1,
+    breakpoint: 480,
+    spacing: 16,
+    height: 150,
+    children: [
+      _LabelledFrame(
+        label: 'flow · cosmic',
+        child: BorderBeam(
+          effect: BeamEffect.flow(),
+          colors: BeamColors.cosmic,
+          shape: BeamShape.stadium(),
+          child: MockListeningCard(),
+        ),
+      ),
+      _LabelledFrame(
+        label: 'spin',
+        child: BorderBeam(
+          effect: BeamEffect.spin(),
+          shape: BeamShape.stadium(),
+          child: MockPillButton(
+            label: 'Get started',
+            icon: Icons.arrow_forward,
+          ),
+        ),
+      ),
+      _LabelledFrame(
+        label: 'shimmer · gold',
+        child: BorderBeam(
+          effect: BeamEffect.shimmer(),
+          colors: BeamColors.gold,
+          shape: BeamShape.stadium(),
+          child: MockPillButton(
+            label: 'Upgrade to Pro',
+            icon: Icons.auto_awesome,
+          ),
+        ),
+      ),
+      _LabelledFrame(
+        label: 'charge · lagoon',
+        child: BorderBeam(
+          effect: BeamEffect.charge(),
+          colors: BeamColors.lagoon,
+          shape: BeamShape.stadium(),
+          child: MockPillButton(
+            label: 'Saving draft',
+            icon: Icons.cloud_upload_outlined,
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+/// An unclipped frame with a caption under its centered example.
+class _LabelledFrame extends StatelessWidget {
+  const _LabelledFrame({required this.label, required this.child});
+
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => ExampleFrame(
+    height: 150,
+    clip: false,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [child, const SizedBox(height: 14), _CardLabel(label)],
+    ),
+  );
+}
+
+/// Every effect with its defaults, on one card shape.
+class _EffectGrid extends StatelessWidget {
+  const _EffectGrid();
+
+  @override
+  Widget build(BuildContext context) => _Grid(
+    wideColumns: 4,
+    // The halo paints outside its card, so the cells keep their distance.
+    spacing: 20,
+    breakpoint: 480,
+    children: [
+      for (final effect in BeamEffect.values)
+        BorderBeam(
+          effect: effect,
+          shape: const BeamShape.all(14, superellipse: true),
+          child: _ThemedCard(label: effect.name, radius: 14),
+        ),
+    ],
+  );
+}
+
+/// Charge filling an upload row to a looping value, and a rotate ring
+/// parked on the same value.
+class _ProgressExamples extends StatefulWidget {
+  const _ProgressExamples();
+
+  @override
+  State<_ProgressExamples> createState() => _ProgressExamplesState();
+}
+
+class _ProgressExamplesState extends State<_ProgressExamples>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 6),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  // Fills over the first 80% of the loop and holds full for the rest, so
+  // the finished state is on screen long enough to read.
+  double get _upload =>
+      Curves.easeInOut.transform((_controller.value / 0.8).clamp(0.0, 1.0));
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _controller,
+    builder: (context, _) => Column(
       children: [
         ExampleFrame(
-          height: 300,
-          clip: false,
-          child: BorderBeam.pulseInside(
-            style: BeamStyle(theme: beamTheme),
-            borderRadius: 20,
-            child: const MockWorkingCard(),
+          height: 150,
+          child: BorderBeam(
+            effect: const BeamEffect.charge(),
+            colors: BeamColors.sky,
+            borderRadius: 18,
+            progress: _upload,
+            child: MockUploadCard(progress: _upload),
           ),
         ),
         const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: ExampleFrame(
-                height: 160,
-                clip: false,
-                child: BorderBeam.pulseInside(
-                  style: BeamStyle(theme: beamTheme),
-                  borderRadius: 20,
-                  child: const MockSubscribeButton(),
-                ),
+        ExampleFrame(
+          height: 150,
+          child: SizedBox(
+            width: 250,
+            height: 84,
+            child: BorderBeam(
+              effect: const BeamEffect.rotate(),
+              colors: BeamColors.aurora,
+              shape: const BeamShape.all(16, superellipse: true),
+              progress: _controller.value,
+              child: _ThemedCard(
+                label: 'progress ${_controller.value.toStringAsFixed(2)}',
+                radius: 16,
               ),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              flex: 2,
-              child: ExampleFrame(
-                height: 220,
-                clip: false,
-                child: BorderBeam.pulseOutside(
-                  style: BeamStyle(theme: beamTheme),
-                  borderRadius: 20,
-                  child: const MockChatInput(),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ],
-    );
-  }
+    ),
+  );
 }
 
-// Defaults handed to the Themed section's three cards. Not const: building a
-// BorderRadius from a number is a runtime construction, so BeamShape.circular
-// cannot be const either.
-final BorderBeamThemeData _galleryThemeData = BorderBeamThemeData(
-  style: const BeamStyle(colors: BeamColors.ocean),
-  shape: BeamShape.circular(20, superellipse: true),
-  timing: const BeamTiming(cycle: Duration(milliseconds: 2600)),
+/// Every palette preset, one small card each; the eight added in 0.2 carry
+/// a tag.
+class _PaletteExamples extends StatelessWidget {
+  const _PaletteExamples();
+
+  static const Set<String> _added = {
+    'lagoon',
+    'dusk',
+    'forest',
+    'rose',
+    'cosmic',
+    'citrus',
+    'sky',
+    'lavender',
+  };
+
+  @override
+  Widget build(BuildContext context) => _Grid(
+    children: [
+      for (final MapEntry(key: name, value: colors)
+          in BeamColors.presets.entries)
+        BorderBeam(
+          effect: const BeamEffect.rotate(),
+          colors: colors,
+          shape: const BeamShape.all(14, superellipse: true),
+          child: _ThemedCard(
+            label: name,
+            radius: 14,
+            tag: _added.contains(name) ? 'new' : null,
+          ),
+        ),
+    ],
+  );
+}
+
+// Defaults handed to the Themed section's three cards — all const, since
+// BeamShape.all stores its radius as a number.
+const BorderBeamThemeData _galleryThemeData = BorderBeamThemeData(
+  style: BeamStyle(colors: BeamColors.ocean),
+  shape: BeamShape.all(20, superellipse: true),
+  timing: BeamTiming(cycle: Duration(milliseconds: 2600)),
 );
 
-/// Three variants under one [BorderBeamTheme]: each beam sets nothing but
-/// its own variant, so colors, shape, and cycle all come from the theme.
+/// Three effects under one [BorderBeamTheme]: each beam sets nothing but
+/// its own effect, so colors, shape, and cycle all come from the theme.
 class _ThemedExamples extends StatelessWidget {
   const _ThemedExamples();
 
@@ -440,12 +704,12 @@ class _ThemedExamples extends StatelessWidget {
       data: _galleryThemeData,
       child: Row(
         children: [
-          for (final entry in const [
-            (label: 'rotate', variant: BeamVariant.rotate),
-            (label: 'small', variant: BeamVariant.small),
-            (label: 'pulseInside', variant: BeamVariant.pulseInside),
-          ]) ...[
-            if (entry.label != 'rotate') const SizedBox(width: 16),
+          for (final (i, effect) in const [
+            BeamEffect.rotate(),
+            BeamEffect.flow(),
+            BeamEffect.pulse(),
+          ].indexed) ...[
+            if (i > 0) const SizedBox(width: 16),
             Expanded(
               child: ExampleFrame(
                 height: 150,
@@ -453,8 +717,8 @@ class _ThemedExamples extends StatelessWidget {
                 child: SizedBox(
                   height: 84,
                   child: BorderBeam(
-                    variant: entry.variant,
-                    child: _ThemedCard(label: entry.label),
+                    effect: effect,
+                    child: _ThemedCard(label: 'themed ${effect.name}'),
                   ),
                 ),
               ),
@@ -466,17 +730,27 @@ class _ThemedExamples extends StatelessWidget {
   }
 }
 
-/// The surface the themed cards wrap — squircle 20, matching the theme's
+/// The surface the themed cards wrap — squircle corners matching the beam's
 /// shape, since a beam never reads its child's decoration.
 class _ThemedCard extends StatelessWidget {
-  const _ThemedCard({required this.label, this.radius = 20});
+  const _ThemedCard({required this.label, this.radius = 20, this.tag});
 
   final String label;
   final double radius;
 
+  /// An optional small caption under [label].
+  final String? tag;
+
   @override
   Widget build(BuildContext context) {
     final t = DemoTheme.of(context).tokens;
+    final style = TextStyle(
+      fontSize: 12,
+      color: t.mockText,
+      fontFamily: 'Menlo',
+      fontFamilyFallback: const ['Courier New', 'monospace'],
+      decoration: TextDecoration.none,
+    );
     return Container(
       decoration: ShapeDecoration(
         color: t.mockBg,
@@ -486,15 +760,16 @@ class _ThemedCard extends StatelessWidget {
         ),
       ),
       alignment: Alignment.center,
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          color: t.mockText,
-          fontFamily: 'Menlo',
-          fontFamilyFallback: const ['Courier New', 'monospace'],
-          decoration: TextDecoration.none,
-        ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: style),
+          if (tag case final String text)
+            Text(
+              text,
+              style: style.copyWith(fontSize: 10, color: t.mockPlaceholder),
+            ),
+        ],
       ),
     );
   }
@@ -506,23 +781,18 @@ class _CycleGapExample extends StatelessWidget {
   const _CycleGapExample();
 
   @override
-  Widget build(BuildContext context) {
-    final theme = DemoTheme.of(context);
-    return ExampleFrame(
-      child: BorderBeam.rotate(
-        style: BeamStyle(
-          theme: theme.isDark ? BeamTheme.dark : BeamTheme.light,
-        ),
-        borderRadius: 20,
-        timing: const BeamTiming(cycleGap: Duration(milliseconds: 900)),
-        child: const MockChatInput(),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => const ExampleFrame(
+    child: BorderBeam(
+      effect: BeamEffect.rotate(),
+      borderRadius: 20,
+      timing: BeamTiming(cycleGap: Duration(milliseconds: 900)),
+      child: MockChatInput(),
+    ),
+  );
 }
 
-/// A half-phone segment across the three painting families, beside a
-/// segment-free line using border-path corner wrapping.
+/// One lower-half segment across three effects, beside spin held to the
+/// bottom edge.
 class _PartialContourExamples extends StatelessWidget {
   const _PartialContourExamples();
 
@@ -532,57 +802,51 @@ class _PartialContourExamples extends StatelessWidget {
   );
 
   @override
-  Widget build(BuildContext context) => ExampleFrame(
+  Widget build(BuildContext context) => const ExampleFrame(
     height: 370,
     clip: false,
     child: Padding(
-      padding: const EdgeInsets.all(18),
+      padding: EdgeInsets.all(18),
       child: Row(
         children: [
-          const SizedBox(
+          SizedBox(
             width: 180,
             height: 320,
-            child: BorderBeam.rotate(
+            child: BorderBeam(
+              effect: BeamEffect.rotate(),
               colors: BeamColors.aurora,
               shape: _halfShape,
               child: _ThemedCard(label: 'Half phone', radius: 36),
             ),
           ),
-          const SizedBox(width: 14),
+          SizedBox(width: 14),
           Expanded(
             child: Column(
               children: [
                 Expanded(
-                  child: BorderBeam.line(
+                  child: BorderBeam(
+                    effect: BeamEffect.line(),
                     colors: BeamColors.ocean,
                     shape: _halfShape,
-                    child: const _ThemedCard(
-                      label: 'Half phone · line',
-                      radius: 36,
-                    ),
+                    child: _ThemedCard(label: 'Half phone · line', radius: 36),
                   ),
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 Expanded(
-                  child: BorderBeam.pulseInside(
+                  child: BorderBeam(
+                    effect: BeamEffect.pulse(),
                     colors: BeamColors.sunset,
                     shape: _halfShape,
-                    child: const _ThemedCard(
-                      label: 'Half phone · pulse',
-                      radius: 36,
-                    ),
+                    child: _ThemedCard(label: 'Half phone · pulse', radius: 36),
                   ),
                 ),
-                const SizedBox(height: 12),
-                const Expanded(
-                  child: BorderBeam.line(
+                SizedBox(height: 12),
+                Expanded(
+                  child: BorderBeam(
+                    effect: BeamEffect.spin(),
                     colors: BeamColors.neon,
-                    shape: BeamShape.all(
-                      28,
-                      edge: BeamEdge.bottom,
-                      wrapCorners: true,
-                    ),
-                    child: _ThemedCard(label: 'Corner wrap', radius: 28),
+                    shape: BeamShape.all(28, segment: BeamSegment.bottomEdge),
+                    child: _ThemedCard(label: 'Bottom edge · spin', radius: 28),
                   ),
                 ),
               ],
@@ -591,50 +855,6 @@ class _PartialContourExamples extends StatelessWidget {
         ],
       ),
     ),
-  );
-}
-
-/// The eleven palette presets, one small card each.
-class _PaletteExamples extends StatelessWidget {
-  const _PaletteExamples();
-
-  static const List<(String, BeamColors)> _presets = [
-    ('colorful', BeamColors.colorful),
-    ('mono', BeamColors.mono),
-    ('ocean', BeamColors.ocean),
-    ('sunset', BeamColors.sunset),
-    ('aurora', BeamColors.aurora),
-    ('neon', BeamColors.neon),
-    ('candy', BeamColors.candy),
-    ('ember', BeamColors.ember),
-    ('ice', BeamColors.ice),
-    ('gold', BeamColors.gold),
-    ('holographic', BeamColors.holographic),
-  ];
-
-  @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      // Three cards a row on the gallery column, two on a phone.
-      final columns = constraints.maxWidth >= 420 ? 3 : 2;
-      final width = (constraints.maxWidth - (columns - 1) * 12) / columns;
-      return Wrap(
-        spacing: 12,
-        runSpacing: 12,
-        children: [
-          for (final (label, colors) in _presets)
-            SizedBox(
-              width: width,
-              height: 64,
-              child: BorderBeam.rotate(
-                colors: colors,
-                shape: const BeamShape.all(14, superellipse: true),
-                child: _ThemedCard(label: label, radius: 14),
-              ),
-            ),
-        ],
-      );
-    },
   );
 }
 
@@ -647,6 +867,7 @@ class _SurfaceExamples extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = DemoTheme.of(context);
     final t = theme.tokens;
+    // A decoration has no context, so it is told the brightness.
     final brightness = theme.isDark ? Brightness.dark : Brightness.light;
     return Column(
       children: [
@@ -659,36 +880,37 @@ class _SurfaceExamples extends StatelessWidget {
                   width: 190,
                   height: 72,
                   foregroundDecoration: BeamDecoration(
-                    variant: BeamVariant.rotate,
+                    effect: const BeamEffect.rotate(),
                     brightness: brightness,
                     colors: BeamColors.ocean,
                     borderRadius: 16,
                   ),
                   decoration: ShapeDecoration(
                     color: t.mockBg,
-                    shape: RoundedSuperellipseBorder(
+                    shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                       side: BorderSide(color: t.mockBorder),
                     ),
                   ),
                   alignment: Alignment.center,
-                  child: _CardLabel('BeamDecoration'),
+                  child: const _CardLabel('BeamDecoration'),
                 ),
               ),
             ),
             const SizedBox(width: 16),
-            Expanded(
+            const Expanded(
               child: ExampleFrame(
                 height: 150,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const BeamFocusRing(
+                    // Spin in ocean is the focus ring's own default.
+                    BeamFocusRing(
                       borderRadius: 12,
                       alwaysShow: true,
                       child: MockFocusField(),
                     ),
-                    const SizedBox(height: 10),
+                    SizedBox(height: 10),
                     _CardLabel('BeamFocusRing'),
                   ],
                 ),
@@ -697,7 +919,7 @@ class _SurfaceExamples extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 16),
-        Row(
+        const Row(
           children: [
             Expanded(
               child: ExampleFrame(
@@ -713,7 +935,7 @@ class _SurfaceExamples extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 16),
+            SizedBox(width: 16),
             Expanded(
               child: ExampleFrame(
                 height: 150,
@@ -735,113 +957,57 @@ class _SurfaceExamples extends StatelessWidget {
   }
 }
 
-/// Direction, multi-beam, segments, and comet, one card each.
+/// Direction, beam count, dashes, comet, and glow, one card each.
 class _MotionExamples extends StatelessWidget {
   const _MotionExamples();
 
-  @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      final columns = constraints.maxWidth >= 420 ? 3 : 2;
-      final width = (constraints.maxWidth - (columns - 1) * 12) / columns;
-      Widget cell(String label, Widget beam) =>
-          SizedBox(width: width, height: 72, child: beam);
-      return Wrap(
-        spacing: 12,
-        runSpacing: 12,
-        children: [
-          cell(
-            'reverse',
-            const BorderBeam.rotate(
-              colors: BeamColors.ocean,
-              shape: BeamShape.all(16, superellipse: true),
-              timing: BeamTiming(direction: BeamDirection.reverse),
-              child: _ThemedCard(label: 'reverse', radius: 16),
-            ),
-          ),
-          cell(
-            'bounce',
-            const BorderBeam.rotate(
-              colors: BeamColors.sunset,
-              shape: BeamShape.all(16, superellipse: true),
-              timing: BeamTiming(direction: BeamDirection.bounce),
-              child: _ThemedCard(label: 'bounce', radius: 16),
-            ),
-          ),
-          cell(
-            'beams 3',
-            const BorderBeam.rotate(
-              colors: BeamColors.neon,
-              shape: BeamShape.all(16, superellipse: true),
-              timing: BeamTiming(beamCount: 3),
-              child: _ThemedCard(label: 'beamCount 3', radius: 16),
-            ),
-          ),
-          cell(
-            'segments 8',
-            const BorderBeam.rotate(
-              colors: BeamColors.ice,
-              shape: BeamShape.all(16, superellipse: true),
-              style: BeamStyle(segments: 8),
-              child: _ThemedCard(label: 'segments 8', radius: 16),
-            ),
-          ),
-          cell(
-            'comet',
-            const BorderBeam.rotate(
-              colors: BeamColors.aurora,
-              shape: BeamShape.all(16, superellipse: true),
-              style: BeamStyle(comet: true, sparkle: 0.4),
-              child: _ThemedCard(label: 'comet', radius: 16),
-            ),
-          ),
-        ],
-      );
-    },
-  );
-}
-
-/// A rotate ring parked by a value instead of the clock: the controller
-/// loops 0→1, and the beam sits wherever it says.
-class _ProgressExample extends StatefulWidget {
-  const _ProgressExample();
+  static const BeamShape _shape = BeamShape.all(16, superellipse: true);
 
   @override
-  State<_ProgressExample> createState() => _ProgressExampleState();
-}
-
-class _ProgressExampleState extends State<_ProgressExample>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 6),
-  )..repeat();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => ExampleFrame(
-    height: 170,
-    child: AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) => SizedBox(
-        width: 250,
-        height: 84,
-        child: BorderBeam.rotate(
-          colors: BeamColors.aurora,
-          shape: const BeamShape.all(16, superellipse: true),
-          progress: _controller.value,
-          child: _ThemedCard(
-            label: 'progress ${_controller.value.toStringAsFixed(2)}',
-            radius: 16,
-          ),
-        ),
+  Widget build(BuildContext context) => const _Grid(
+    height: 72,
+    spacing: 16,
+    children: [
+      BorderBeam(
+        effect: BeamEffect.rotate(),
+        colors: BeamColors.ocean,
+        shape: _shape,
+        timing: BeamTiming(direction: BeamDirection.reverse),
+        child: _ThemedCard(label: 'reverse', radius: 16),
       ),
-    ),
+      BorderBeam(
+        effect: BeamEffect.rotate(),
+        colors: BeamColors.sunset,
+        shape: _shape,
+        timing: BeamTiming(direction: BeamDirection.bounce),
+        child: _ThemedCard(label: 'bounce', radius: 16),
+      ),
+      BorderBeam(
+        effect: BeamEffect.rotate(count: 3),
+        colors: BeamColors.neon,
+        shape: _shape,
+        child: _ThemedCard(label: 'count 3', radius: 16),
+      ),
+      BorderBeam(
+        effect: BeamEffect.spin(),
+        colors: BeamColors.ice,
+        shape: BeamShape.all(16, superellipse: true, dashes: 8),
+        child: _ThemedCard(label: 'dashes 8', radius: 16),
+      ),
+      BorderBeam(
+        effect: BeamEffect.rotate(comet: true, length: 1.5),
+        colors: BeamColors.dusk,
+        shape: _shape,
+        child: _ThemedCard(label: 'comet', radius: 16),
+      ),
+      BorderBeam(
+        effect: BeamEffect.flow(),
+        colors: BeamColors.rose,
+        shape: _shape,
+        style: BeamStyle(glow: 2),
+        child: _ThemedCard(label: 'glow 2', radius: 16),
+      ),
+    ],
   );
 }
 
@@ -864,7 +1030,8 @@ class _SyncExamples extends StatelessWidget {
               Expanded(
                 child: SizedBox(
                   height: 76,
-                  child: BorderBeam.rotate(
+                  child: BorderBeam(
+                    effect: const BeamEffect.rotate(),
                     colors: BeamColors.ocean,
                     shape: const BeamShape.all(14, superellipse: true),
                     timing: BeamTiming(phaseOffset: i / _count),

@@ -197,41 +197,51 @@ class _PlaygroundSectionState extends State<PlaygroundSection> {
 
   Widget _toolbar() {
     final t = DemoTheme.of(context).tokens;
-    return Row(
+    // A Wrap rather than a Row: on a phone the actions drop below the
+    // caption instead of overflowing.
+    return Wrap(
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 8,
+      runSpacing: 8,
       children: [
-        Expanded(
-          child: Text(
-            'Every field the beam takes, live.',
-            style: TextStyle(
-              fontSize: 12,
-              color: t.muted,
-              decoration: TextDecoration.none,
-            ),
+        Text(
+          'Every field the beam takes, live.',
+          style: TextStyle(
+            fontSize: 12,
+            color: t.muted,
+            decoration: TextDecoration.none,
           ),
         ),
-        AnimatedOpacity(
-          opacity: _copied == 'link' ? 1 : 0,
-          duration: const Duration(milliseconds: 150),
-          child: Text(
-            'Copied',
-            style: TextStyle(
-              fontSize: 12,
-              color: t.muted,
-              decoration: TextDecoration.none,
+        Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          runSpacing: 6,
+          children: [
+            AnimatedOpacity(
+              opacity: _copied == 'link' ? 1 : 0,
+              duration: const Duration(milliseconds: 150),
+              child: Text(
+                'Copied',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: t.muted,
+                  decoration: TextDecoration.none,
+                ),
+              ),
             ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        DemoChip(
-          label: 'Copy share link',
-          selected: false,
-          onTap: () => _copy('link', _shareLink()),
-        ),
-        const SizedBox(width: 6),
-        DemoChip(
-          label: 'Reset',
-          selected: false,
-          onTap: () => _edit(() => _state = PlaygroundState()),
+            const SizedBox(width: 8),
+            DemoChip(
+              label: 'Copy share link',
+              selected: false,
+              onTap: () => _copy('link', _shareLink()),
+            ),
+            const SizedBox(width: 6),
+            DemoChip(
+              label: 'Reset',
+              selected: false,
+              onTap: () => _edit(() => _state = PlaygroundState()),
+            ),
+          ],
         ),
       ],
     );

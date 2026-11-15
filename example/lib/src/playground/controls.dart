@@ -400,7 +400,7 @@ class NullableSliderRow extends StatelessWidget {
 
   /// Where the track sits, and what the readout reports, while [value] is
   /// null. Null parks the track at [min] — the package default of that field
-  /// is internal to the variant preset.
+  /// is internal to the package.
   final double? fallback;
 
   /// Range start.

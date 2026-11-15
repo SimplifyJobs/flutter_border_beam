@@ -37,31 +37,49 @@ String encodePlaygroundState(PlaygroundState state) {
     if (value != fallback && value != null) put(key, value);
   }
 
-  if (state.variant != d.variant) put('v', _variantIds[state.variant]!);
-  if (state.palette != d.palette) put('p', state.palette.id);
+  choice('v', state.effect, d.effect);
+  number('tl', state.rotateLength, d.rotateLength);
+  integer('bc', state.rotateCount, d.rotateCount);
+  flag('co', state.rotateComet);
+  choice('ed', state.lineEdge, d.lineEdge);
+  number('sha', state.shimmerAngle, d.shimmerAngle);
+
+  if (state.paletteMode != PaletteMode.preset) {
+    put('p', state.paletteMode.id);
+  } else if (state.preset != d.preset) {
+    put('p', state.preset);
+  }
+  // Kept while another palette is selected, so flipping back restores them.
+  if (state.preset != d.preset && state.paletteMode != PaletteMode.preset) {
+    put('pp', state.preset);
+  }
   if (!listEquals(state.customColors, d.customColors)) {
     put('cc', state.customColors.join(','));
   }
-  if (state.customBase != d.customBase) put('pb', state.customBase.id);
   integer('sdc', state.seedColor, d.seedColor);
   choice('sdh', state.seedHarmony, d.seedHarmony);
-  if (state.lerpFrom != d.lerpFrom) put('lfa', state.lerpFrom.id);
-  if (state.lerpTo != d.lerpTo) put('lto', state.lerpTo.id);
+  if (state.lerpFrom != d.lerpFrom) put('lfa', state.lerpFrom);
+  if (state.lerpTo != d.lerpTo) put('lto', state.lerpTo);
   number('lt', state.lerpT, d.lerpT);
   number('al', state.alphaScale, d.alphaScale);
 
+  if (state.beamTheme case final BeamTheme theme) put('bt', theme.name);
+  number('str', state.strength, d.strength);
+  number('gl', state.glow, d.glow);
+  number('hr', state.hueShift, d.hueShift);
+  if (state.hueMode case final BeamHueMode mode) put('hm', mode.name);
+  number('hb', state.hueBase, d.hueBase);
+
   flag('st', state.stadium);
   flag('pc', state.perCorner);
-  optional('r', state.radius);
+  number('r', state.radius, d.radius);
   number('rtl', state.radiusTopLeft, d.radiusTopLeft);
   number('rtr', state.radiusTopRight, d.radiusTopRight);
   number('rbr', state.radiusBottomRight, d.radiusBottomRight);
   number('rbl', state.radiusBottomLeft, d.radiusBottomLeft);
   flag('se', state.superellipse);
   number('bw', state.borderWidth, d.borderWidth);
-  choice('ed', state.edge, d.edge);
   number('ro', state.ringOffset, d.ringOffset);
-  flag('ct', state.contour);
   if (state.segmentPreset != SegmentPreset.off) {
     put('sgp', state.segmentPreset.id);
     if (state.segmentPreset == SegmentPreset.custom) {
@@ -84,42 +102,14 @@ String encodePlaygroundState(PlaygroundState state) {
       }
     }
   }
-  flag('wc', state.wrapCorners);
+  integer('ds', state.dashes, d.dashes);
 
   optional('cy', state.cycleSeconds);
-  number('cg', state.cycleGapSeconds, d.cycleGapSeconds);
+  optional('cg', state.cycleGapSeconds);
   number('sp', state.speed, d.speed);
   choice('dir', state.direction, d.direction);
   number('po', state.phaseOffset, d.phaseOffset);
-  integer('bc', state.beamCount, d.beamCount);
   optional('hp', state.huePeriodSeconds);
-  number('bf', state.breatheFactor, d.breatheFactor);
-  number('sf', state.spikeFactor, d.spikeFactor);
-  number('s2', state.spike2Factor, d.spike2Factor);
-  flag('sc', state.staticColors);
-
-  number('str', state.strength, d.strength);
-  optional('br', state.brightness);
-  optional('sa', state.saturation);
-  number('hr', state.hueRange, d.hueRange);
-  if (state.hueMode case final BeamHueMode mode) put('hm', mode.name);
-  number('hb', state.hueBase, d.hueBase);
-  number('so', state.strokeOpacityFactor, d.strokeOpacityFactor);
-  number('io', state.innerOpacityFactor, d.innerOpacityFactor);
-  number('bo', state.bloomOpacityFactor, d.bloomOpacityFactor);
-  number('tl', state.tailLength, d.tailLength);
-  number('gs', state.glowSpread, d.glowSpread);
-  flag('co', state.comet);
-  number('sk', state.sparkle, d.sparkle);
-  integer('sg', state.segments, d.segments);
-  number('iss', state.innerSizeScale, d.innerSizeScale);
-  number('rs', state.renderScale, d.renderScale);
-  flag('pos', state.stockPulseOutside);
-  number('gb', state.glowBoost, d.glowBoost);
-  optional('cb', state.coreBlur);
-  optional('bb', state.bloomBlur);
-  optional('gbr', state.glowBrightness);
-  optional('gsa', state.glowSaturation);
 
   if (!state.active) put('a', 0);
   integer('rp', state.repeatCycles, d.repeatCycles);
@@ -137,7 +127,7 @@ String encodePlaygroundState(PlaygroundState state) {
   number('du', state.durationSeconds, d.durationSeconds);
 
   flag('dp', state.driveProgress);
-  number('pr', state.progress, d.progress);
+  number('pg', state.progress, d.progress);
   flag('fp', state.followPointer);
   flag('ss', state.strengthSignal);
 
@@ -151,7 +141,10 @@ String encodePlaygroundState(PlaygroundState state) {
 ///
 /// Unknown keys, malformed pairs, and out-of-range values are ignored: the
 /// corresponding field keeps its default, so a truncated or hand-edited link
-/// still opens a usable playground.
+/// still opens a usable playground. Links from the 0.1 playground open too:
+/// its variant ids map onto the effects that replaced them, and the fields
+/// that moved (`edge`, tail length, beam count, comet, ring segments, static
+/// colors) are read from their old keys.
 PlaygroundState decodePlaygroundState(String encoded) {
   final state = PlaygroundState();
   final values = <String, String>{};
@@ -192,11 +185,9 @@ PlaygroundState decodePlaygroundState(String encoded) {
     return null;
   }
 
-  PalettePreset? readPreset(String key) {
-    for (final preset in PalettePreset.presets) {
-      if (preset.id == values[key]) return preset;
-    }
-    return null;
+  String? readPreset(String key) {
+    final raw = values[key];
+    return BeamColors.presets.containsKey(raw) ? raw : null;
   }
 
   ({BeamEdge edge, double t})? readAnchor(String key) {
@@ -211,12 +202,27 @@ PlaygroundState decodePlaygroundState(String encoded) {
     return (edge: edge, t: t);
   }
 
-  for (final entry in _variantIds.entries) {
-    if (entry.value == values['v']) state.variant = entry.key;
+  state.effect =
+      readEnum('v', EffectKind.values) ??
+      _legacyEffects[values['v']] ??
+      state.effect;
+  state.rotateLength = read('tl', 0.25, 2) ?? state.rotateLength;
+  state.rotateCount = readInt('bc', 1, 4) ?? state.rotateCount;
+  state.rotateComet = readFlag('co') ?? state.rotateComet;
+  state.lineEdge = readEnum('ed', BeamEdge.values) ?? state.lineEdge;
+  state.shimmerAngle = read('sha', -90, 90) ?? state.shimmerAngle;
+
+  final palette = values['p'];
+  if (BeamColors.presets.containsKey(palette)) {
+    state.preset = palette!;
+  } else {
+    for (final mode in PaletteMode.values) {
+      if (mode != PaletteMode.preset && mode.id == palette) {
+        state.paletteMode = mode;
+      }
+    }
   }
-  for (final preset in PalettePreset.values) {
-    if (preset.id == values['p']) state.palette = preset;
-  }
+  state.preset = readPreset('pp') ?? state.preset;
   final colors = values['cc'];
   if (colors != null) {
     final parsed = [
@@ -228,8 +234,6 @@ PlaygroundState decodePlaygroundState(String encoded) {
       state.customColors = parsed.take(maxCustomColors).toList();
     }
   }
-
-  state.customBase = readPreset('pb') ?? state.customBase;
   state.seedColor =
       readInt('sdc', 0, customSwatches.length - 1) ?? state.seedColor;
   state.seedHarmony =
@@ -238,6 +242,16 @@ PlaygroundState decodePlaygroundState(String encoded) {
   state.lerpTo = readPreset('lto') ?? state.lerpTo;
   state.lerpT = read('lt', 0, 1) ?? state.lerpT;
   state.alphaScale = read('al', 0, 2) ?? state.alphaScale;
+
+  state.beamTheme = readEnum('bt', BeamTheme.values);
+  state.strength = read('str', 0, 1) ?? state.strength;
+  // 0.1's glowSpread is the nearest thing to glow, so an old link keeps it.
+  state.glow = read('gl', 0, 3) ?? read('gs', 0.5, 3) ?? state.glow;
+  state.hueShift = read('hr', 0, 90) ?? state.hueShift;
+  state.hueMode =
+      readEnum('hm', BeamHueMode.values) ??
+      (readFlag('sc') == true ? BeamHueMode.none : null);
+  state.hueBase = read('hb', -180, 180) ?? state.hueBase;
 
   state.stadium = readFlag('st') ?? state.stadium;
   state.perCorner = readFlag('pc') ?? state.perCorner;
@@ -248,9 +262,7 @@ PlaygroundState decodePlaygroundState(String encoded) {
   state.radiusBottomLeft = read('rbl', 0, 48) ?? state.radiusBottomLeft;
   state.superellipse = readFlag('se') ?? state.superellipse;
   state.borderWidth = read('bw', 0.5, 4) ?? state.borderWidth;
-  state.edge = readEnum('ed', BeamEdge.values) ?? state.edge;
   state.ringOffset = read('ro', -12, 24) ?? state.ringOffset;
-  state.contour = readFlag('ct') ?? state.contour;
   for (final preset in SegmentPreset.values) {
     if (preset.id == values['sgp']) state.segmentPreset = preset;
   }
@@ -263,43 +275,16 @@ PlaygroundState decodePlaygroundState(String encoded) {
     state.segmentEndT = anchor.t;
   }
   state.segmentFeather = read('sgf', 0, 120) ?? state.segmentFeather;
-  state.wrapCorners = readFlag('wc') ?? state.wrapCorners;
+  // 0.1 called the dashes "segments" and kept them under `sg`.
+  final dashes = readInt('ds', 2, 64) ?? readInt('sg', 2, 64);
+  state.dashes = dashChoices.contains(dashes) ? dashes : null;
 
   state.cycleSeconds = read('cy', 0.5, 8);
-  state.cycleGapSeconds = read('cg', 0, 4) ?? state.cycleGapSeconds;
+  state.cycleGapSeconds = read('cg', 0, 4);
   state.speed = read('sp', 0.25, 4) ?? state.speed;
   state.direction = readEnum('dir', BeamDirection.values) ?? state.direction;
   state.phaseOffset = read('po', 0, 1) ?? state.phaseOffset;
-  state.beamCount = readInt('bc', 1, 4) ?? state.beamCount;
   state.huePeriodSeconds = read('hp', 2, 30);
-  state.breatheFactor = read('bf', 0.5, 3) ?? state.breatheFactor;
-  state.spikeFactor = read('sf', 0.5, 3) ?? state.spikeFactor;
-  state.spike2Factor = read('s2', 0.5, 3) ?? state.spike2Factor;
-  state.staticColors = readFlag('sc') ?? state.staticColors;
-
-  state.strength = read('str', 0, 1) ?? state.strength;
-  state.brightness = read('br', 0.5, 3);
-  state.saturation = read('sa', 0.5, 3);
-  state.hueRange = read('hr', 0, 60) ?? state.hueRange;
-  state.hueMode = readEnum('hm', BeamHueMode.values);
-  state.hueBase = read('hb', -180, 180) ?? state.hueBase;
-  state.strokeOpacityFactor = read('so', 0, 2) ?? state.strokeOpacityFactor;
-  state.innerOpacityFactor = read('io', 0, 2) ?? state.innerOpacityFactor;
-  state.bloomOpacityFactor = read('bo', 0, 2) ?? state.bloomOpacityFactor;
-  state.tailLength = read('tl', 0.5, 2) ?? state.tailLength;
-  state.glowSpread = read('gs', 0.5, 3) ?? state.glowSpread;
-  state.comet = readFlag('co') ?? state.comet;
-  state.sparkle = read('sk', 0, 1) ?? state.sparkle;
-  final segments = readInt('sg', 2, 64);
-  state.segments = segmentChoices.contains(segments) ? segments : null;
-  state.innerSizeScale = read('iss', 0.5, 2) ?? state.innerSizeScale;
-  state.renderScale = read('rs', 0.25, 1) ?? state.renderScale;
-  state.stockPulseOutside = readFlag('pos') ?? state.stockPulseOutside;
-  state.glowBoost = read('gb', 0, 3) ?? state.glowBoost;
-  state.coreBlur = read('cb', 0, 60);
-  state.bloomBlur = read('bb', 0, 120);
-  state.glowBrightness = read('gbr', 0.5, 3);
-  state.glowSaturation = read('gsa', 0.5, 3);
 
   state.active = readFlag('a') ?? state.active;
   state.repeatCycles = readInt('rp', 1, 99);
@@ -313,7 +298,8 @@ PlaygroundState decodePlaygroundState(String encoded) {
   state.durationSeconds = read('du', 0, 15) ?? state.durationSeconds;
 
   state.driveProgress = readFlag('dp') ?? state.driveProgress;
-  state.progress = read('pr', 0, 1) ?? state.progress;
+  // 0.1 kept the driven position under `pr`.
+  state.progress = read('pg', 0, 1) ?? read('pr', 0, 1) ?? state.progress;
   state.followPointer = readFlag('fp') ?? state.followPointer;
   state.strengthSignal = readFlag('ss') ?? state.strengthSignal;
 
@@ -348,12 +334,12 @@ String? playgroundStateStringFrom(Uri uri) {
 String playgroundShareUrl(String encoded) =>
     encoded.isEmpty ? playgroundSiteUrl : '$playgroundSiteUrl#$encoded';
 
-const Map<BeamVariant, String> _variantIds = {
-  BeamVariant.rotate: 'rotate',
-  BeamVariant.small: 'small',
-  BeamVariant.line: 'line',
-  BeamVariant.pulseInside: 'pulse-inside',
-  BeamVariant.pulseOutside: 'pulse-outside',
+// The 0.1 playground's variant ids, mapped onto the effects that replaced
+// them: `small` folded into rotate, the two pulses became pulse and halo.
+const Map<String, EffectKind> _legacyEffects = {
+  'small': EffectKind.rotate,
+  'pulse-inside': EffectKind.pulse,
+  'pulse-outside': EffectKind.halo,
 };
 
 /// Formats a double as compactly as the two-decimal control resolution

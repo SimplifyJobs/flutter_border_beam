@@ -3,10 +3,13 @@ import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_border_beam_example/src/playground/playground_state.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// The playground hands the widget four value objects it assembled itself, so
-/// a gating mistake there is a beam that throws rather than a snippet that
-/// reads oddly. These mount the extremes the controls can reach.
+/// The playground hands the widget an effect and four value objects it
+/// assembled itself, so a gating mistake there is a beam that throws rather
+/// than a snippet that reads oddly. These mount the extremes the controls
+/// can reach.
 void main() {
+  setUpAll(BorderBeam.precache);
+
   Future<void> pumpConfig(
     WidgetTester tester,
     PlaygroundState state, {
@@ -16,7 +19,7 @@ void main() {
       width: 320,
       height: 128,
       child: BorderBeam(
-        variant: state.variant,
+        effect: state.buildEffect(),
         active: state.buildActive(),
         style: state.buildStyle(),
         shape: state.buildShape(),
@@ -41,88 +44,92 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   }
 
+  testWidgets('every effect paints with its defaults', (tester) async {
+    for (final kind in EffectKind.values) {
+      await pumpConfig(tester, PlaygroundState()..effect = kind);
+    }
+  });
+
   testWidgets('a rotate beam with every ring control at once paints', (
     tester,
   ) async {
     await pumpConfig(
       tester,
       PlaygroundState()
-        ..palette = PalettePreset.lerp
+        ..rotateLength = 2
+        ..rotateCount = 4
+        ..rotateComet = true
+        ..paletteMode = PaletteMode.lerp
+        ..lerpFrom = 'cosmic'
+        ..lerpTo = 'citrus'
         ..alphaScale = 0.7
         ..radius = 24
         ..superellipse = true
         ..borderWidth = 3
         ..ringOffset = 8
-        ..contour = true
+        ..dashes = 24
         ..hueMode = BeamHueMode.continuous
-        ..tailLength = 1.8
-        ..glowSpread = 2.5
-        ..comet = true
-        ..sparkle = 1
-        ..segments = 16
-        ..renderScale = 0.5
+        ..glow = 3
         ..direction = BeamDirection.bounce
         ..phaseOffset = 0.75
-        ..beamCount = 4
         ..repeatCycles = 3
         ..cssFadeCurve = true
         ..pauseWhenOffscreen = true,
     );
   });
 
-  testWidgets('a line beam on a non-default edge, with a contour, paints', (
+  testWidgets('a line beam on a side edge, in a stadium, paints', (
     tester,
   ) async {
     await pumpConfig(
       tester,
       PlaygroundState()
-        ..variant = BeamVariant.line
-        ..palette = PalettePreset.seed
+        ..effect = EffectKind.line
+        ..lineEdge = BeamEdge.right
+        ..paletteMode = PaletteMode.seed
         ..seedHarmony = BeamSeedHarmony.complementary
-        ..edge = BeamEdge.right
-        ..contour = true
         ..stadium = true
-        ..sparkle = 0.6
-        ..beamCount = 3
-        ..cycleGapSeconds = 0.5,
+        ..cycleGapSeconds = 0.5
+        ..beamTheme = BeamTheme.light,
     );
   });
 
-  testWidgets('the stock pulse-outside recipe paints, tuned over', (
+  testWidgets('a steep shimmer under a custom segment paints', (tester) async {
+    await pumpConfig(
+      tester,
+      PlaygroundState()
+        ..effect = EffectKind.shimmer
+        ..shimmerAngle = -90
+        ..paletteMode = PaletteMode.custom
+        ..customColors = [0, 1, 2, 3, 4, 5]
+        ..segmentPreset = SegmentPreset.custom
+        ..segmentFeather = 0
+        ..cycleGapSeconds = 0,
+    );
+  });
+
+  testWidgets('a halo pulled inside, per corner, with no glow paints', (
     tester,
   ) async {
     await pumpConfig(
       tester,
       PlaygroundState()
-        ..variant = BeamVariant.pulseOutside
-        ..stockPulseOutside = true
-        ..glowBoost = 1.6
-        ..coreBlur = 24
-        ..bloomBlur = 90
-        ..segments = 12
-        ..renderScale = 0.75,
-    );
-  });
-
-  testWidgets('pulse-inside honours the inner wash scale', (tester) async {
-    await pumpConfig(
-      tester,
-      PlaygroundState()
-        ..variant = BeamVariant.pulseInside
-        ..innerSizeScale = 2
-        ..glowBoost = 2.5
+        ..effect = EffectKind.halo
+        ..glow = 0
+        ..ringOffset = -12
         ..perCorner = true
         ..radiusTopLeft = 0
         ..radiusBottomRight = 48,
     );
   });
 
-  testWidgets('a progress-driven beam under reduced motion paints', (
+  testWidgets('a progress-driven charge under reduced motion paints', (
     tester,
   ) async {
     await pumpConfig(
       tester,
       PlaygroundState()
+        ..effect = EffectKind.charge
         ..driveProgress = true
         ..progress = 0.9
         ..reducedMotion = BeamReducedMotion.slow
