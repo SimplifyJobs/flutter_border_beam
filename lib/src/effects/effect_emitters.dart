@@ -751,7 +751,7 @@ class _LineFrame {
   void space(int k, {double blur = 0}) => f.data.setBlobSpace(
     k,
     blur > 0
-        ? BeamBlobSpace.blurred
+        ? (path ? BeamBlobSpace.blurredPath : BeamBlobSpace.blurred)
         : (path ? BeamBlobSpace.path : BeamBlobSpace.planar),
     blur: blur,
   );
@@ -835,7 +835,23 @@ class _LineFrame {
       p2: p2,
       a2: a2,
       p3: end,
+      clip: f.data.blobSpaceOf(k).index >= BeamBlobSpace.blurred.index
+          ? _edgeClip
+          : null,
     );
+  }
+
+  // The edge the streak rides: a blurred layer is cut there before its
+  // blur, so light below the edge never spills back in.
+  ({int axis, double at, bool keepBelow}) get _edgeClip {
+    if (path) return (axis: 1, at: 0, keepBelow: false);
+    final r = f.rect;
+    return switch (edge) {
+      BeamEdge.bottom => (axis: 1, at: r.bottom, keepBelow: true),
+      BeamEdge.top => (axis: 1, at: r.top, keepBelow: false),
+      BeamEdge.left => (axis: 0, at: r.left, keepBelow: false),
+      BeamEdge.right => (axis: 0, at: r.right, keepBelow: true),
+    };
   }
 }
 

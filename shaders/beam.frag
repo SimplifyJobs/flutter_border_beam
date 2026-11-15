@@ -42,7 +42,8 @@ uniform vec4 uConic;  // xy conic centre, z conic start (turns), w repeats aroun
 //   0: x geometry kind, y blur sigma, z inflate, w opacity
 //   1: x edge fade px, y window kind, z overlay table (0 none, 1 A, 2 B), w overlay ink (0 black, 1 white)
 //   2: window parameters (radial: centre, radii; linear: direction, position, half width)
-//   3: x radial mid stop, y radial mid alpha, z blob mode, w blob count
+//   3: x radial mid stop, y radial mid alpha, z blob mode (0 planar, 1 path,
+//      2 blurred planar, 3 blurred path), w blob count
 //   4: inset shadow colour (straight rgba)
 //   5: x shadow solid depth, y shadow sigma, z dashes apply, w unused
 //   6-8: colour matrix rows (xyz)
@@ -203,7 +204,7 @@ vec2 blobOffset(vec2 p, vec2 c, bool path) {
 
 #define BLOB_STACK(ARRAY, SLOTS, COUNT, P, MODE, OUT)                   \
   {                                                                     \
-    bool path = MODE > 0.5 && MODE < 1.5;                               \
+    bool path = MODE > 0.5 && (MODE < 1.5 || MODE > 2.5);               \
     bool gauss = MODE > 1.5;                                            \
     for (int i = 0; i < SLOTS; i++) {                                   \
       if (float(i) >= COUNT) break;                                     \
@@ -263,7 +264,7 @@ float layerMask(vec4 h0, vec4 h1, vec4 h2, vec4 h3, vec2 pos, vec2 pathP, float 
   }
   if (m <= 0.0) return 0.0;
 
-  bool path = h3.z > 0.5 && h3.z < 1.5;
+  bool path = h3.z > 0.5 && (h3.z < 1.5 || h3.z > 2.5);
   // Edge fade: opaque at the outline, transparent [h1.x] px in. Planar
   // layers fade from each side of the box (the two directions screened);
   // path-space layers fade by depth.
@@ -385,7 +386,7 @@ void main() {
     float m = layerMask(uLayer[0], uLayer[1], uLayer[2], uLayer[3], pos, pathP, d, tw, px, winA, winB);
     if (m > 0.0) {
       vec4 acc = overlay(uLayer[1], overA, overB);
-      vec2 bp = uLayer[3].z > 0.5 && uLayer[3].z < 1.5 ? pathP : pos;
+      vec2 bp = uLayer[3].z > 0.5 && (uLayer[3].z < 1.5 || uLayer[3].z > 2.5) ? pathP : pos;
       BLOB_STACK(uBlobA, 14, uLayer[3].w, bp, uLayer[3].z, acc)
       acc = finishLayer(acc, uLayer[4], uLayer[5], uLayer[6], uLayer[7], uLayer[8], d);
       if (uLayer[5].z > 0.5) m *= dash;
@@ -398,7 +399,7 @@ void main() {
     float m = layerMask(uLayer[9], uLayer[10], uLayer[11], uLayer[12], pos, pathP, d, tw, px, winA, winB);
     if (m > 0.0) {
       vec4 acc = overlay(uLayer[10], overA, overB);
-      vec2 bp = uLayer[12].z > 0.5 && uLayer[12].z < 1.5 ? pathP : pos;
+      vec2 bp = uLayer[12].z > 0.5 && (uLayer[12].z < 1.5 || uLayer[12].z > 2.5) ? pathP : pos;
       BLOB_STACK(uBlobB, 10, uLayer[12].w, bp, uLayer[12].z, acc)
       acc = finishLayer(acc, uLayer[13], uLayer[14], uLayer[15], uLayer[16], uLayer[17], d);
       if (uLayer[14].z > 0.5) m *= dash;
@@ -414,7 +415,7 @@ void main() {
       // A blurred ring samples its colour where the ring is, not where the
       // light spread to.
       vec2 ringPoint = pos - o.zw * d;
-      vec2 bp = uLayer[21].z > 0.5 && uLayer[21].z < 1.5
+      vec2 bp = uLayer[21].z > 0.5 && (uLayer[21].z < 1.5 || uLayer[21].z > 2.5)
           ? pathP
           : (uLayer[18].x > 2.5 && uLayer[18].x < 3.5 ? ringPoint : pos);
       BLOB_STACK(uBlobC, 10, uLayer[21].w, bp, uLayer[21].z, acc)

@@ -70,6 +70,9 @@ enum BeamBlobSpace {
 
   /// Planar gaussians — blobs blurred by the layer's blob blur.
   blurred,
+
+  /// Path-space gaussians.
+  blurredPath,
 }
 
 /// Which window a layer is seen through.
@@ -348,8 +351,8 @@ final class BeamFrameData {
     data[_h(k, 1) + 3] = white ? 1 : 0;
   }
 
-  /// How layer [k]'s blobs are placed; [blur] (px) blurs them in
-  /// [BeamBlobSpace.blurred]. Set before adding blobs.
+  /// How layer [k]'s blobs are placed; [blur] (px) blurs them in the
+  /// blurred spaces. Set before adding blobs.
   void setBlobSpace(int k, BeamBlobSpace space, {double blur = 0}) {
     _space[k] = space;
     _blobBlur[k] = blur;
@@ -478,6 +481,10 @@ final class BeamFrameData {
   /// path space: arc length and depth), coloured [rgb], with alpha [a0] at
   /// the centre falling through [a1] at [p1] and [a2] at [p2] to 0 at [p3]
   /// (fractions of the radii). Ignored once the layer's slots are used.
+  ///
+  /// In the blurred spaces, [clip] cuts the blob along a line before
+  /// it is blurred, keeping the side where the coordinate on `axis` (0 = x,
+  /// 1 = y) is below `at` (`keepBelow`) or above it.
   void addBlob(
     int k, {
     required double cx,
@@ -491,36 +498,83 @@ final class BeamFrameData {
     required double p2,
     required double a2,
     double p3 = 1,
+    ({int axis, double at, bool keepBelow})? clip,
   }) {
     if (_counts[k] >= _blobSlots[k] || a0 <= 0 && a1 <= 0 && a2 <= 0) return;
     final end = p3 <= 0 ? 1e-3 : p3;
+    var x = cx;
+    var y = cy;
     var sx = math.max(rx * end, 1e-3);
     var sy = math.max(ry * end, 1e-3);
     var q1 = (p1 / end).clamp(0.0, 1.0);
     var q2 = (p2 / end).clamp(q1, 1.0);
     var peak = a0;
-    if (_space[k] == BeamBlobSpace.blurred) {
+    if (_space[k] == BeamBlobSpace.blurred ||
+        _space[k] == BeamBlobSpace.blurredPath) {
       // The energy-preserving gaussian of the blob blurred by the layer's
       // blob blur: the profile's mass and variance, plus the blur's.
       final m0 = _moment(1, a0, q1, a1, q2, a2);
       final m2 = _moment(3, a0, q1, a1, q2, a2);
       if (m0 <= 0) return;
-      final var1 = m2 / (2 * m0);
+      final spread = math.sqrt(m2 / (2 * m0));
+      var gx = sx * spread;
+      var gy = sy * spread;
+      var mass = m0 * sx * sy;
+      if (clip != null) {
+        // Cut along the line: the kept part's mass, mean, and variance
+        // across it (a truncated normal).
+        final s = clip.axis == 0 ? gx : gy;
+        final c = clip.axis == 0 ? x : y;
+        final inside = clip.keepBelow ? clip.at - c : c - clip.at;
+        final a = -inside / s;
+        final kept = _cdf(inside / s);
+        if (kept <= 1e-4) return;
+        final lambda = _pdf(a) / kept;
+        final shift = s * lambda;
+        final spreadAcross =
+            s * math.sqrt(math.max(1 + a * lambda - lambda * lambda, 1e-4));
+        mass *= kept;
+        if (clip.axis == 0) {
+          x += clip.keepBelow ? -shift : shift;
+          gx = spreadAcross;
+        } else {
+          y += clip.keepBelow ? -shift : shift;
+          gy = spreadAcross;
+        }
+      }
       final blur = _blobBlur[k];
-      final gx = math.sqrt(sx * sx * var1 + blur * blur);
-      final gy = math.sqrt(sy * sy * var1 + blur * blur);
-      peak = math.min(m0 * sx * sy / (gx * gy), math.max(a0, math.max(a1, a2)));
-      sx = gx;
-      sy = gy;
+      final bx = math.sqrt(gx * gx + blur * blur);
+      final by = math.sqrt(gy * gy + blur * blur);
+      peak = math.min(mass / (bx * by), math.max(a0, math.max(a1, a2)));
+      sx = bx;
+      sy = by;
       q1 = 0;
       q2 = 0;
     }
     final base = _blobBase[k] + _counts[k] * 12;
-    _v4(base, cx, cy, sx, sy);
+    _v4(base, x, y, sx, sy);
     _v4(base + 4, rgb.r, rgb.g, rgb.b, peak);
     _v4(base + 8, q1, a1, q2, a2);
     _counts[k]++;
     data[_h(k, 3) + 3] = _counts[k].toDouble();
+  }
+
+  // The standard normal density and distribution.
+  static double _pdf(double z) => 0.3989422804 * math.exp(-0.5 * z * z);
+
+  static double _cdf(double z) {
+    // Abramowitz & Stegun 7.1.26 (|error| < 1.5e-7).
+    final x = z.abs() / math.sqrt2;
+    final t = 1 / (1 + 0.3275911 * x);
+    final y =
+        1 -
+        ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t -
+                        0.284496736) *
+                    t +
+                0.254829592) *
+            t *
+            math.exp(-x * x);
+    return z >= 0 ? 0.5 * (1 + y) : 0.5 * (1 - y);
   }
 
   /// Adds a CSS `color → transparent` blob: alpha falls linearly from the
