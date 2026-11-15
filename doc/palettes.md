@@ -1,35 +1,45 @@
 # Palettes
 
-A palette is not a list of colors — it is a set of **blob tables**. Each table entry is an ellipse with a color, a fractional position, and a pair of radii, and the beam's look comes from where those ellipses sit as much as from their hues. The [README's palette tables](../README.md#palettes) list every preset and factory; this guide is about how they work.
+A palette is a **ring of colour stops around the border**. Each stop is a colour at a perimeter position in `[0, 1)`: 0 is top-centre, and positions increase clockwise by arc length. Between stops the colour blends, and past the last stop it blends back into the first across top-centre, so the ring has no seam.
 
-## What a palette actually holds
+How a ring is shown depends on the effect:
 
-`BeamPalette` carries one table per surface the engine paints:
-
-| Table | Used by |
-| --- | --- |
-| `border` (9 blobs) | the `rotate` stroke, and as the pulse variants' color source |
-| `smallBorder`, `smallInner` | `small` |
-| `lineDark`, `lineLight`, `lineInner` | `line`, per brightness |
-| `lineBloomDark`, `lineBloomLight`, `spike`, `spikeLt` | the `line` bloom and its spikes |
-
-Plus three modifiers: `forcesStaticColors` (pin the hue), `opacityMultiplier` (the mono ×0.5), and `monoTreatment`.
-
-This is why `BeamColors.custom` takes a *list of colors* and a *base*: it keeps the base's positions, radii, and per-entry alpha and substitutes only the hues, so a custom palette keeps the layered depth the original tuned.
+- `rotate`, `pulse`, `halo`, `shimmer`, and `charge` hold the ring still and reveal the colours wherever their light falls — a rotating beam changes colour as it laps the border.
+- `flow` and `spin` move the ring itself, so the colours stream round the border.
+- `line` spreads the whole palette across its streak, so every colour shows at once.
 
 ## Presets
 
-Four come from upstream (`colorful`, `mono`, `ocean`, `sunset`) and are transcribed verbatim. Seven are original to this package (`aurora`, `neon`, `candy`, `ember`, `ice`, `gold`, `holographic`) and are defined as short color lists in `lib/src/constants/extra_palettes.dart`, distributed over `colorful`'s geometry exactly the way `BeamColors.custom` does. Editing one of those lists changes how that preset looks and has no bearing on parity with the source.
+| Preset | Colours | Notes |
+| --- | --- | --- |
+| `colorful` | orange, magenta, violet, blue, green, hot pink | the default |
+| `mono` | whites and greys | the hue never drifts |
+| `ocean` | blues and violets | |
+| `sunset` | reds, oranges, amber | |
+| `aurora` | teal, violet, green | |
+| `neon` | magenta, lime, cyan | the loudest |
+| `candy` | pastel pink, lavender, peach | |
+| `ember` | deep red, orange, gold | |
+| `ice` | pale blue, white, cyan | |
+| `gold` | amber, gold, bronze | the hue never drifts |
+| `holographic` | desaturated pastels | built for a fast continuous hue drift |
+| `lagoon` | teal, aqua, mint | |
+| `dusk` | indigo, violet, rose | |
+| `forest` | emerald, lime, teal | |
+| `rose` | pink, coral, mauve | |
+| `cosmic` | deep violet, electric blue, magenta | |
+| `citrus` | lime, yellow, tangerine | |
+| `sky` | cerulean, periwinkle, white-blue | |
+| `lavender` | lilac, lavender, soft pink | |
 
-Two presets pin the hue, for different reasons:
+`BeamColors.presets` is a `Map<String, BeamColors>` of all 19, in this order — handy for a picker. The presets live in `lib/src/models/beam_presets.dart` as plain colour and stop lists; every one is meant to read on both dark and light surfaces.
 
-- **`mono`** carries the source's full mono treatment: static colors *and* halved layer opacity, which stops a grayscale beam blowing out.
-- **`gold`** pins the hue but keeps full opacity. A hue sweep over a single-hue metal reads as the metal changing material; halving a warm amber only makes it muddy.
+Two presets pin the hue: `mono` and `gold` set `BeamHueMode.none` whatever the style says, because a hue sweep over greys or a single-hue metal reads as the material changing. Palettes made of greys are also painted with dimmer layers than coloured ones, since white light reads brighter than coloured light at the same opacity.
 
-`holographic` is the opposite bet — deliberately low-contrast pastels that come alive when paired with a fast continuous hue drift:
+`holographic` is the opposite bet — low-contrast pastels that come alive under a fast continuous drift:
 
 ```dart
-BorderBeam.rotate(
+BorderBeam(
   colors: BeamColors.holographic,
   style: const BeamStyle(hueMode: BeamHueMode.continuous),
   timing: const BeamTiming(huePeriod: Duration(seconds: 3)),
@@ -37,75 +47,74 @@ BorderBeam.rotate(
 );
 ```
 
-## Deriving from a brand color
+## Your own colours
 
-`BeamColors.fromSeed` spreads one color into a palette using one of four harmonies:
+```dart
+// Evenly spaced clockwise from top-centre: 0, 1/3, 2/3.
+const BeamColors([Colors.pink, Colors.cyan, Colors.amber]);
+
+// At chosen positions.
+const BeamColors(
+  [Color(0xFF6B2BFF), Color(0xFFF02BD9), Color(0xFF33A1FF)],
+  stops: [0.1, 0.45, 0.8],
+);
+
+// One colour all the way round.
+const BeamColors.solid(Color(0xFF18A8F0));
+```
+
+`BeamColors(colors, {stops})` takes 1–8 colours. `stops`, when given, has one entry per colour, ascending, each in `[0, 1)`; two equal neighbours make a hard edge. Alpha is honoured: a translucent stop glows more faintly. The lists are checked when the palette first resolves — in release builds too — and a malformed one throws an `ArgumentError`. Eight is the shader's budget: the stops are passed to the GPU as uniforms.
+
+Colours blend **gamma-aware**: the shader interpolates squared channels (close to linear light) and takes the square root, so the midpoint between two saturated colours stays bright instead of turning muddy. The CPU uses the same maths (`BeamPalette.sample`), so a light placed on the CPU matches the stroke beneath it.
+
+## From a brand colour
+
+`BeamColors.fromSeed` spreads one colour into a palette with one of four harmonies, spaced evenly round the border:
 
 | `BeamSeedHarmony` | Hue offsets | Feel |
 | --- | --- | --- |
-| `analogous` (default) | 0°, +25°, −25°, +50° | calmest; still reads as one color |
-| `complementary` | 0°, +15°, +180°, +195° | maximum contrast across the beam |
+| `analogous` (default) | 0°, +25°, −25°, +50° | calmest; still reads as one colour |
+| `complementary` | 0°, +15°, +180°, +195° | maximum contrast between the two halves |
 | `triadic` | 0°, +120°, +240° | three-way, evenly spaced |
-| `monochrome` | one hue, four lightness steps | single-hue brand look |
+| `monochrome` | one hue, four lightness steps | a single-hue brand look |
 
-Every derived color is lifted into a band a glow reads well in — lightness 0.55–0.70, saturation at least 0.55 — so a black, white, or gray seed still yields visible, distinguishable blobs rather than a smudge. That clamping is deliberate and is why `fromSeed` cannot reproduce a very dark or very desaturated brand color exactly; when you need the exact color, use `custom`.
+The derived colours are lifted into a band a glow reads well in (lightness 0.55–0.70, with a saturation floor), so a black, white, or grey seed still yields a visible palette. That is also why `fromSeed` cannot reproduce a very dark or very desaturated brand colour exactly — use `BeamColors([...])` when you need the exact colour.
 
 ```dart
-BorderBeam.rotate(
-  colors: const BeamColors.fromSeed(
-    Color(0xFF18A8F0),
-    harmony: BeamSeedHarmony.complementary,
-  ),
-  child: card,
-);
+const BeamColors.fromSeed(Color(0xFF18A8F0), harmony: BeamSeedHarmony.complementary);
 ```
 
-`BeamColors.fromScheme` is the Material shortcut over the same machinery: it takes `primary`, `secondary`, and `tertiary`, dropping any role that is within a small RGB distance of one already kept — so a scheme whose secondary matches its primary yields a two-color palette rather than a doubled one.
+`BeamColors.fromScheme(colorScheme)` takes the scheme's `primary`, `secondary`, and `tertiary`, dropping any role that is nearly the same colour as one already kept — so a scheme whose secondary matches its primary gives two colours rather than a doubled one. It is not `const`.
 
 ## Transforming a palette
 
-`lerp` and `scaleAlpha` produce new palettes from existing ones and are themselves values, so they can live in a `const` expression or be rebuilt per frame.
-
 ```dart
 // Crossfade two palettes from an animation.
-BorderBeam.rotate(
+BorderBeam(
   colors: BeamColors.lerp(BeamColors.ocean, BeamColors.ember, animation.value),
   child: card,
 );
 
-// Dim without touching layer opacity.
-BorderBeam.rotate(colors: BeamColors.neon.scaleAlpha(0.5), child: card);
+// Dim the palette itself.
+BorderBeam(colors: BeamColors.neon.scaleAlpha(0.5), child: card);
 ```
 
-`lerp` interpolates table-by-table, keeping `a`'s geometry and cycling `b`'s colors where its table is shorter. `t` is not clamped, so values outside 0–1 extrapolate. The mono modifiers come from whichever end is nearer, and the opacity multiplier is interpolated.
+`BeamColors.lerp(a, b, t)` samples both palettes at eight evenly spaced positions and mixes each pair gamma-aware at `t`, which is clamped to 0–1. At exactly 0 or 1 it returns `a` or `b` unchanged. The result pins its hue when the nearer end does.
 
-`scaleAlpha` dims the *palette* rather than the layer opacities, so the relative depth of the inner, stroke, and bloom tables survives. `style.strength` is the other lever: it scales the composited layers instead. Reach for `scaleAlpha` when a palette is too hot, and `strength` when the whole effect is.
+`scaleAlpha(factor)` multiplies every stop's alpha, clamped to 0–1; `factor` must not be negative. It dims the palette rather than the beam, so stops that were already fainter stay relatively fainter. `BeamStyle.strength` is the other lever: it scales the whole beam's opacity. Reach for `scaleAlpha` when a palette is too hot and `strength` when the whole effect is.
 
-## Per-blob control
+## Hue drift
 
-`BeamColors.spec` replaces the border table outright. Sizes are **radii**, not diameters — they map straight onto CSS `radial-gradient(ellipse W H …)`, whose sizes are radii too — and positions are fractions of the painted box, so values outside 0–1 legitimately sit on or beyond the edge.
+On top of its stops, a palette can drift in hue over time (`BeamStyle.hueMode`):
 
-```dart
-const palette = BeamColors.spec(
-  border: [
-    BeamBlob(
-      color: Color(0xFFFF4D8D),
-      position: Offset(0.33, -0.074),
-      size: Size(70, 40),
-    ),
-    BeamBlob(
-      color: Color(0xFF18A8F0),
-      position: Offset(0.72, 1.05),
-      size: Size(90, 50),
-    ),
-  ],
-);
-```
+- `pingPong` swings the hue ±`hueShift` degrees (30 by default) and back over one `huePeriod`;
+- `continuous` turns it a full 360° per `huePeriod`;
+- `none` paints the palette as given.
 
-Tables you do not supply (`smallBorder`, `lineBlobs`) are derived by cycling your border colors over the default geometry, so a `spec` palette still works on every variant.
+`hueBase` adds a fixed rotation in degrees on top, which is the quickest way to nudge a preset toward a brand colour. Each effect picks its own default mode and period — see [effects](effects.md#defaults). The rotation is applied on the CPU to at most eight colours per frame, so drifting costs nothing on the GPU.
 
 ## Values, equality, and the memo
 
-Every `BeamColors` is a value type: two instances built from equal inputs are `==`. Resolution to concrete tables is memoized by that value through a bounded LRU (32 entries), so building a palette inline in `build` is free after the first frame, and an evicted palette is simply rebuilt and compares equal to the one it replaced. The four upstream presets bypass the LRU entirely — they are canonical const instances, memoized by identity for the life of the isolate.
+Every `BeamColors` is a value type: two instances built from equal inputs are `==`. Resolution to a concrete `BeamPalette` is memoized by value through a bounded LRU (32 entries), so building `BeamColors([...])` inline in `build` is free after the first frame, and an evicted palette is rebuilt and compares equal to the one it replaced. Presets skip the memo entirely: each is a canonical constant.
 
-The practical consequence: **never** put a palette behind a factory that returns a fresh non-equal object each build (a `Color` list built with `List.generate` is fine — it compares by element; a closure is not). If a beam re-resolves its config every frame, an unequal palette is the first thing to check.
+The practical consequence: do not hand the beam a palette that compares unequal on every build. A beam whose palette changes re-resolves its config and rebuilds its phase resolver, every frame if the palette changes every frame.

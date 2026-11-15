@@ -32,7 +32,8 @@ body:
         link works too.
       render: dart
       placeholder: |
-        BorderBeam.rotate(
+        BorderBeam(
+          effect: const BeamEffect.rotate(),
           colors: BeamColors.ocean,
           child: const SizedBox(width: 240, height: 120),
         )
@@ -54,10 +55,10 @@ body:
       required: true
 
   - type: input
-    id: variant
+    id: effect
     attributes:
-      label: Variant(s) and palette
-      description: Which `BeamVariant` and which `BeamColors` (or custom colors).
+      label: Effect(s) and palette
+      description: Which `BeamEffect` and which `BeamColors` (or custom colors).
       placeholder: "rotate + line; BeamColors.colorful"
     validations:
       required: true
@@ -75,7 +76,7 @@ body:
     id: package-version
     attributes:
       label: flutter_border_beam version
-      placeholder: "0.1.0"
+      placeholder: "0.2.0"
     validations:
       required: true
 
