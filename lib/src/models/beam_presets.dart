@@ -1,14 +1,18 @@
 import 'dart:ui';
 
+import '../look/extra_palettes.dart';
+import '../look/palette_tables.dart';
 import 'beam_palette.dart';
 
 // The built-in palettes, each a ring of colour stops around the border:
 // position 0 is top-centre and positions increase clockwise by arc length.
 //
-// The four originals and the seven that follow them were laid out from the
-// glow positions of the 0.1 renderer — measured on a 350 × 140 card, so the
-// colours land where that renderer put them — and are now plain design data:
-// edit freely. Every preset reads as light on both dark and light surfaces.
+// The stops of the four originals and the seven that follow them were laid
+// out from where their blob tables put each colour on a 350 × 140 card; the
+// blob tables themselves (`lib/src/look/`) are what the effects draw with.
+// The palettes new in 0.2 have stops only, and are drawn by sampling them
+// into `colorful`'s blob geometry. Every preset reads as light on both dark
+// and light surfaces.
 
 // ─── Originals ──────────────────────────────────────────────────────────────
 
@@ -25,6 +29,7 @@ const BeamPalette colorfulPalette = BeamPalette(
     Color(0xFFFF3264), // hot pink
   ],
   stops: [0.161, 0.216, 0.410, 0.482, 0.723, 0.860, 0.938],
+  tables: colorfulTables,
 );
 
 /// `BeamColors.mono`: whites and greys, with a fixed hue.
@@ -37,6 +42,8 @@ const BeamPalette monoPalette = BeamPalette(
   ],
   stops: [0.161, 0.410, 0.723, 0.938],
   fixedHue: true,
+  tables: monoTables,
+  mono: true,
 );
 
 /// `BeamColors.ocean`: blues and violets.
@@ -51,6 +58,7 @@ const BeamPalette oceanPalette = BeamPalette(
     Color(0xFF6450DC), // indigo
   ],
   stops: [0.161, 0.216, 0.410, 0.482, 0.723, 0.860, 0.938],
+  tables: oceanTables,
 );
 
 /// `BeamColors.sunset`: reds, oranges, and amber.
@@ -65,6 +73,7 @@ const BeamPalette sunsetPalette = BeamPalette(
     Color(0xFFFF5032), // scarlet
   ],
   stops: [0.161, 0.216, 0.410, 0.482, 0.723, 0.860, 0.938],
+  tables: sunsetTables,
 );
 
 // ─── Extras ─────────────────────────────────────────────────────────────────
@@ -81,6 +90,7 @@ const BeamPalette auroraPalette = BeamPalette(
     Color(0xFF1FD9C0), // teal
   ],
   stops: [0.161, 0.216, 0.410, 0.482, 0.723, 0.860, 0.938],
+  tableColors: auroraColors,
 );
 
 /// `BeamColors.neon`: fully saturated magenta, lime, and cyan.
@@ -94,6 +104,7 @@ const BeamPalette neonPalette = BeamPalette(
     Color(0xFFFF00C8), // magenta
   ],
   stops: [0.161, 0.216, 0.410, 0.482, 0.860, 0.938],
+  tableColors: neonColors,
 );
 
 /// `BeamColors.candy`: pastel pink, lavender, and peach.
@@ -108,6 +119,7 @@ const BeamPalette candyPalette = BeamPalette(
     Color(0xFFFF9EC4), // pink
   ],
   stops: [0.161, 0.216, 0.410, 0.482, 0.723, 0.860, 0.938],
+  tableColors: candyColors,
 );
 
 /// `BeamColors.ember`: deep red, orange, and gold.
@@ -122,6 +134,7 @@ const BeamPalette emberPalette = BeamPalette(
     Color(0xFFC1121F), // deep red
   ],
   stops: [0.161, 0.216, 0.410, 0.482, 0.723, 0.860, 0.938],
+  tableColors: emberColors,
 );
 
 /// `BeamColors.ice`: pale blue, white, and cyan.
@@ -136,6 +149,7 @@ const BeamPalette icePalette = BeamPalette(
     Color(0xFFBFE9FF), // pale blue
   ],
   stops: [0.161, 0.216, 0.410, 0.482, 0.723, 0.860, 0.938],
+  tableColors: iceColors,
 );
 
 /// `BeamColors.gold`: amber, gold, and bronze, with a fixed hue.
@@ -151,6 +165,7 @@ const BeamPalette goldPalette = BeamPalette(
   ],
   stops: [0.161, 0.216, 0.410, 0.482, 0.723, 0.860, 0.938],
   fixedHue: true,
+  tableColors: goldColors,
 );
 
 /// `BeamColors.holographic`: desaturated pastels built for a hue sweep.
@@ -165,6 +180,7 @@ const BeamPalette holographicPalette = BeamPalette(
     Color(0xFFC9B8FF), // lilac
   ],
   stops: [0.161, 0.216, 0.410, 0.482, 0.723, 0.860, 0.938],
+  tableColors: holographicColors,
 );
 
 // ─── New in 0.2 ─────────────────────────────────────────────────────────────

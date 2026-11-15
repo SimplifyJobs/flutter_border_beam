@@ -2,24 +2,33 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui';
 
+import 'package:flutter/animation.dart' show Curves;
+
 import '../animation/beam_phases.dart';
+import '../look/beam_look.dart';
+import '../look/layer_presets.dart';
+import '../look/line_look.dart';
+import '../look/look_blobs.dart';
+import '../look/palette_tables.dart';
+import '../look/pulse_look.dart';
+import '../look/pulse_tables.dart';
+import '../look/rotate_look.dart';
 import '../models/beam_config.dart';
 import '../models/beam_options.dart';
 import '../models/beam_segment.dart';
-import '../render/beam_emission.dart';
+import '../render/beam_frame.dart';
 import '../render/beam_outline.dart';
-import '../render/color_math.dart';
 import 'beam_effect.dart';
 
-/// Everything an effect reads to emit one frame.
+/// Everything an effect reads to write one frame.
 final class BeamFrame {
   /// Creates a frame context.
   BeamFrame({
     required this.config,
     required this.phases,
     required this.outline,
-    required this.colors,
-    required this.stops,
+    required this.data,
+    required this.alpha,
   });
 
   /// The resolved config.
@@ -31,588 +40,1548 @@ final class BeamFrame {
   /// The outline being lit.
   final BeamOutline outline;
 
-  /// The palette colours with this frame's hue rotation applied.
-  final List<Color> colors;
+  /// The uniforms being written.
+  final BeamFrameData data;
 
-  /// The palette stops.
-  final List<double> stops;
+  /// The frame's overall opacity: fade × strength × any extra.
+  final double alpha;
+
+  /// The palette's blob tables.
+  late final BeamLookTables tables = BeamLook.tablesFor(config.palette);
 
   /// Whether the beam is styled for a dark surface.
   bool get dark => config.isDark;
 
-  /// The shorter side of the outline box.
-  double get minExtent => outline.rect.shortestSide;
+  /// Whether the palette is the greyscale one.
+  bool get mono => config.palette.mono;
 
-  /// Perimeter length.
+  /// The outline box.
+  Rect get rect => outline.rect;
+
+  /// Perimeter length, px.
   double get length => outline.length;
 
-  /// Glow multiplier.
-  double get glow => config.glow;
+  /// How much of the glow layers' opacity survives `BeamStyle.glow` (below 1
+  /// the glows fade, so 0 leaves the hairline alone).
+  double get glowOpacity => math.min(config.glow, 1);
+
+  /// How far `BeamStyle.glow` grows the glows.
+  double get glowSize => math.max(config.glow, 0.05);
+
+  /// Whether the hue holds still.
+  bool get staticHue => config.hueMode == BeamHueMode.none;
+
+  /// The ambient clock, in seconds.
+  double get seconds => phases.cycles * config.cycleSeconds;
+
+  /// A point of the box given as fractions of it.
+  Offset at(double fx, double fy) =>
+      Offset(rect.left + fx * rect.width, rect.top + fy * rect.height);
 }
 
-/// Writes [frame]'s light into [out]. [out] must be [BeamEmission.reset]
-/// first; the caller has already set the user segment on it.
-void emitEffect(BeamEmission out, BeamFrame frame) {
+/// Writes [frame]'s layers into its data. The data must be reset and carry
+/// the outline and the user's segment already.
+void emitEffect(BeamFrame frame) {
   final effect = frame.config.effect;
   switch (effect) {
     case RotateEffect():
-      _rotate(out, frame, effect);
+      _rotate(frame, effect);
     case LineEffect():
-      _line(out, frame, effect);
+      _line(frame, effect);
     case PulseEffect():
-      _pulse(out, frame);
+      _pulse(frame);
     case HaloEffect():
-      _halo(out, frame);
+      _halo(frame);
     case FlowEffect():
-      _flow(out, frame);
+      _flow(frame);
     case SpinEffect():
-      _spin(out, frame);
+      _spin(frame);
     case ShimmerEffect():
-      _shimmer(out, frame, effect);
+      _shimmer(frame, effect);
     case ChargeEffect():
-      _charge(out, frame);
-  }
-  final dim = _paletteDim(frame);
-  if (dim < 1) {
-    out
-      ..stroke *= dim
-      ..bloom *= dim
-      ..outer *= dim
-      ..lights *= dim;
+      _charge(frame);
   }
 }
 
-/// The visible track as `(start, span)`; the whole border when no segment is
-/// set.
-({double start, double span}) segmentTrack(BeamEmission out) =>
-    out.segmentSpan <= 0
-    ? (start: 0.0, span: 1.0)
-    : (start: out.segmentStart, span: out.segmentSpan);
-
-/// Applies [segment] (if any) to [out]'s visible track.
-void applySegment(BeamEmission out, BeamSegment? segment, BeamOutline outline) {
-  if (segment == null || outline.length <= 0) return;
+/// Applies [segment] (if any) to [data]'s visible track, with [dashes].
+void applyTrack(
+  BeamFrameData data,
+  BeamSegment? segment,
+  BeamOutline outline,
+  int dashes,
+) {
+  if (segment == null || outline.length <= 0) {
+    data.setTrack(0, 0, 0, dashes);
+    return;
+  }
   final range = segment.resolve(outline);
   var span = BeamOutline.wrapFraction(range.to - range.from);
   if (span <= 0) span = 1;
-  out
-    ..segmentStart = range.from
-    ..segmentSpan = span
-    ..segmentFeather = math.min(segment.feather / outline.length, span / 2);
+  data.setTrack(
+    range.from,
+    span,
+    math.min(segment.feather / outline.length, span / 2),
+    dashes,
+  );
 }
 
-/// The shader's `segmentMask`, on the CPU: how visible perimeter [u] is.
-double segmentWeight(BeamEmission out, double u) {
-  if (out.segmentSpan <= 0) return 1;
-  final x = BeamOutline.wrapFraction(u - out.segmentStart);
-  if (x > out.segmentSpan) return 0;
-  final fe = math.max(out.segmentFeather, 1e-5);
-  return _smoothstep(0, fe, x) * _smoothstep(0, fe, out.segmentSpan - x);
+/// The visible track as `(start, span)`; the whole border when no segment
+/// is set.
+({double start, double span}) segmentTrack(BeamFrameData data) =>
+    data.trackSpan <= 0
+    ? (start: 0.0, span: 1.0)
+    : (start: data.trackStart, span: data.trackSpan);
+
+// ─── Shared pieces ──────────────────────────────────────────────────────────
+
+/// The conic coordinate of [point] around [centre]: 0 at 12 o'clock,
+/// increasing clockwise, in turns.
+double conicFraction(Offset point, Offset centre) {
+  final d = point - centre;
+  final t = math.atan2(d.dx, -d.dy) / (2 * math.pi);
+  return t - t.floorToDouble();
 }
 
-Color _colorAt(BeamEmission out, BeamFrame f, double u) {
-  var cu = (u - out.colorOrigin) * out.colorScale;
-  cu = out.colorWrap ? BeamOutline.wrapFraction(cu) : cu.clamp(0.0, 1.0);
-  return samplePalette(f.colors, f.stops, cu, wrap: out.colorWrap);
+// Scratch lists for table transforms: no allocation per frame.
+final Float64List _stops = Float64List(tableStops);
+final Float64List _alphas = Float64List(tableStops);
+final Float64List _blurStops = Float64List(tableStops);
+final Float64List _blurAlphas = Float64List(tableStops);
+
+double _lookup(List<double> stops, List<double> alphas, int n, double t) {
+  if (t <= stops[0]) return alphas[0];
+  for (var i = 1; i < n; i++) {
+    if (t <= stops[i]) {
+      final span = math.max(stops[i] - stops[i - 1], 1e-9);
+      return alphas[i - 1] +
+          (alphas[i] - alphas[i - 1]) * (t - stops[i - 1]) / span;
+    }
+  }
+  return alphas[n - 1];
 }
 
-void _lightAt(
-  BeamEmission out,
-  BeamFrame f,
-  double u, {
-  required double along,
-  required double inward,
-  required double amplitude,
-  double outwardShift = 0,
-  BeamSide side = BeamSide.inside,
+/// Writes a conic table, its tail scaled by [tail] about the bright core's
+/// leading edge, mirrored when [reversed], and blurred around the turn by
+/// [blur] turns.
+void _conicTable(
+  BeamFrameData data,
+  BeamTable table,
+  List<double> stops,
+  List<double> alphas, {
+  double tail = 1,
+  bool reversed = false,
+  double shift = 0,
+  double blur = 0,
 }) {
-  final weight = segmentWeight(out, u);
-  if (weight <= 0 || amplitude <= 0) return;
-  final normal = f.outline.normalAt(u);
-  final color = _colorAt(out, f, u);
-  out.addLight(
-    at: f.outline.pointAt(u) + normal * outwardShift,
-    inward: -normal,
-    alongSigma: along,
-    inwardSigma: inward,
-    amplitude: amplitude * weight,
-    color: f.dark ? color : _lifted(color),
-    side: side,
-    anchorOutside: math.max(outwardShift, 0),
-  );
-}
-
-// On a light surface a glow is a tint, and a dark tint reads as a smudge:
-// lift the colour toward full value, keeping its hue and saturation.
-Color _lifted(Color c) {
-  final hi = math.max(c.r, math.max(c.g, c.b));
-  if (hi <= 0) return c;
-  final k = math.min(1 / hi, 1.4);
-  return Color.from(
-    alpha: c.a,
-    red: math.min(c.r * k, 1),
-    green: math.min(c.g * k, 1),
-    blue: math.min(c.b * k, 1),
-  );
-}
-
-double _wave(double x) => 0.5 + 0.5 * math.sin(2 * math.pi * x);
-
-double _smoothstep(double e0, double e1, double x) {
-  final t = ((x - e0) / (e1 - e0)).clamp(0.0, 1.0);
-  return t * t * (3 - 2 * t);
-}
-
-double _easeInOut(double x) {
-  final t = x.clamp(0.0, 1.0);
-  return t < 0.5 ? 2 * t * t : 1 - math.pow(-2 * t + 2, 2) / 2;
-}
-
-// The corner midpoints and the top/bottom centres: where the ambient effects
-// gather their light, clockwise from the top-left corner. Cached per outline
-// (the renderer keeps its outline across frames), so a frame allocates
-// nothing here.
-final Expando<Float64List> _anchorCache = Expando<Float64List>('anchors');
-
-Float64List _anchors(BeamOutline o) =>
-    _anchorCache[o] ??= Float64List.fromList([
-      o.fractionOfCorner(BeamCorner.topLeft, 0.5),
-      o.fractionOfEdge(BeamEdge.top, 0.5),
-      o.fractionOfCorner(BeamCorner.topRight, 0.5),
-      o.fractionOfCorner(BeamCorner.bottomRight, 0.5),
-      o.fractionOfEdge(BeamEdge.bottom, 0.5),
-      o.fractionOfCorner(BeamCorner.bottomLeft, 0.5),
-    ]);
-
-// How strongly this frame's palette is tinted, 0 (greys) to 1 (saturated).
-// White light reads far brighter than coloured light at the same alpha, so
-// achromatic palettes are dimmed (the 0.1 renderer halved mono's layers).
-double _tint(BeamFrame f) {
-  var sum = 0.0;
-  for (final c in f.colors) {
-    final hi = math.max(c.r, math.max(c.g, c.b));
-    final lo = math.min(c.r, math.min(c.g, c.b));
-    sum += hi - lo;
+  final n = math.min(stops.length, tableStops);
+  var peak = alphas[0];
+  for (var i = 0; i < n; i++) {
+    peak = math.max(peak, alphas[i]);
   }
-  return f.colors.isEmpty ? 1 : (sum / f.colors.length / 0.45).clamp(0.0, 1.0);
+  var head = stops[0];
+  for (var i = 0; i < n; i++) {
+    if (alphas[i] >= peak) head = stops[i];
+  }
+  // The lit band, ignoring the table's 0 and 1 anchors.
+  var first = 0;
+  while (first < n - 1 && alphas[first + 1] <= 0) {
+    first++;
+  }
+  var last = n - 1;
+  while (last > 0 && alphas[last - 1] <= 0) {
+    last--;
+  }
+  var f = tail;
+  if (f != 1) {
+    final back = head - stops[first];
+    final front = stops[last] - head;
+    var limit = double.infinity;
+    if (back > 0) limit = math.min(limit, head / back);
+    if (front > 0) limit = math.min(limit, (1 - head) / front);
+    f = f.clamp(0.05, math.max(0.05, limit));
+  }
+  for (var i = 0; i < n; i++) {
+    final s = (head + (stops[i] - head) * f + shift).clamp(0.0, 1.0);
+    final j = reversed ? n - 1 - i : i;
+    _stops[j] = reversed ? 1 - s : s;
+    _alphas[j] = alphas[i];
+  }
+  if (blur <= 1e-4) {
+    data.setTable(table, _stops, _alphas, n);
+    return;
+  }
+  // Resample the table convolved with a gaussian of [blur] turns over its
+  // lit band, widened by three sigmas.
+  final lo = math.max(0.0, _stops[reversed ? n - 1 - last : first] - 3 * blur);
+  final hi = math.min(1.0, _stops[reversed ? n - 1 - first : last] + 3 * blur);
+  const taps = 9;
+  _blurStops[0] = 0;
+  _blurAlphas[0] = 0;
+  final inner = tableStops - 2;
+  for (var i = 0; i < inner; i++) {
+    final x = lo + (hi - lo) * i / (inner - 1);
+    var sum = 0.0;
+    var weight = 0.0;
+    for (var k = 0; k < taps; k++) {
+      final o = (k - (taps - 1) / 2) / ((taps - 1) / 2) * 2.5;
+      final w = math.exp(-0.5 * o * o);
+      sum += w * _lookup(_stops, _alphas, n, (x + o * blur).clamp(0.0, 1.0));
+      weight += w;
+    }
+    _blurStops[i + 1] = x;
+    _blurAlphas[i + 1] = sum / weight;
+  }
+  _blurStops[tableStops - 1] = 1;
+  _blurAlphas[tableStops - 1] = 0;
+  data.setTable(table, _blurStops, _blurAlphas, tableStops);
 }
 
-// The layer multiplier for [f]'s palette: 1 for colour, 0.5 for greys.
-double _paletteDim(BeamFrame f) => 0.5 + 0.5 * _tint(f);
+/// Sets a layer's colour filter: the hue drift with the preset's
+/// brightness and saturation, or — with the hue held — no filter beyond the
+/// static hue base, unless [keepTone] keeps the brightness and saturation.
+void _filter(
+  BeamFrame f,
+  int k,
+  BeamLayerPreset preset, {
+  double? hue,
+  bool keepTone = false,
+  double? brightness,
+  double? saturation,
+  bool fold = true,
+}) {
+  final h = f.staticHue
+      ? f.config.hueBase
+      : (hue ?? f.phases.hueDegrees) + f.config.hueBase;
+  if (f.staticHue && !keepTone) {
+    f.data.setFilter(k, hue: h, fold: fold);
+    return;
+  }
+  f.data.setFilter(
+    k,
+    hue: h,
+    brightness: brightness ?? preset.brightness,
+    saturation: saturation ?? preset.saturation,
+    fold: fold,
+  );
+}
 
-void _rotate(BeamEmission o, BeamFrame f, RotateEffect e) {
+/// The inner glow's inset shadow for a layer.
+void _shadow(BeamFrame f, int k, Color color, double blur) {
+  if (color.a <= 0) return;
+  f.data.setShadow(k, color, depth: blur + 1, sigma: blur / 2);
+}
+
+double _ping(double t, double period, double range) {
+  final c = t / period;
+  final cycle = c - c.floorToDouble();
+  final local = cycle < 0.5 ? cycle / 0.5 : (1 - cycle) / 0.5;
+  final eased = Curves.easeInOut.transform(local.clamp(0.0, 1.0));
+  return -range + 2 * range * eased;
+}
+
+// ─── Rotate ─────────────────────────────────────────────────────────────────
+
+void _rotate(BeamFrame f, RotateEffect e) {
+  final d = f.data;
+  final rect = f.rect;
   final dark = f.dark;
-  final track = segmentTrack(o);
-  final n = f.config.beamCount;
-  final len = e.length.clamp(0.25, 2.0);
-  // A long lit window — a soft lead, a plateau, a tail that fades slowly —
-  // with a hot core just behind the head that whitens toward its peak.
-  final tail = math.min(math.min(0.46 * len, 0.8 / n), 0.48) * track.span;
-  final lead = math.min(0.09, 0.2 / n) * track.span;
-  final hotTail = math.min(0.18 * len, 0.45 / n) * track.span;
-  final hotLead = 0.05 * track.span;
+  final compact = rect.shortestSide <= compactMaxExtent;
+  final preset = presetFor(
+    compact ? compactPresets : rotatePresets,
+    dark: dark,
+  );
+  final base = f.alpha * (f.mono ? 0.5 : 1);
   final reversed = f.phases.reversedNow;
-  final dir = reversed ? -1.0 : 1.0;
-  o
-    ..bumpPlateau = 1.5
-    ..stroke = dark ? 0.62 : 0.6
-    ..bloom = dark ? 0.32 : 0.22
-    ..bloomSigma = 3 + 2.5 * f.glow
-    ..highlight = dark ? 0.6 : 0.5
-    ..additive = dark ? 0.4 : 0
-    ..lights = dark ? 0.3 : 0.26;
-  if (e.comet) {
-    o
-      ..outer = dark ? 0.45 : 0.3
-      ..outerReach = (8 + 0.1 * f.minExtent) * f.glow
-      ..outerWiden = 2;
+  final n = f.config.beamCount;
+  final tail = e.length.clamp(0.25, 2.0);
+  final sigma = rotateBloomBlur * f.glowSize;
+
+  _conicTable(
+    d,
+    BeamTable.windowA,
+    rotateWindowStops,
+    rotateWindowAlphas,
+    tail: tail,
+    reversed: reversed,
+  );
+  if (compact) {
+    _conicTable(
+      d,
+      BeamTable.windowB,
+      compactWindowStops,
+      compactWindowAlphas,
+      tail: tail,
+      reversed: reversed,
+    );
   }
-  final beads = math.max(1, math.min(4, 8 ~/ n));
-  final along = math.max(0.9 * tail * f.length / beads * 0.6, 8.0);
-  final inward = math.min((0.07 * f.minExtent + 6) * f.glow, 0.4 * f.minExtent);
-  for (final p in f.phases.travellers) {
-    final head = track.start + track.span * p;
-    o
-      ..addBump(head, reversed ? tail : lead, reversed ? lead : tail, 0.5)
-      ..addBump(
-        head - dir * 0.015 * track.span,
-        reversed ? hotTail : hotLead,
-        reversed ? hotLead : hotTail,
-        0.62,
+  _conicTable(
+    d,
+    BeamTable.overlayA,
+    rotateHighlightStops,
+    dark ? rotateHighlightAlphasDark : rotateHighlightAlphasLight,
+    tail: tail,
+    reversed: reversed,
+  );
+  _conicTable(
+    d,
+    BeamTable.overlayB,
+    rotateBloomStops,
+    dark ? rotateBloomAlphasDark : rotateBloomAlphasLight,
+    tail: tail * (e.comet ? 1.6 : 1),
+    reversed: reversed,
+    blur: sigma * n / math.max(f.length, 1),
+  );
+  final head = reversed ? 1 - rotateHeadStop : rotateHeadStop;
+  d.setConic(rect.center, _headAngle(f) - head / n, n);
+
+  // Inner glow.
+  d
+    ..setLayer(
+      0,
+      BeamGeometry.fill,
+      opacity: base * preset.innerOpacity * f.glowOpacity,
+    )
+    ..setConicWindow(0, compact ? BeamTable.windowB : BeamTable.windowA);
+  if (!compact) d.setEdgeFade(0, innerEdgeFade * f.glowSize);
+  _shadow(
+    f,
+    0,
+    preset.innerShadow,
+    compact ? compactInnerShadowBlur : rotateInnerShadowBlur,
+  );
+  _filter(f, 0, preset);
+  if (compact) {
+    for (final b in f.tables.smallInner) {
+      final c = f.at(b.position.dx, b.position.dy);
+      d.addSimpleBlob(
+        0,
+        cx: c.dx,
+        cy: c.dy,
+        rx: b.size.width,
+        ry: b.size.height,
+        color: b.color,
       );
-    for (var j = 0; j < beads; j++) {
-      final frac = (j + 0.2) / beads;
-      _lightAt(
-        o,
-        f,
-        head - dir * tail * frac * 0.9,
-        along: along,
-        inward: inward,
-        amplitude: 0.9 * math.pow(1 - 0.85 * frac, 1.2).toDouble(),
+    }
+  } else {
+    final alpha = f.mono ? rotateInnerBlobAlphaMono : rotateInnerBlobAlpha;
+    for (final b in f.tables.border) {
+      final c = f.at(b.position.dx, b.position.dy);
+      d.addSimpleBlob(
+        0,
+        cx: c.dx,
+        cy: c.dy,
+        rx: (b.size.width * rotateInnerBlobScale).roundToDouble(),
+        ry: (b.size.height * rotateInnerBlobScale).roundToDouble(),
+        color: b.color.withValues(alpha: alpha),
       );
     }
   }
+
+  // Hairline stroke.
+  d
+    ..setLayer(1, BeamGeometry.ring, opacity: base * preset.strokeOpacity)
+    ..setConicWindow(1, BeamTable.windowA)
+    ..setOverlay(1, BeamTable.overlayA, white: dark)
+    ..setDashed(1);
+  _filter(f, 1, preset);
+  for (final b in compact ? f.tables.smallBorder : f.tables.border) {
+    final c = f.at(b.position.dx, b.position.dy);
+    d.addSimpleBlob(
+      1,
+      cx: c.dx,
+      cy: c.dy,
+      rx: b.size.width,
+      ry: b.size.height,
+      color: b.color,
+    );
+  }
+
+  // Bloom: the bright band at the head, blurred — or, as a comet, a glow
+  // trailing the head outside the border.
+  d
+    ..setLayer(
+      2,
+      e.comet ? BeamGeometry.halo : BeamGeometry.blurredRing,
+      opacity: base * preset.bloomOpacity * f.glowOpacity,
+      sigma: sigma,
+      inflate: e.comet ? cometReach * f.glowSize : 0,
+    )
+    ..setOverlay(2, BeamTable.overlayB, white: dark)
+    ..setDashed(2)
+    ..setFilter(
+      2,
+      brightness: preset.brightness,
+      saturation: preset.saturation,
+    );
 }
 
-void _line(BeamEmission o, BeamFrame f, LineEffect e) {
+/// The conic angle the head of a travelling beam sits at: the travel itself
+/// around the turn, or — on a segment — the point of the track it has
+/// reached.
+double _headAngle(BeamFrame f) {
+  final p = f.phases.travelProgress;
+  final track = segmentTrack(f.data);
+  if (track.span >= 1) return p;
+  return conicFraction(
+    f.outline.pointAt(track.start + track.span * p),
+    f.rect.center,
+  );
+}
+
+// ─── Line ───────────────────────────────────────────────────────────────────
+
+void _line(BeamFrame f, LineEffect e) {
+  final d = f.data;
   final dark = f.dark;
-  final userTrack = o.segmentSpan > 0;
-  final double from;
-  final double span;
-  if (userTrack) {
-    from = o.segmentStart;
-    span = o.segmentSpan;
-  } else {
-    final range = f.outline.edgeRange(e.edge);
-    from = range.from;
-    span = BeamOutline.wrapFraction(range.to - range.from);
-    o
-      ..segmentStart = from - 0.01
-      ..segmentSpan = span + 0.02
-      ..segmentFeather = 0.04 * span;
-  }
-  // A timed streak glides across the edge, widening through the middle of
-  // its run and fading in and out near the ends; a driven one is a readout,
-  // so it maps linearly and stays lit at full width.
+  final preset = presetFor(linePresets, dark: dark);
   final p = f.phases.travelProgress.clamp(0.0, 1.0);
-  final timed = !f.phases.driven;
-  var x = timed ? 0.06 + 0.88 * (0.15 * _easeInOut(p) + 0.85 * p) : p;
-  final swell = timed ? math.sin(math.pi * p) : 1.0;
-  final envelope = timed
-      ? _smoothstep(0.08, 0.3, p) * (1 - _smoothstep(0.7, 0.92, p))
-      : 1.0;
-  // Streaks run in reading order — left to right, top to bottom — whichever
-  // way the perimeter coordinate runs along the edge.
-  if (!userTrack && (e.edge == BeamEdge.bottom || e.edge == BeamEdge.left)) {
-    x = 1 - x;
-  }
-  final centre = from + span * x;
-  final edgePx = span * f.length;
-  // Half the streak, in u: about a quarter of the edge at full swell, held
-  // to a sensible pixel range on very short and very long edges.
-  final halfPx = (edgePx * (0.15 + 0.17 * swell)).clamp(
-    math.min(24.0, 0.45 * edgePx),
-    150.0,
+  final driven = f.phases.driven;
+  final x = driven ? p : sampleKeyframes(lineTravelX, p);
+  final w = driven ? 1.2 : sampleKeyframes(lineTravelW, p);
+  final fade = driven ? 1.0 : sampleKeyframes(lineEdgeFade, p);
+  final cyc = f.phases.cycles;
+  double frac(double v) => v - v.floorToDouble();
+  final h = sampleKeyframes(
+    lineBreatheH,
+    frac(cyc / lineBreathePeriod),
+    eased: true,
   );
-  final half = halfPx / f.length;
-  o
-    ..bumpPlateau = 1.4
-    ..addBump(centre, half, half, 0.62 * envelope)
-    ..addBump(centre, 0.3 * half, 0.3 * half, 0.5 * envelope)
-    ..colorOrigin = centre - half
-    ..colorScale = 1 / math.max(2 * half, 1e-4)
-    ..colorWrap = false
-    ..stroke = dark ? 1.0 : 0.85
-    ..bloom = dark ? 0.5 : 0.3
-    ..bloomSigma = 2 + 1.5 * f.glow
-    ..highlight = 0.45
-    ..additive = dark ? 0.45 : 0
-    ..lights = dark ? 0.36 : 0.28;
-  // How far the spikes may rise: the box behind the edge, but no taller than
-  // a card's on a tall surface.
-  final depth = math.min(
-    e.edge == BeamEdge.top || e.edge == BeamEdge.bottom
-        ? f.outline.rect.height
-        : f.outline.rect.width,
-    160.0,
+  final s1 = sampleKeyframes(
+    lineSpike,
+    frac(cyc / lineSpikePeriod),
+    eased: true,
   );
-  // Seven soft spikes rising from the streak, each with its own height and
-  // breathing rate, tallest near the middle; the centre one is the hot core.
-  final along = (0.09 * halfPx + 3).clamp(3.0, 14.0);
-  for (var i = 0; i < _lineSpikes.length; i += 2) {
-    final offset = _lineSpikes[i];
-    final height = _lineSpikes[i + 1];
-    final k = i ~/ 2;
-    final breathe = _wave(f.phases.cycles * (0.9 + 0.17 * k) + 0.61 * k);
-    final taper = 1 - 0.6 * offset * offset;
-    _lightAt(
-      o,
-      f,
-      centre + 0.8 * half * offset,
-      along: along * (1 + 0.25 * (k % 3)),
-      inward: math.min(
-        depth * height * (0.7 + 0.6 * breathe) * f.glow,
-        0.4 * depth,
-      ),
-      amplitude: envelope * taper * (0.45 + 0.4 * breathe),
+  final s2 = sampleKeyframes(
+    lineSpike2,
+    frac(cyc / lineSpike2Period),
+    eased: true,
+  );
+  final base = f.alpha * fade;
+  if (base <= 0) return;
+
+  // Two hue tracks: the stroke and glow swing gently, the bloom wider and
+  // faster.
+  final range = math.min(f.config.hueShift, lineHueCap);
+  final ht = f.phases.hueTime;
+  final period = f.config.huePeriodSeconds;
+  final (strokeHue, bloomHue) = switch (f.config.hueMode) {
+    BeamHueMode.none => (0.0, 0.0),
+    BeamHueMode.continuous => (f.phases.hueDegrees, f.phases.hueDegrees),
+    BeamHueMode.pingPong => (
+      _ping(ht, period * 1.5, range),
+      _ping(ht, period, range + lineBloomHueBonus),
+    ),
+  };
+
+  final frame = _LineFrame(f, e.edge);
+  final bx = x * frame.width;
+  final tables = f.tables;
+
+  // Inner glow.
+  d
+    ..setLayer(
+      0,
+      BeamGeometry.fill,
+      opacity: base * preset.innerOpacity * f.glowOpacity,
+    )
+    ..setEdgeFade(0, innerEdgeFade * f.glowSize);
+  frame.space(0);
+  frame.window(
+    0,
+    bx,
+    0,
+    lineWindowRadiusX * w,
+    lineWindowRadiusY * h,
+    lineWindowMidStop,
+    lineWindowMidAlpha,
+  );
+  _shadow(f, 0, preset.innerShadow, lineInnerShadowBlur);
+  _filter(f, 0, preset, hue: strokeHue);
+  for (final b in tables.lineInner) {
+    frame.blob(
+      0,
+      bx + b.offsetX,
+      b.offsetY.abs(),
+      b.sizeW * w,
+      b.sizeH * h,
+      b.color,
     );
   }
-  // The hot core where the streak meets the edge.
-  _lightAt(
-    o,
+
+  // Stroke: the travelling highlight over the streak's blobs.
+  d
+    ..setLayer(1, BeamGeometry.ring, opacity: base * preset.strokeOpacity)
+    ..setDashed(1);
+  frame.space(1);
+  frame.window(
+    1,
+    bx,
+    0,
+    lineWindowRadiusX * w,
+    lineWindowRadiusY * h,
+    lineWindowMidStop,
+    lineWindowMidAlpha,
+  );
+  _filter(f, 1, preset, hue: strokeHue);
+  final hiAlphas = dark ? lineHighlightAlphasDark : lineHighlightAlphasLight;
+  final hiStops = dark ? lineHighlightStopsDark : lineHighlightStopsLight;
+  frame.stopBlob(
+    1,
+    bx,
+    -lineHighlightOffsetY,
+    (dark ? lineHighlightRadiusXDark : lineHighlightRadiusXLight) * w,
+    (dark ? lineHighlightRadiusYDark : lineHighlightRadiusYLight) * h,
+    dark ? const Color(0xFFFFFFFF) : const Color(0xFF000000),
+    hiAlphas,
+    hiStops,
+  );
+  for (final b in dark ? tables.lineDark : tables.lineLight) {
+    frame.blob(
+      1,
+      bx + b.offsetX,
+      -b.offsetY,
+      b.sizeW * w,
+      b.sizeH * h,
+      b.color,
+    );
+  }
+
+  // Bloom: seven spikes rising from the edge, the travelling dot and its
+  // ambient glow (or, on a light surface, a soft shadow), seen through a
+  // tall window that travels with the streak.
+  final mono = f.mono;
+  final blur =
+      (mono ? lineBloomBlurMono : (f.staticHue ? 0.0 : lineBloomBlur)) *
+      f.glowSize;
+  d.setLayer(
+    2,
+    BeamGeometry.fill,
+    opacity: base * preset.bloomOpacity * f.glowOpacity,
+  );
+  frame.space(2, blur: blur);
+  frame.window(
+    2,
+    bx,
+    0,
+    lineBloomWindowRadiusX * w,
+    lineBloomWindowRadiusY * h,
+    lineBloomWindowMidStop,
+    lineBloomWindowMidAlpha,
+  );
+  _filter(f, 2, preset, hue: bloomHue);
+  _lineSpikes(
+    frame,
+    tables,
+    dark: dark,
+    mono: mono,
+    s1: s1,
+    s2: s2,
+    h: h,
+    w: w,
+    bx: bx,
+  );
+}
+
+void _lineSpikes(
+  _LineFrame frame,
+  BeamLookTables tables, {
+  required bool dark,
+  required bool mono,
+  required double s1,
+  required double s2,
+  required double h,
+  required double w,
+  required double bx,
+}) {
+  final spikeColors = dark ? tables.spike : tables.spikeLt;
+  final table = dark ? tables.lineBloomDark : tables.lineBloomLight;
+  Color att(Color c, double k) =>
+      c.a < 1 ? c.withValues(alpha: c.a * k) : c.withValues(alpha: k);
+  final sc1 = mono
+      ? att(spikeColors.primary, lineMonoSpike1)
+      : spikeColors.primary;
+  final sc1Mid = dark
+      ? (mono
+            ? att(spikeColors.primary, lineMonoSpike1MidDark)
+            : spikeColors.primary)
+      : (mono
+            ? att(spikeColors.primary, lineMonoSpike1MidLight)
+            : spikeColors.primary.withValues(alpha: lineSpike1MidLightAlpha));
+  final sc2 = mono
+      ? att(spikeColors.secondary, lineMonoSpike2)
+      : spikeColors.secondary;
+  final sc2Mid = dark
+      ? spikeColors.secondary.withValues(
+          alpha: mono ? lineMonoSpike2MidDark : lineSpike2MidDarkAlpha,
+        )
+      : (mono
+            ? att(spikeColors.secondary, lineMonoSpike2MidLight)
+            : spikeColors.secondary.withValues(alpha: lineSpike2MidLightAlpha));
+  SpikePair pair(int i) => mono
+      ? SpikePair(
+          att(table[i].color1, lineMonoTableSpike1),
+          att(table[i].color2, lineMonoTableSpike2),
+        )
+      : table[i];
+  final thinW = mono ? lineMonoThinSpikeWidths : lineThinSpikeWidths;
+  final thinH = mono ? lineMonoThinSpikeHeights : lineThinSpikeHeights;
+  final thinLW = mono
+      ? lineMonoThinSpikeWidthLight92
+      : lineThinSpikeWidthLight92;
+  final wa = frame.width;
+
+  void spike(int i, double rx, double ry, Color c0, Color mid) {
+    final g = lineSpikes[i];
+    frame.stopBlob(
+      2,
+      g.fx * wa,
+      g.yInset,
+      rx,
+      ry,
+      c0,
+      [c0.a, mid.a, 0],
+      [0, g.midStop, g.endStop],
+    );
+  }
+
+  spike(0, thinW[0] * s1, thinH[0] * h, sc1, sc1Mid);
+  spike(1, lineSpikeWideRadiusX22 * s2, lineSpikeRadiusY22 * h, sc2, sc2Mid);
+  spike(2, thinW[1] * (2 - s1), thinH[1] * h, pair(0).color1, pair(0).color2);
+  spike(
+    3,
+    lineSpikeWideRadiusX50 * s2,
+    lineSpikeRadiusY50 * h,
+    pair(1).color1,
+    pair(1).color2,
+  );
+  spike(4, thinW[2] * (2 - s2), thinH[2] * h, pair(2).color1, pair(2).color2);
+  spike(
+    5,
+    lineSpikeRadiusX78 * s1,
+    lineSpikeRadiusY78 * h,
+    pair(3).color1,
+    pair(3).color2,
+  );
+  spike(
+    6,
+    (dark ? thinW[3] : thinLW) * (2 - s1),
+    thinH[3] * h,
+    pair(4).color1,
+    pair(4).color2,
+  );
+
+  const white = Color(0xFFFFFFFF);
+  const black = Color(0xFF000000);
+  if (dark) {
+    frame.stopBlob(
+      2,
+      bx,
+      -lineDotOffsetY,
+      lineDotRadiusX * s1,
+      lineDotRadiusY * s2,
+      white,
+      [...(mono ? lineDotAlphasMono : lineDotAlphas), 0],
+      lineDotStops,
+    );
+    frame.stopBlob(
+      2,
+      bx,
+      0,
+      lineAmbientRadiusX * w,
+      lineAmbientRadiusY * h,
+      white,
+      [...(mono ? lineAmbientAlphasMono : lineAmbientAlphas), 0],
+      lineAmbientStops,
+    );
+  } else {
+    frame.stopBlob(
+      2,
+      bx,
+      0,
+      lineShadowRadiusX * w,
+      lineShadowRadiusY * h,
+      black,
+      lineShadowAlphas,
+      lineShadowStops,
+    );
+  }
+}
+
+/// The frame the line is authored in — the streak riding the bottom edge of
+/// a [width] × [height] box, x along the edge and y the depth in from it —
+/// mapped onto the real edge, or onto the user's segment in path space.
+class _LineFrame {
+  _LineFrame(this.f, this.edge) {
+    final r = f.rect;
+    final track = f.data.trackSpan > 0;
+    path = track;
+    if (track) {
+      width = f.data.trackSpan * f.length;
+      height = r.height;
+      start = f.data.trackStart * f.length;
+    } else {
+      final vertical = edge == BeamEdge.left || edge == BeamEdge.right;
+      width = vertical ? r.height : r.width;
+      height = vertical ? r.width : r.height;
+    }
+  }
+
+  final BeamFrame f;
+  final BeamEdge edge;
+  late final bool path;
+  late final double width;
+  late final double height;
+  double start = 0;
+
+  bool get _swap => !path && (edge == BeamEdge.left || edge == BeamEdge.right);
+
+  /// The canvas point (or path-space point) of authored x along the edge
+  /// and [depth] in from it.
+  Offset map(double x, double depth) {
+    if (path) return Offset(start + x, depth);
+    final r = f.rect;
+    return switch (edge) {
+      BeamEdge.bottom => Offset(r.left + x, r.bottom - depth),
+      BeamEdge.top => Offset(r.right - x, r.top + depth),
+      BeamEdge.left => Offset(r.left + depth, r.top + x),
+      BeamEdge.right => Offset(r.right - depth, r.bottom - x),
+    };
+  }
+
+  void space(int k, {double blur = 0}) => f.data.setBlobSpace(
+    k,
+    blur > 0
+        ? BeamBlobSpace.blurred
+        : (path ? BeamBlobSpace.path : BeamBlobSpace.planar),
+    blur: blur,
+  );
+
+  void window(
+    int k,
+    double x,
+    double depth,
+    double rx,
+    double ry,
+    double mid,
+    double midAlpha,
+  ) {
+    final c = map(x, depth);
+    f.data.setRadialWindow(
+      k,
+      c,
+      _swap ? ry : rx,
+      _swap ? rx : ry,
+      midStop: mid,
+      midAlpha: midAlpha,
+    );
+  }
+
+  void blob(int k, double x, double depth, double rx, double ry, Color color) {
+    final c = map(x, depth);
+    f.data.addSimpleBlob(
+      k,
+      cx: c.dx,
+      cy: c.dy,
+      rx: _swap ? ry : rx,
+      ry: _swap ? rx : ry,
+      color: color,
+    );
+  }
+
+  /// A blob with explicit alpha stops (2–4; the last alpha is 0).
+  void stopBlob(
+    int k,
+    double x,
+    double depth,
+    double rx,
+    double ry,
+    Color rgb,
+    List<double> alphas,
+    List<double> stops,
+  ) {
+    final c = map(x, depth);
+    final n = alphas.length;
+    double a1;
+    double p1;
+    double a2;
+    double p2;
+    final end = stops[n - 1];
+    if (n >= 4) {
+      p1 = stops[1];
+      a1 = alphas[1];
+      p2 = stops[2];
+      a2 = alphas[2];
+    } else if (n == 3) {
+      p1 = stops[1];
+      a1 = alphas[1];
+      p2 = (stops[1] + end) / 2;
+      a2 = alphas[1] / 2;
+    } else {
+      p1 = end / 3;
+      a1 = alphas[0] * 2 / 3;
+      p2 = end * 2 / 3;
+      a2 = alphas[0] / 3;
+    }
+    f.data.addBlob(
+      k,
+      cx: c.dx,
+      cy: c.dy,
+      rx: _swap ? ry : rx,
+      ry: _swap ? rx : ry,
+      rgb: rgb,
+      a0: alphas[0],
+      p1: p1,
+      a1: a1,
+      p2: p2,
+      a2: a2,
+      p3: end,
+    );
+  }
+}
+
+// ─── Pulse ──────────────────────────────────────────────────────────────────
+
+// One oscillator bank per tuning, rebuilt only when the tuning changes.
+final Map<(bool, bool, double), PulseOscillatorBank> _banks = {};
+final PulseFrame _pulseFrame = PulseFrame();
+
+PulseFrame _breathe(BeamFrame f, {required bool halo}) {
+  final key = (halo, f.dark, f.config.cycleSeconds);
+  final bank = _banks[key] ??= () {
+    if (_banks.length > 16) _banks.clear();
+    return PulseOscillatorBank(
+      halo
+          ? PulseParams.halo(dark: f.dark, cycleSeconds: f.config.cycleSeconds)
+          : PulseParams.pulse(
+              dark: f.dark,
+              cycleSeconds: f.config.cycleSeconds,
+            ),
+    );
+  }();
+  bank.sample(f.seconds, _pulseFrame);
+  return _pulseFrame;
+}
+
+double _quad(PulseFrame p, PulseQuad q) => p.bop[q.index];
+
+BeamBlob _borderAt(BeamLookTables t, int i) => t.border[i % t.border.length];
+
+/// One breathing pulse blob: its group's size and drift, its corner's
+/// opacity.
+void _pulseBlob(
+  BeamFrame f,
+  int k, {
+  required Rect box,
+  required Offset position,
+  required double w,
+  required double h,
+  required Color color,
+  required PulseRegion region,
+  required PulseQuad quad,
+  required PulseFrame pulse,
+  double sx = 1,
+  double sy = 1,
+  double boost = 1,
+  Offset scale = const Offset(1, 1),
+}) {
+  final r = region.index;
+  var c = Offset(
+    box.left + position.dx * box.width + pulse.bx[r],
+    box.top + position.dy * box.height + pulse.by[r],
+  );
+  final centre = f.rect.center;
+  c =
+      centre +
+      Offset((c.dx - centre.dx) * scale.dx, (c.dy - centre.dy) * scale.dy);
+  f.data.addSimpleBlob(
+    k,
+    cx: c.dx,
+    cy: c.dy,
+    rx: w * pulse.bw[r] * sx * boost * scale.dx,
+    ry: h * pulse.bh[r] * pulse.bgh * sy * boost * scale.dy,
+    color: color,
+    alpha: _quad(pulse, quad),
+  );
+}
+
+/// One static bloom blob at the breathing's average alpha.
+void _frozenBlob(
+  BeamFrame f,
+  int k, {
+  required Rect box,
+  required Offset position,
+  required double w,
+  required double h,
+  required Color color,
+  required double alpha,
+  double sx = 1,
+  double sy = 1,
+  double boost = 1,
+  Offset scale = const Offset(1, 1),
+}) {
+  var c = Offset(
+    box.left + position.dx * box.width,
+    box.top + position.dy * box.height,
+  );
+  final centre = f.rect.center;
+  c =
+      centre +
+      Offset((c.dx - centre.dx) * scale.dx, (c.dy - centre.dy) * scale.dy);
+  f.data.addSimpleBlob(
+    k,
+    cx: c.dx,
+    cy: c.dy,
+    rx: w * sx * boost * scale.dx,
+    ry: h * sy * boost * scale.dy,
+    color: color.withValues(alpha: alpha),
+  );
+}
+
+void _pulse(BeamFrame f) {
+  final d = f.data;
+  final dark = f.dark;
+  final preset = presetFor(pulsePresets, dark: dark);
+  final base = f.alpha * (f.mono ? 0.5 : 1);
+  final pulse = _breathe(f, halo: false);
+  final params = PulseParams.pulse(
+    dark: dark,
+    cycleSeconds: f.config.cycleSeconds,
+  );
+  final border = f.tables.border;
+  final rect = f.rect;
+
+  // Inner glow: the breathing blobs and the corner accents, faded in from
+  // the edge.
+  d
+    ..setLayer(
+      0,
+      BeamGeometry.fill,
+      opacity: base * preset.innerOpacity * f.glowOpacity,
+    )
+    ..setEdgeFade(0, innerEdgeFade * f.glowSize);
+  _filter(f, 0, preset, keepTone: true);
+  for (final (i, b) in border.indexed) {
+    final map = pulseRingMap[i % pulseRingMap.length];
+    final size = pulseInnerSizes[i % pulseInnerSizes.length];
+    _pulseBlob(
+      f,
+      0,
+      box: rect,
+      position: b.position,
+      w: size.width * f.glowSize,
+      h: size.height * f.glowSize,
+      color: b.color,
+      region: map.region,
+      quad: map.quad,
+      pulse: pulse,
+    );
+  }
+  final corner = dark ? const Color(0xFFFFFFFF) : const Color(0xFF000000);
+  final cornerAlpha = dark ? pulseCornerAlphaDark : pulseCornerAlphaLight;
+  for (final (pos, quad) in const [
+    (Offset(0, 0), PulseQuad.tl),
+    (Offset(1, 0), PulseQuad.tr),
+    (Offset(0, 1), PulseQuad.bl),
+    (Offset(1, 1), PulseQuad.br),
+  ]) {
+    final c = f.at(pos.dx, pos.dy);
+    d.addSimpleBlob(
+      0,
+      cx: c.dx,
+      cy: c.dy,
+      rx: pulseCornerRadius * f.glowSize,
+      ry: pulseCornerRadius * f.glowSize,
+      color: corner.withValues(alpha: cornerAlpha * _quad(pulse, quad)),
+      end: pulseCornerEndStop,
+    );
+  }
+
+  // Stroke: the border blobs breathing on the hairline.
+  d
+    ..setLayer(1, BeamGeometry.ring, opacity: base * preset.strokeOpacity)
+    ..setDashed(1);
+  _filter(f, 1, preset, keepTone: true);
+  for (final (i, b) in border.indexed) {
+    final map = pulseRingMap[i % pulseRingMap.length];
+    _pulseBlob(
+      f,
+      1,
+      box: rect,
+      position: b.position,
+      w: b.size.width,
+      h: b.size.height,
+      color: b.color,
+      region: map.region,
+      quad: map.quad,
+      pulse: pulse,
+    );
+  }
+
+  // Bloom: the static blobs on the ring, blurred.
+  d.setLayer(
+    2,
+    BeamGeometry.blurredRing,
+    opacity: base * preset.bloomOpacity * f.glowOpacity,
+    sigma: pulseBloomBlur * f.glowSize,
+  );
+  _filter(f, 2, preset, keepTone: true);
+  for (final spec in pulseInnerBloom) {
+    final src = _borderAt(f.tables, spec.ci);
+    _frozenBlob(
+      f,
+      2,
+      box: rect,
+      position: src.position,
+      w: spec.w,
+      h: spec.h,
+      color: src.color,
+      alpha: params.frozenBloomAlpha,
+    );
+  }
+}
+
+// ─── Halo ───────────────────────────────────────────────────────────────────
+
+void _halo(BeamFrame f) {
+  final d = f.data;
+  final dark = f.dark;
+  final preset = presetFor(haloPresets, dark: dark);
+  final base = f.alpha * (f.mono ? 0.5 : 1);
+  final pulse = _breathe(f, halo: true);
+  final params = PulseParams.halo(
+    dark: dark,
+    cycleSeconds: f.config.cycleSeconds,
+  );
+  final rect = f.rect;
+  final sx = (rect.width / haloReferenceWidth).clamp(
+    haloMinScale,
+    haloMaxScale,
+  );
+  final sy = (rect.height / haloReferenceHeight).clamp(
+    haloMinScale,
+    haloMaxScale,
+  );
+  final unit = sx / haloMinScale * haloUnitDamping;
+  final g = f.glowSize;
+  final coreInset = haloCoreInset * unit * g;
+  final bloomInset = haloBloomInset * unit * g;
+  final coreBlur = haloCoreBlur * unit * g;
+  final bloomBlur = haloBloomBlur * unit * g;
+  const scale = Offset(haloScaleX, haloScaleY);
+  const sigmaScale = (haloScaleX + haloScaleY) / 2;
+  // The glows' shapes are the box grown by their inset and then shrunk about
+  // the centre: what sticks out past the box on average.
+  double reach(double inset) =>
+      (((rect.width + 2 * inset) * haloScaleX - rect.width) / 2 +
+          ((rect.height + 2 * inset) * haloScaleY - rect.height) / 2) /
+      2;
+  final glowBrightness = haloGlowBrightness * haloGlowMultiplier;
+  final glowSaturation = haloGlowSaturation * haloGlowMultiplier;
+
+  // Bloom: the wide static wash.
+  final bloomBox = rect.inflate(bloomInset);
+  d
+    ..setLayer(
+      0,
+      BeamGeometry.halo,
+      opacity: base * preset.bloomOpacity * haloGlowMultiplier * f.glowOpacity,
+      sigma: bloomBlur * sigmaScale,
+      inflate: reach(bloomInset),
+    )
+    ..setBlobSpace(0, BeamBlobSpace.blurred, blur: bloomBlur * sigmaScale);
+  _filter(
     f,
-    centre,
-    along: 1.6 * along,
-    inward: math.min(0.07 * depth + 3, 0.3 * depth) * f.glow,
-    amplitude: 0.7 * envelope,
+    0,
+    preset,
+    keepTone: true,
+    brightness: glowBrightness,
+    saturation: glowSaturation,
+    fold: false,
   );
-}
-
-// The line's spikes: position across the streak (-1..1) and height as a
-// fraction of the depth behind the edge, in pairs.
-const List<double> _lineSpikes = [
-  -0.84, 0.07, //
-  -0.56, 0.12, //
-  -0.28, 0.09, //
-  0.0, 0.15, //
-  0.28, 0.1, //
-  0.56, 0.13, //
-  0.84, 0.065, //
-];
-
-void _pulse(BeamEmission o, BeamFrame f) {
-  final dark = f.dark;
-  final m = f.minExtent;
-  // A dim ring all the way round, with patches of colour swelling and
-  // ebbing at the corners and edge centres, washing a little way inward.
-  o
-    ..base = 0.28
-    ..bumpPlateau = 1.3
-    ..stroke = dark ? 0.45 : 0.4
-    ..bloom = dark ? 0.3 : 0.2
-    ..bloomSigma = 2.5 + 1.5 * f.glow
-    ..highlight = dark ? 0.15 : 0.2
-    ..additive = dark ? 0.4 : 0
-    ..lights = dark ? 0.36 : 0.32;
-  final anchors = _anchors(f.outline);
-  final along = (0.2 * m + 10) * f.glow;
-  final inward = math.min((0.12 * m + 6) * f.glow, 0.38 * m);
-  final width = math.min(0.11, 90 / f.length);
-  for (var i = 0; i < anchors.length; i++) {
-    final b = _wave(f.phases.cycles * (0.85 + 0.11 * i) + 0.29 * i);
-    o.addBump(anchors[i], width, width, 0.08 + 0.42 * b * b);
-    _lightAt(
-      o,
+  for (final spec in pulseOuterBloom) {
+    final src = _borderAt(f.tables, spec.ci);
+    _frozenBlob(
       f,
-      anchors[i],
-      along: along,
-      inward: inward * (0.8 + 0.35 * b),
-      amplitude: 0.12 + 0.6 * b * b,
+      0,
+      box: bloomBox,
+      position: Offset(spec.x ?? src.position.dx, spec.y ?? src.position.dy),
+      w: spec.w,
+      h: spec.h,
+      color: src.color,
+      alpha: params.frozenBloomAlpha,
+      sx: sx,
+      sy: sy,
+      boost: haloBoost,
+      scale: scale,
+    );
+  }
+
+  // Stroke: the core blobs breathing on the hairline.
+  d
+    ..setLayer(
+      1,
+      BeamGeometry.ring,
+      opacity: base * preset.strokeOpacity * haloGlowMultiplier,
+    )
+    ..setDashed(1);
+  _filter(f, 1, preset, keepTone: true, fold: false);
+  for (final spec in pulseOuterCore) {
+    final src = _borderAt(f.tables, spec.ci);
+    _pulseBlob(
+      f,
+      1,
+      box: rect,
+      position: Offset(spec.x ?? src.position.dx, spec.y ?? src.position.dy),
+      w: spec.w,
+      h: spec.h,
+      color: src.color,
+      region: spec.region,
+      quad: spec.quad,
+      pulse: pulse,
+      sx: sx,
+      sy: sy,
+    );
+  }
+
+  // Core: the breathing glow hugging the edge.
+  final coreBox = rect.inflate(coreInset);
+  d
+    ..setLayer(
+      2,
+      BeamGeometry.halo,
+      opacity: base * preset.innerOpacity * haloGlowMultiplier * f.glowOpacity,
+      sigma: coreBlur * sigmaScale,
+      inflate: reach(coreInset),
+    )
+    ..setBlobSpace(2, BeamBlobSpace.blurred, blur: coreBlur * sigmaScale);
+  _filter(
+    f,
+    2,
+    preset,
+    keepTone: true,
+    brightness: glowBrightness,
+    saturation: glowSaturation,
+    fold: false,
+  );
+  for (final spec in pulseOuterCore) {
+    final src = _borderAt(f.tables, spec.ci);
+    _pulseBlob(
+      f,
+      2,
+      box: coreBox,
+      position: Offset(spec.x ?? src.position.dx, spec.y ?? src.position.dy),
+      w: spec.w,
+      h: spec.h,
+      color: src.color,
+      region: spec.region,
+      quad: spec.quad,
+      pulse: pulse,
+      sx: sx,
+      sy: sy,
+      boost: haloBoost,
+      scale: scale,
     );
   }
 }
 
-// Where the halo's clouds sit: spread evenly round the box rather than at
-// the corners, so the glow reads as a ring of soft light. Clockwise from the
-// top edge's first third.
-final Expando<Float64List> _haloAnchorCache = Expando<Float64List>('halo');
+// ─── The palette ring (flow, spin, shimmer, charge) ─────────────────────────
 
-Float64List _haloAnchors(BeamOutline o) =>
-    _haloAnchorCache[o] ??= Float64List.fromList([
-      o.fractionOfEdge(BeamEdge.top, 0.28),
-      o.fractionOfEdge(BeamEdge.top, 0.74),
-      o.fractionOfEdge(BeamEdge.right, 0.5),
-      o.fractionOfEdge(BeamEdge.bottom, 0.3),
-      o.fractionOfEdge(BeamEdge.bottom, 0.76),
-      o.fractionOfEdge(BeamEdge.left, 0.5),
-    ]);
-
-void _halo(BeamEmission o, BeamFrame f) {
-  final dark = f.dark;
-  final m = f.minExtent;
-  // A thin coloured rim, a faint glow hugging it, and large soft clouds of
-  // colour standing off the border that breathe in turn.
-  o
-    ..base = 0.4
-    ..bumpPlateau = 1.2
-    ..stroke = dark ? 0.6 : 0.55
-    ..bloom = dark ? 0.12 : 0.1
-    ..bloomSigma = 2 + f.glow
-    ..bloomSide = BeamSide.outside
-    ..outer = dark ? 0.05 : 0.08
-    ..outerReach = (0.14 * m + 14) * f.glow
-    ..outerWiden = 2
-    ..highlight = dark ? 0.15 : 0.1
-    ..additive = dark ? 0.6 : 0
-    ..lights = dark ? 0.34 : 0.75;
-  final anchors = _haloAnchors(f.outline);
-  final width = math.min(0.12, 110 / f.length);
-  // Cloud size follows the widget (a chip gets small clouds), capped so a
-  // full-screen surface doesn't throw light across the whole screen.
-  final along = math.min(0.29 * m + 10, 80.0) * f.glow;
-  final across = math.min(0.17 * m + 6, 44.0) * f.glow;
-  for (var i = 0; i < anchors.length; i++) {
-    final b = _wave(f.phases.cycles * (0.8 + 0.13 * i) + 0.31 * i);
-    o.addBump(anchors[i], width, width, 0.15 + 0.6 * b);
-    _lightAt(
-      o,
-      f,
-      anchors[i],
-      along: along * (0.9 + 0.2 * b),
-      inward: across * (0.9 + 0.2 * b),
-      amplitude: 0.3 + 0.7 * b,
-      outwardShift: 1.1 * across,
-      side: BeamSide.outside,
-    );
-  }
-}
-
-void _flow(BeamEmission o, BeamFrame f) {
-  final dark = f.dark;
-  final m = f.minExtent;
-  final dir = f.phases.reversedNow ? -1.0 : 1.0;
-  // The palette streams round the border half a turn per cycle; the glow
-  // inside drifts more slowly, so colour flows through it, and each patch
-  // of it swells and ebbs on its own beat.
-  final origin = dir * f.phases.cycles * 0.5;
-  o
-    ..base = 0.72
-    ..colorOrigin = origin
-    ..noiseAmplitude = 0.35
-    ..noiseFrequency = 2
-    ..noisePhase = f.phases.cycles * 0.6
-    ..stroke = dark ? 0.85 : 0.8
-    ..bloom = dark ? 0.42 : 0.28
-    ..bloomSigma = 3 + 1.5 * f.glow
-    ..highlight = dark ? 0.22 : 0.2
-    ..additive = dark ? 0.45 : 0
-    ..lights = dark ? 0.36 : 0.3;
-  const count = 8;
-  final along = f.length / count * 0.55;
-  final reach = math.min((0.075 * m + 5) * f.glow, 0.32 * m);
+/// Lays [count] blobs evenly around the outline in path space, coloured from
+/// the palette where each sits, shifted [shift] turns along it.
+void _paletteRing(
+  BeamFrame f,
+  int k, {
+  required int count,
+  required double inward,
+  double alpha = 1,
+  double shift = 0,
+  double overlap = 1.25,
+}) {
+  final len = f.length;
+  final along = len / count * overlap;
+  final palette = f.config.palette;
   for (var i = 0; i < count; i++) {
-    final swell = _wave(f.phases.cycles * (0.55 + 0.09 * (i % 3)) + i * 0.37);
-    _lightAt(
-      o,
-      f,
-      i / count + origin * 0.6,
-      along: along,
-      inward: reach * (0.65 + 0.7 * swell),
-      amplitude: 0.25 + 0.75 * swell * swell,
+    final u = (i + 0.5) / count;
+    var s = (u + shift) * len;
+    s -= (s / len).floorToDouble() * len;
+    f.data.addSimpleBlob(
+      k,
+      cx: s,
+      cy: 0,
+      rx: along,
+      ry: inward,
+      color: palette.sample(u),
+      alpha: alpha,
     );
   }
 }
 
-void _spin(BeamEmission o, BeamFrame f) {
+// ─── Spin ───────────────────────────────────────────────────────────────────
+
+// A long window: the whole ring lit, brightening toward the head.
+const List<double> _spinWindowStops = [0.0, 0.45, 0.80, 0.90, 0.93, 1.0];
+const List<double> _spinWindowAlphas = [0.38, 0.6, 0.95, 1.0, 0.7, 0.38];
+const double _spinHead = 0.9;
+
+void _spin(BeamFrame f) {
+  final d = f.data;
   final dark = f.dark;
+  final preset = presetFor(rotatePresets, dark: dark);
+  final base = f.alpha * (f.mono ? 0.5 : 1);
   final dir = f.phases.reversedNow ? -1.0 : 1.0;
-  o
-    ..base = 1
-    ..colorOrigin = dir * f.phases.cycles
-    ..stroke = 1
-    ..bloom = dark ? 0.38 : 0.26
-    ..bloomSigma = 2.5 + 1.5 * f.glow
-    ..bloomSide = BeamSide.both
-    ..outer = dark ? 0.18 : 0.12
-    ..outerReach = (6 + 0.05 * f.minExtent) * f.glow
-    ..highlight = dark ? 0.1 : 0.1
-    ..additive = dark ? 0.35 : 0;
+  final turn = dir * f.phases.cycles;
+  final reversed = f.phases.reversedNow;
+  final sigma = rotateBloomBlur * f.glowSize;
+
+  _conicTable(
+    d,
+    BeamTable.windowA,
+    _spinWindowStops,
+    _spinWindowAlphas,
+    reversed: reversed,
+  );
+  _conicTable(
+    d,
+    BeamTable.overlayA,
+    rotateHighlightStops,
+    dark ? rotateHighlightAlphasDark : rotateHighlightAlphasLight,
+    reversed: reversed,
+    shift: _spinHead - 0.66,
+  );
+  _conicTable(
+    d,
+    BeamTable.overlayB,
+    rotateBloomStops,
+    dark ? rotateBloomAlphasDark : rotateBloomAlphasLight,
+    reversed: reversed,
+    shift: _spinHead - rotateHeadStop,
+    blur: sigma / math.max(f.length, 1),
+  );
+  final head = reversed ? 1 - _spinHead : _spinHead;
+  d.setConic(f.rect.center, turn - head, 1);
+
+  d
+    ..setLayer(
+      0,
+      BeamGeometry.fill,
+      opacity: base * preset.innerOpacity * f.glowOpacity,
+    )
+    ..setConicWindow(0, BeamTable.windowA)
+    ..setEdgeFade(0, innerEdgeFade * f.glowSize)
+    ..setBlobSpace(0, BeamBlobSpace.path);
+  _shadow(f, 0, preset.innerShadow, rotateInnerShadowBlur);
+  _filter(f, 0, preset, keepTone: true);
+  _paletteRing(
+    f,
+    0,
+    count: 12,
+    inward: 34,
+    alpha: rotateInnerBlobAlpha,
+    shift: turn,
+  );
+
+  d
+    ..setLayer(1, BeamGeometry.ring, opacity: base * preset.strokeOpacity * 2.2)
+    ..setConicWindow(1, BeamTable.windowA)
+    ..setOverlay(1, BeamTable.overlayA, white: dark)
+    ..setDashed(1)
+    ..setBlobSpace(1, BeamBlobSpace.path);
+  _filter(f, 1, preset, keepTone: true);
+  _paletteRing(f, 1, count: 10, inward: 30, shift: turn);
+
+  d
+    ..setLayer(
+      2,
+      BeamGeometry.blurredRing,
+      opacity: base * preset.bloomOpacity * f.glowOpacity,
+      sigma: sigma,
+    )
+    ..setOverlay(2, BeamTable.overlayB, white: dark)
+    ..setDashed(2)
+    ..setFilter(
+      2,
+      brightness: preset.brightness,
+      saturation: preset.saturation,
+    );
 }
 
-void _shimmer(BeamEmission o, BeamFrame f, ShimmerEffect e) {
+// ─── Flow ───────────────────────────────────────────────────────────────────
+
+void _flow(BeamFrame f) {
+  final d = f.data;
   final dark = f.dark;
-  final r = f.outline.rect;
+  final preset = presetFor(pulsePresets, dark: dark);
+  final base = f.alpha * (f.mono ? 0.5 : 1);
+  final pulse = _breathe(f, halo: false);
+  final params = PulseParams.pulse(
+    dark: dark,
+    cycleSeconds: f.config.cycleSeconds,
+  );
+  final dir = f.phases.reversedNow ? -1.0 : 1.0;
+  // The colour field streams half a turn per cycle.
+  final shift = dir * f.phases.cycles * 0.5;
+  final len = f.length;
+  final border = f.tables.border;
+
+  void pathBlob(
+    int k,
+    BeamBlob b,
+    double w,
+    double h, {
+    double alpha = 1,
+    PulseRegion? region,
+    PulseQuad? quad,
+    bool breathe = true,
+  }) {
+    final point = f.at(b.position.dx, b.position.dy);
+    final loc = f.outline.locate(point);
+    final rect = f.rect;
+    final vertical =
+        math.min(b.position.dx, 1 - b.position.dx) * rect.width <
+        math.min(b.position.dy, 1 - b.position.dy) * rect.height;
+    var along = vertical ? h : w;
+    var inward = vertical ? w : h;
+    var s = (loc.u + shift) * len;
+    var a = alpha;
+    if (breathe && region != null && quad != null) {
+      final r = region.index;
+      along *= vertical ? pulse.bh[r] * pulse.bgh : pulse.bw[r];
+      inward *= vertical ? pulse.bw[r] : pulse.bh[r] * pulse.bgh;
+      s += vertical ? pulse.by[r] : pulse.bx[r];
+      a *= _quad(pulse, quad);
+    }
+    s -= (s / len).floorToDouble() * len;
+    d.addSimpleBlob(
+      k,
+      cx: s,
+      cy: -loc.distance,
+      rx: along,
+      ry: inward,
+      color: b.color,
+      alpha: a,
+    );
+  }
+
+  d
+    ..setLayer(
+      0,
+      BeamGeometry.fill,
+      opacity: base * preset.innerOpacity * f.glowOpacity,
+    )
+    ..setEdgeFade(0, innerEdgeFade * 1.3 * f.glowSize)
+    ..setBlobSpace(0, BeamBlobSpace.path);
+  _filter(f, 0, preset, keepTone: true);
+  for (final (i, b) in border.indexed) {
+    final map = pulseRingMap[i % pulseRingMap.length];
+    final size = pulseInnerSizes[i % pulseInnerSizes.length];
+    pathBlob(
+      0,
+      b,
+      size.width * f.glowSize,
+      size.height * f.glowSize,
+      region: map.region,
+      quad: map.quad,
+    );
+  }
+
+  d
+    ..setLayer(1, BeamGeometry.ring, opacity: base * preset.strokeOpacity)
+    ..setDashed(1)
+    ..setBlobSpace(1, BeamBlobSpace.path);
+  _filter(f, 1, preset, keepTone: true);
+  for (final (i, b) in border.indexed) {
+    final map = pulseRingMap[i % pulseRingMap.length];
+    pathBlob(
+      1,
+      b,
+      b.size.width,
+      b.size.height,
+      region: map.region,
+      quad: map.quad,
+    );
+  }
+
+  d
+    ..setLayer(
+      2,
+      BeamGeometry.blurredRing,
+      opacity: base * preset.bloomOpacity * f.glowOpacity,
+      sigma: pulseBloomBlur * f.glowSize,
+    )
+    ..setBlobSpace(2, BeamBlobSpace.path);
+  _filter(f, 2, preset, keepTone: true);
+  for (final spec in pulseInnerBloom) {
+    final src = _borderAt(f.tables, spec.ci);
+    pathBlob(
+      2,
+      src,
+      spec.w,
+      spec.h,
+      alpha: params.frozenBloomAlpha,
+      breathe: false,
+    );
+  }
+}
+
+// ─── Shimmer ────────────────────────────────────────────────────────────────
+
+const List<double> _flatStops = [0.0, 1.0];
+
+void _shimmer(BeamFrame f, ShimmerEffect e) {
+  final d = f.data;
+  final dark = f.dark;
+  final preset = presetFor(rotatePresets, dark: dark);
+  final base = f.alpha * (f.mono ? 0.5 : 1);
+  final r = f.rect;
   final a = e.angle * math.pi / 180;
   // The sweep's direction in pixels, carried into box-normalised space and
   // scaled so the band coordinate spans exactly 0–1 across the box: the
   // glint keeps its true angle on any aspect ratio.
   final px = math.cos(a) * r.width;
   final py = math.sin(a) * r.height;
-  final scale = math.max(px.abs() + py.abs(), 1e-6);
-  final dx = px / scale;
-  final dy = py / scale;
-  const half = 0.2;
+  final norm = math.max(px.abs() + py.abs(), 1e-6);
+  final dir = Offset(px / norm, py / norm);
+  const half = 0.22;
   final pos = -half + (1 + 2 * half) * f.phases.travelProgress;
-  o
-    ..sweepAmplitude = 1.15
-    ..sweepDirection = Offset(dx, dy)
-    ..sweepHalfWidth = half
-    ..sweepPosition = pos
-    ..stroke = 1
-    ..bloom = dark ? 0.5 : 0.3
-    ..bloomSigma = 2.5 + 1.5 * f.glow
-    ..highlight = dark ? 0.8 : 0.5
-    ..additive = dark ? 0.5 : 0
-    ..lights = dark ? 0.3 : 0.24;
-  // Where the glint's centre line crosses the border, it catches the edge:
-  // a soft light just inside each crossing. The line is `c + s·(-dy, dx)`
-  // in box-normalised space; [lo, hi] is the stretch of it inside the box.
-  final norm = dx * dx + dy * dy;
-  final cx = dx * (pos - 0.5) / norm;
-  final cy = dy * (pos - 0.5) / norm;
-  var lo = -1e9;
-  var hi = 1e9;
-  if (dy.abs() > 1e-6) {
-    final s0 = (cx + 0.5) / dy;
-    final s1 = (cx - 0.5) / dy;
-    lo = math.max(lo, math.min(s0, s1));
-    hi = math.min(hi, math.max(s0, s1));
-  } else if (cx.abs() > 0.5) {
-    return;
-  }
-  if (dx.abs() > 1e-6) {
-    final s0 = (-0.5 - cy) / dx;
-    final s1 = (0.5 - cy) / dx;
-    lo = math.max(lo, math.min(s0, s1));
-    hi = math.min(hi, math.max(s0, s1));
-  } else if (cy.abs() > 0.5) {
-    return;
-  }
-  if (hi <= lo) return;
-  // Fade the catch lights in as the line enters the box and out as it
-  // leaves, so they never pop at a corner.
-  final presence = _smoothstep(0, 0.25, (hi - lo) * math.sqrt(norm));
-  _shimmerCatch(o, f, cx - lo * dy, cy + lo * dx, presence);
-  _shimmerCatch(o, f, cx - hi * dy, cy + hi * dx, presence);
+
+  d
+    ..setTable(BeamTable.overlayA, _flatStops, const [0.3, 0.3], 2)
+    ..setTable(BeamTable.overlayB, _flatStops, const [1.0, 1.0], 2);
+
+  d
+    ..setLayer(
+      0,
+      BeamGeometry.fill,
+      opacity: base * preset.innerOpacity * f.glowOpacity,
+    )
+    ..setLinearWindow(0, dir, pos, half)
+    ..setEdgeFade(0, innerEdgeFade * f.glowSize)
+    ..setBlobSpace(0, BeamBlobSpace.path);
+  _shadow(f, 0, preset.innerShadow, rotateInnerShadowBlur);
+  _filter(f, 0, preset, keepTone: true);
+  _paletteRing(f, 0, count: 12, inward: 34, alpha: rotateInnerBlobAlpha);
+
+  d
+    ..setLayer(
+      1,
+      BeamGeometry.ring,
+      opacity: base * math.min(preset.strokeOpacity * 3.4, 1),
+    )
+    ..setLinearWindow(1, dir, pos, half)
+    ..setOverlay(1, BeamTable.overlayA, white: dark)
+    ..setDashed(1)
+    ..setBlobSpace(1, BeamBlobSpace.path);
+  _filter(f, 1, preset, keepTone: true);
+  _paletteRing(f, 1, count: 10, inward: 30);
+
+  d
+    ..setLayer(
+      2,
+      BeamGeometry.blurredRing,
+      opacity: base * preset.bloomOpacity * 2 * f.glowOpacity,
+      sigma: 5 * f.glowSize,
+    )
+    ..setLinearWindow(2, dir, pos, half * 0.5)
+    ..setOverlay(2, BeamTable.overlayB, white: dark)
+    ..setDashed(2);
 }
 
-void _shimmerCatch(BeamEmission o, BeamFrame f, double x, double y, double a) {
-  if (a <= 0) return;
-  final r = f.outline.rect;
-  final m = f.minExtent;
-  final point = Offset(r.center.dx + x * r.width, r.center.dy + y * r.height);
-  _lightAt(
-    o,
-    f,
-    f.outline.nearestFraction(point),
-    along: (0.12 * m + 10) * f.glow,
-    inward: math.min((0.08 * m + 5) * f.glow, 0.35 * m),
-    amplitude: 0.9 * a,
-  );
-}
+// ─── Charge ─────────────────────────────────────────────────────────────────
 
-void _charge(BeamEmission o, BeamFrame f) {
+// Behind the head, the filled border dims gently away from it.
+const List<double> _chargeWindowStops = [0.0, 0.40, 0.62, 0.66, 0.70, 1.0];
+const List<double> _chargeWindowAlphas = [0.45, 0.55, 0.9, 1.0, 0.45, 0.45];
+const double _chargeHead = 0.66;
+
+void _charge(BeamFrame f) {
+  final d = f.data;
   final dark = f.dark;
-  final track = segmentTrack(o);
+  final preset = presetFor(rotatePresets, dark: dark);
+  final base = f.alpha * (f.mono ? 0.5 : 1);
+  final track = segmentTrack(d);
   final reversed = f.phases.reversedNow;
   final head = f.phases.travelProgress;
   final fill = reversed ? 1 - head : head;
-  if (fill <= 0.001) {
-    o.stroke = 0;
-    return;
-  }
+  if (fill <= 0.001) return;
   final span = track.span * fill;
   final start = reversed ? track.start + track.span - span : track.start;
   final tip = reversed ? start : start + span;
-  final dir = reversed ? -1.0 : 1.0;
-  final m = f.minExtent;
-  // The tip light is placed against the user's track, before the fill
-  // narrows it: the fill's own feather would otherwise fade the light out
-  // exactly where it sits. It sits a little behind the tip, so it lights
-  // the filled border rather than the empty one ahead.
-  final along = (0.1 * m + 12) * f.glow;
-  o.lights = dark ? 0.42 : 0.3;
-  _lightAt(
-    o,
-    f,
-    tip - dir * 0.8 * along / f.length,
-    along: along,
-    inward: math.min((0.1 * m + 5) * f.glow, 0.38 * m),
-    amplitude: 0.85,
+  final userFeather = d.trackSpan > 0 ? d.trackFeather : 0.0;
+  d.setTrack(
+    start,
+    span,
+    math.max(math.min(4 / math.max(f.length, 1), span / 2), userFeather),
+    f.config.dashes,
   );
-  final userFeather = o.segmentSpan > 0 ? o.segmentFeather : 0.0;
-  // The filled border brightens toward a white-hot tip.
-  final glowTail = math.min(0.3, span);
-  o
-    ..segmentStart = start
-    ..segmentSpan = span
-    ..segmentFeather = math.max(math.min(5 / f.length, span / 2), userFeather)
-    ..base = 0.72
-    ..stroke = dark ? 0.9 : 0.85
-    ..bloom = dark ? 0.4 : 0.26
-    ..bloomSigma = 2.5 + 1.5 * f.glow
-    ..highlight = dark ? 0.55 : 0.5
-    ..additive = dark ? 0.4 : 0
-    ..addBump(tip, reversed ? glowTail : 0.01, reversed ? 0.01 : glowTail, 0.3)
-    ..addBump(tip, reversed ? 0.05 : 0.008, reversed ? 0.008 : 0.05, 0.5);
+  final sigma = rotateBloomBlur * f.glowSize;
+  final tipAngle = conicFraction(f.outline.pointAt(tip), f.rect.center);
+
+  _conicTable(
+    d,
+    BeamTable.windowA,
+    _chargeWindowStops,
+    _chargeWindowAlphas,
+    reversed: reversed,
+  );
+  _conicTable(
+    d,
+    BeamTable.overlayA,
+    rotateHighlightStops,
+    dark ? rotateHighlightAlphasDark : rotateHighlightAlphasLight,
+    reversed: reversed,
+    tail: 0.8,
+    shift: _chargeHead - 0.66,
+  );
+  _conicTable(
+    d,
+    BeamTable.overlayB,
+    rotateBloomStops,
+    dark ? rotateBloomAlphasDark : rotateBloomAlphasLight,
+    reversed: reversed,
+    shift: _chargeHead - rotateHeadStop,
+    blur: sigma / math.max(f.length, 1),
+  );
+  final h = reversed ? 1 - _chargeHead : _chargeHead;
+  d.setConic(f.rect.center, tipAngle - h, 1);
+
+  d
+    ..setLayer(
+      0,
+      BeamGeometry.fill,
+      opacity: base * preset.innerOpacity * f.glowOpacity,
+    )
+    ..setConicWindow(0, BeamTable.windowA)
+    ..setEdgeFade(0, innerEdgeFade * f.glowSize)
+    ..setBlobSpace(0, BeamBlobSpace.path);
+  _shadow(f, 0, preset.innerShadow, rotateInnerShadowBlur);
+  _filter(f, 0, preset, keepTone: true);
+  _paletteRing(f, 0, count: 12, inward: 34, alpha: rotateInnerBlobAlpha);
+
+  d
+    ..setLayer(
+      1,
+      BeamGeometry.ring,
+      opacity: base * math.min(preset.strokeOpacity * 2.6, 1),
+    )
+    ..setConicWindow(1, BeamTable.windowA)
+    ..setOverlay(1, BeamTable.overlayA, white: dark)
+    ..setDashed(1)
+    ..setBlobSpace(1, BeamBlobSpace.path);
+  _filter(f, 1, preset, keepTone: true);
+  _paletteRing(f, 1, count: 10, inward: 30);
+
+  d
+    ..setLayer(
+      2,
+      BeamGeometry.blurredRing,
+      opacity: base * preset.bloomOpacity * 1.6 * f.glowOpacity,
+      sigma: sigma,
+    )
+    ..setOverlay(2, BeamTable.overlayB, white: dark)
+    ..setDashed(2)
+    ..setFilter(
+      2,
+      brightness: preset.brightness,
+      saturation: preset.saturation,
+    );
 }

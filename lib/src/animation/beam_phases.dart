@@ -20,6 +20,7 @@ class BeamFramePhases {
     this.finished = false,
     this.cycles = 0,
     this.driven = false,
+    this.hueTime = 0,
   });
 
   /// Fade envelope (0–1), multiplied into the whole beam. Carries the rest
@@ -29,6 +30,10 @@ class BeamFramePhases {
 
   /// Animated hue rotation in degrees (excludes the static hue base).
   final double hueDegrees;
+
+  /// The time the hue track reads, in seconds — for effects that run a
+  /// second hue track of their own.
+  final double hueTime;
 
   /// Sweep progress (0–1) of the leading beam through the current cycle.
   ///
@@ -112,6 +117,7 @@ class BeamPhaseResolver {
       return BeamFramePhases(
         fadeOpacity: fadeOpacity,
         hueDegrees: hue,
+        hueTime: t + hueTimeOffset,
         reversedNow: config.direction == BeamDirection.reverse,
         finished: _finished(_shift(t)),
         cycles: cycles,
@@ -121,6 +127,7 @@ class BeamPhaseResolver {
     return BeamFramePhases(
       fadeOpacity: fadeOpacity * sweep.envelope,
       hueDegrees: hue,
+      hueTime: t + hueTimeOffset,
       travelProgress: sweep.travellers.first,
       travellers: sweep.travellers,
       reversedNow: sweep.reversed,

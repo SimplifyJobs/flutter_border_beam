@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show ColorScheme;
 import 'package:flutter/painting.dart' show HSLColor;
 
+import '../look/beam_look.dart';
 import '../render/color_math.dart';
 import 'beam_palette.dart';
 import 'beam_presets.dart';
@@ -571,6 +572,9 @@ class _ScaledBeamColors extends BeamColors {
       );
     }
     final base = source.resolve();
+    // A palette drawn with its own tables keeps them, scaled; the rest are
+    // sampled from the scaled stops.
+    final ownTables = base.tables != null || base.tableColors != null;
     return BeamPalette(
       colors: List<Color>.unmodifiable([
         for (final c in base.colors)
@@ -578,6 +582,10 @@ class _ScaledBeamColors extends BeamColors {
       ]),
       stops: base.stops,
       fixedHue: base.fixedHue,
+      tables: ownTables
+          ? scaleTableAlpha(BeamLook.tablesFor(base), factor)
+          : null,
+      mono: base.mono,
     );
   }
 

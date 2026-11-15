@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 
+import '../look/palette_tables.dart';
 import '../render/color_math.dart';
 
 /// The most colour stops a palette may carry — the shader's uniform budget.
@@ -24,6 +25,9 @@ class BeamPalette {
     required this.colors,
     required this.stops,
     this.fixedHue = false,
+    this.tables,
+    this.tableColors,
+    this.mono = false,
   });
 
   /// The stop colours, in stop order. Alpha is the stop's strength.
@@ -35,6 +39,19 @@ class BeamPalette {
   /// Whether the hue must never drift (the mono and gold presets): a hue
   /// sweep over a grey or a single-hue metal reads as the material changing.
   final bool fixedHue;
+
+  /// The blob tables this palette is drawn with, or null to derive them
+  /// (see `BeamLook.tablesFor`).
+  final BeamLookTables? tables;
+
+  /// Colours to cycle over `colorful`'s blob tables instead of sampling
+  /// [colors] into them, or null.
+  final List<Color>? tableColors;
+
+  /// Whether this is the greyscale palette: its layers paint at half
+  /// opacity (the line effect softens its spikes instead), since white light
+  /// reads far brighter than coloured light at the same alpha.
+  final bool mono;
 
   /// The number of stops.
   int get length => colors.length;
@@ -53,12 +70,21 @@ class BeamPalette {
       identical(this, other) ||
       other is BeamPalette &&
           other.fixedHue == fixedHue &&
+          other.mono == mono &&
+          other.tables == tables &&
+          listEquals(other.tableColors, tableColors) &&
           listEquals(other.colors, colors) &&
           listEquals(other.stops, stops);
 
   @override
-  int get hashCode =>
-      Object.hash(Object.hashAll(colors), Object.hashAll(stops), fixedHue);
+  int get hashCode => Object.hash(
+    Object.hashAll(colors),
+    Object.hashAll(stops),
+    fixedHue,
+    mono,
+    tables,
+    tableColors == null ? null : Object.hashAll(tableColors!),
+  );
 
   @override
   String toString() =>

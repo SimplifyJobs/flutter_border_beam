@@ -10,6 +10,7 @@ import 'beam_sync.dart';
 import 'border_beam_controller.dart';
 import 'border_beam_theme.dart';
 import 'effects/beam_effect.dart';
+import 'effects/effect_emitters.dart' show conicFraction;
 import 'models/beam_colors.dart';
 import 'models/beam_config.dart';
 import 'models/beam_options.dart';
@@ -920,7 +921,13 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
         );
         final u = outline.nearestFraction(point);
         final segment = config.segment?.resolve(outline);
-        if (segment == null) return u;
+        if (segment == null) {
+          // A rotating beam sweeps around the centre: its travel is the
+          // pointer's angle. A charge fills the border by length.
+          return config.effect is RotateEffect
+              ? conicFraction(point, rect.center)
+              : u;
+        }
         final span = BeamOutline.wrapFraction(segment.to - segment.from);
         if (span <= 0) return u;
         final along = BeamOutline.wrapFraction(u - segment.from);

@@ -6,29 +6,26 @@ import 'package:flutter/painting.dart';
 import '../animation/beam_phases.dart';
 import '../effects/effect_emitters.dart';
 import '../models/beam_config.dart';
-import 'beam_emission.dart';
+import 'beam_frame.dart';
 import 'beam_outline.dart';
 import 'beam_program.dart';
-import 'color_math.dart';
 
-/// Number of floats the shader's uniforms occupy (see `shaders/beam.frag`).
-const int beamUniformFloats = 248;
+export 'beam_frame.dart' show beamUniformFloats;
 
 /// Paints beam frames with the shared shader.
 ///
 /// One renderer per beam: it owns a `FragmentShader` (reused every frame, its
-/// uniforms rewritten in place), a `Paint`, and a [BeamEmission], so a frame
+/// uniforms rewritten in place), a `Paint`, and a [BeamFrameData], so a frame
 /// allocates almost nothing. A frame is one `drawDRRect` — the ring of the
 /// canvas where light can reach — with no layers, clips, or filters.
 class BeamRenderer {
   ui.FragmentShader? _shader;
   final Paint _paint = Paint()..isAntiAlias = false;
-  final BeamEmission _emission = BeamEmission();
-  final List<Color> _colors = <Color>[];
+  final BeamFrameData _frame = BeamFrameData();
   BeamOutline? _outline;
 
-  /// The emission of the last painted frame, for tests.
-  BeamEmission get debugEmission => _emission;
+  /// The uniforms of the last painted frame, for tests.
+  BeamFrameData get debugFrame => _frame;
 
   /// Whether the shader program is available yet.
   bool get isReady => BeamProgram.program != null;
@@ -57,62 +54,43 @@ class BeamRenderer {
     final outline = _outlineFor(rect, config);
     if (outline.length <= 0) return;
 
-    final palette = config.palette;
-    final hue = phases.hueDegrees + config.hueBase;
-    _colors.clear();
-    for (final c in palette.colors) {
-      _colors.add(hueRotate(c, hue));
-    }
-
-    final e = _emission..reset();
-    applySegment(e, config.segment, outline);
+    final px = 1 / math.max(devicePixelRatio * _canvasScale(canvas), 0.25);
+    final d = _frame..reset();
+    d.setOutline(outline, config.borderWidth, px);
+    applyTrack(d, config.segment, outline, config.dashes);
     emitEffect(
-      e,
       BeamFrame(
         config: config,
         phases: phases,
         outline: outline,
-        colors: _colors,
-        stops: palette.stops,
+        data: d,
+        alpha: alpha,
       ),
     );
-
-    // Effects grow their glows with `glow`; below 1 it also fades them, so 0
-    // leaves only the crisp stroke.
-    final g = config.glow;
-    if (g < 1) {
-      e
-        ..bloom *= g
-        ..outer *= g
-        ..lights *= g;
+    d.finish();
+    _measure(d, config.borderWidth);
+    var lit = false;
+    for (var k = 0; k < beamLayerCount; k++) {
+      if (d.geometryOf(k) != BeamGeometry.none && d.opacityOf(k) > 0) {
+        lit = true;
+      }
     }
+    if (!lit) return;
 
     final shader = _shader ??= program.fragmentShader();
-    final px = 1 / math.max(devicePixelRatio * _canvasScale(canvas), 0.25);
-    _pack(shader, outline, config, e, _colors, alpha, px);
+    final data = d.data;
+    for (var i = 0; i < beamUniformFloats; i++) {
+      shader.setFloat(i, data[i]);
+    }
 
     // Fragment work only where light can land: the box grown by the furthest
     // outward reach, minus the interior beyond the furthest inward reach.
-    final w = config.borderWidth;
-    var outside = 2.0;
-    if (e.bloom > 0 && e.bloomSide != BeamSide.inside) {
-      outside = math.max(outside, 3 * e.bloomSigma + 2);
-    }
-    if (e.outer > 0) {
-      outside = math.max(outside, e.outerPlateau + e.outerReach + 2);
-    }
-    if (e.lights > 0) outside = math.max(outside, e.lightReachOutside + 2);
-    var inside = w + 2;
-    if (e.bloom > 0 && e.bloomSide != BeamSide.outside) {
-      inside = math.max(inside, 3 * e.bloomSigma + w + 2);
-    }
-    if (e.lights > 0) inside = math.max(inside, e.lightReachInside + 2);
-    if (e.sweepAmplitude > 0) inside = math.max(inside, w + 3 * e.bloomSigma);
+    _paint.shader = shader;
+    final outer = rect.inflate(d.reachOutside + 2);
+    final inside = d.reachInside + 2;
     final maxCorner = outline.cornerSizes.reduce(math.max);
     final hole = math.max(inside, inside / math.sqrt2 + 0.3 * maxCorner);
-    _paint.shader = shader;
-    final outer = rect.inflate(outside);
-    if (2 * hole >= rect.shortestSide) {
+    if (!hole.isFinite || 2 * hole >= rect.shortestSide) {
       canvas.drawRect(outer, _paint);
     } else {
       canvas.drawDRRect(
@@ -121,6 +99,32 @@ class BeamRenderer {
         _paint,
       );
     }
+  }
+
+  // How far the frame's layers reach either side of the outline.
+  static void _measure(BeamFrameData d, double borderWidth) {
+    var outside = 0.0;
+    var inside = borderWidth + 1;
+    for (var k = 0; k < beamLayerCount; k++) {
+      if (d.opacityOf(k) <= 0) continue;
+      final sigma = d.sigmaOf(k);
+      switch (d.geometryOf(k)) {
+        case BeamGeometry.none:
+          break;
+        case BeamGeometry.ring:
+          break;
+        case BeamGeometry.fill:
+          final edge = d.edgeFadeOf(k);
+          inside = math.max(inside, edge > 0 ? edge + 1 : double.infinity);
+        case BeamGeometry.blurredRing:
+          inside = math.max(inside, 3 * sigma + borderWidth);
+        case BeamGeometry.halo:
+          outside = math.max(outside, d.inflateOf(k) + 3 * sigma);
+      }
+    }
+    d
+      ..reachOutside = outside
+      ..reachInside = inside;
   }
 
   BeamOutline _outlineFor(Rect rect, BeamConfig config) {
@@ -150,86 +154,6 @@ class BeamRenderer {
     final sy = math.sqrt(m[4] * m[4] + m[5] * m[5]);
     final s = math.sqrt(sx * sy);
     return s.isFinite && s > 0 ? s : 1;
-  }
-
-  static void _pack(
-    ui.FragmentShader s,
-    BeamOutline o,
-    BeamConfig config,
-    BeamEmission e,
-    List<Color> colors,
-    double opacity,
-    double px,
-  ) {
-    var i = 0;
-    void f(double v) => s.setFloat(i++, v);
-    void v4(double a, double b, double c, double d) {
-      f(a);
-      f(b);
-      f(c);
-      f(d);
-    }
-
-    final r = o.rect;
-    v4(r.left, r.top, r.width, r.height);
-    v4(o.radii[0], o.radii[1], o.radii[2], o.radii[3]);
-    v4(o.inset, o.exponent, config.borderWidth, px);
-    v4(o.length, o.arcFactor, switch (e.bloomSide) {
-      BeamSide.inside => -1,
-      BeamSide.both => 0,
-      BeamSide.outside => 1,
-    }, 1);
-    v4(o.quadStarts[0], o.quadStarts[1], o.quadStarts[2], o.quadStarts[3]);
-    v4(e.stroke, e.bloom, e.outer, e.lights);
-    v4(e.bloomSigma, e.outerReach, e.outerPlateau, e.outerWiden);
-    v4(1, 1, 1, e.highlight);
-    v4(e.base, e.bumpCount.toDouble(), opacity, e.additive);
-    v4(
-      e.noiseAmplitude,
-      e.noiseFrequency,
-      e.noisePhase,
-      e.lightCount.toDouble(),
-    );
-    v4(
-      e.segmentStart,
-      e.segmentSpan,
-      e.segmentFeather,
-      config.dashes.toDouble(),
-    );
-    final stops = config.palette.stops;
-    v4(
-      e.colorOrigin,
-      e.colorScale,
-      e.colorWrap ? 1 : 0,
-      colors.length.toDouble(),
-    );
-    v4(
-      e.sweepDirection.dx,
-      e.sweepDirection.dy,
-      e.sweepPosition,
-      e.sweepHalfWidth,
-    );
-    v4(e.sweepAmplitude, e.bumpPlateau, config.isDark ? 0 : 1, 0);
-    for (var k = 0; k < beamSlots * 4; k++) {
-      f(e.bumps[k]);
-    }
-    for (var k = 0; k < beamSlots; k++) {
-      final c = k < colors.length ? colors[k] : const Color(0x00000000);
-      v4(c.r, c.g, c.b, c.a);
-    }
-    for (var k = 0; k < beamSlots; k++) {
-      v4(k < stops.length ? stops[k] : 1, 0, 0, 0);
-    }
-    for (var k = 0; k < beamSlots * 4; k++) {
-      f(e.lightPos[k]);
-    }
-    for (var k = 0; k < beamSlots * 4; k++) {
-      f(e.lightShape[k]);
-    }
-    for (var k = 0; k < beamSlots * 4; k++) {
-      f(e.lightColor[k]);
-    }
-    assert(i == beamUniformFloats, 'packed $i floats');
   }
 
   /// Releases the shader.
