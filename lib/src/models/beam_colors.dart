@@ -5,10 +5,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show ColorScheme;
 import 'package:flutter/painting.dart' show HSLColor;
 
-import '../constants/extra_palettes.dart';
-import '../constants/palettes.dart';
-import 'beam_blob.dart';
+import '../render/color_math.dart';
 import 'beam_palette.dart';
+import 'beam_presets.dart';
 import 'model_validation.dart';
 
 /// How [BeamColors.fromSeed] spreads one brand color into a multi-color
@@ -16,14 +15,14 @@ import 'model_validation.dart';
 ///
 /// Every harmony works in HSL and keeps the derived colors inside the
 /// lightness band a glow reads well in, so a very dark or very light seed
-/// still produces visible beams.
+/// still produces a visible beam.
 enum BeamSeedHarmony {
   /// Four neighbours of the seed hue (0°, +25°, −25°, +50°). The calmest
   /// option: the palette still reads as one color.
   analogous,
 
   /// Four colors split across the seed hue and its opposite (0°, +15°,
-  /// +180°, +195°) — maximum contrast between the two halves of the beam.
+  /// +180°, +195°) — maximum contrast between the two halves of the border.
   complementary,
 
   /// Three colors evenly spaced around the wheel (0°, +120°, +240°).
@@ -34,123 +33,66 @@ enum BeamSeedHarmony {
   monochrome,
 }
 
-/// The color scheme of a beam.
+/// The colors of a beam: a ring of color stops around the border.
 ///
-/// Use one of the presets:
+/// Stops sit at perimeter positions in `[0, 1)` — 0 at top-centre,
+/// increasing clockwise — and blend into each other, the last back into the
+/// first, so the ring is seamless. Effects that travel reveal the colors
+/// where the beam passes; effects that flow move the ring itself.
+///
+/// Use one of the [presets]:
 ///
 /// ```dart
-/// BorderBeam.rotate(colors: BeamColors.ocean, child: card)
+/// BorderBeam(colors: BeamColors.ocean, child: card)
 /// ```
 ///
-/// or bring your own colors — [BeamColors.custom] distributes them over a
-/// preset's blob geometry so the effect keeps its organic look:
+/// or bring your own colors, evenly spaced or at chosen positions:
 ///
 /// ```dart
-/// BorderBeam.rotate(
-///   colors: BeamColors.custom([Colors.pink, Colors.cyan, Colors.amber]),
+/// BorderBeam(
+///   colors: const BeamColors([Colors.pink, Colors.cyan, Colors.amber]),
 ///   child: card,
 /// )
 /// ```
 ///
 /// [BeamColors.fromSeed] and [BeamColors.fromScheme] derive a palette from a
 /// single brand color or a Material [ColorScheme]; [BeamColors.lerp] and
-/// [scaleAlpha] transform an existing one. For pixel-level control,
-/// [BeamColors.spec] accepts explicit blob tables.
+/// [scaleAlpha] transform an existing one.
 ///
 /// Every variant is a value type: two instances built from equal inputs are
-/// `==`, so rebuilding `BeamColors.custom([...])` inline in a `build` method
-/// does not force the widget to re-resolve its gradient tables.
+/// `==`, so rebuilding `BeamColors([...])` inline in a `build` method does not
+/// force the beam to re-resolve its palette.
 @immutable
 sealed class BeamColors {
   const BeamColors._();
 
-  /// Immutable value used by the resolved-palette LRU.
-  Object get _cacheKey;
-
-  /// Rainbow spectrum. The default.
-  static const BeamColors colorful = _PresetBeamColors(colorfulPreset);
-
-  /// Grayscale. Hue animation is disabled and layer opacity halved, matching
-  /// the source library's mono treatment.
-  static const BeamColors mono = _PresetBeamColors(monoPreset, isMono: true);
-
-  /// Blue and purple tones.
-  static const BeamColors ocean = _PresetBeamColors(oceanPreset);
-
-  /// Warm orange, yellow, and red tones.
-  static const BeamColors sunset = _PresetBeamColors(sunsetPreset);
-
-  // ─── Flutter-only presets ─────────────────────────────────────────────────
-  // Each distributes a short color list (`extra_palettes.dart`) over the
-  // `colorful` blob geometry, exactly as `BeamColors.custom` does.
-
-  /// Northern lights: teal, violet, green and glacier blue.
-  static const BeamColors aurora = _CustomBeamColors(auroraColors);
-
-  /// Fully saturated magenta, cyan and lime — the loudest preset.
-  static const BeamColors neon = _CustomBeamColors(neonColors);
-
-  /// Pastel pink, lavender and peach.
-  static const BeamColors candy = _CustomBeamColors(candyColors);
-
-  /// Deep red, orange and gold — the hot end of a fire.
-  static const BeamColors ember = _CustomBeamColors(emberColors);
-
-  /// Pale blue, white and cyan.
-  static const BeamColors ice = _CustomBeamColors(iceColors);
-
-  /// Warm monochrome: amber, gold and bronze.
-  ///
-  /// Like [mono] it pins the hue — a hue sweep over a single-hue metal reads
-  /// as the metal changing material — so `gold` resolves with
-  /// `forcesStaticColors: true`. Unlike [mono] it keeps full layer opacity:
-  /// the ×0.5 multiplier exists to stop a *grayscale* beam blowing out, and
-  /// halving a warm amber only makes it muddy.
-  static const BeamColors gold = _CustomBeamColors(goldColors, staticHue: true);
-
-  /// Desaturated pastels built for a hue sweep.
-  ///
-  /// The colors are deliberately low-contrast; the iridescence comes from
-  /// pairing them with a fast continuous hue drift:
-  ///
-  /// ```dart
-  /// BorderBeam.rotate(
-  ///   colors: BeamColors.holographic,
-  ///   style: const BeamStyle(hueMode: BeamHueMode.continuous),
-  ///   timing: const BeamTiming(huePeriod: Duration(seconds: 3)),
-  ///   child: card,
-  /// )
-  /// ```
-  static const BeamColors holographic = _CustomBeamColors(holographicColors);
-
   // ─── Factories ────────────────────────────────────────────────────────────
 
-  /// Distributes [colors] over [base]'s blob geometry (cycling when fewer
-  /// colors than blob slots are given).
+  /// A ring of [colors] at [stops].
   ///
-  /// The list must not be empty. Alpha channels of the base tables (inner
-  /// glows, bloom spikes) are preserved and applied to your colors, so the
-  /// layered depth of the effect is kept.
+  /// Give 1–8 colors. [stops] places each one: the same length as [colors],
+  /// ascending, each in `[0, 1)`. Omitted, the colors are spaced evenly from
+  /// top-centre (0, 1/n, 2/n, …). Alpha is honoured: a translucent stop
+  /// glows more faintly.
   ///
-  /// [base] chooses which resolved tables supply that geometry and alpha
-  /// structure — any [BeamColors] is accepted, including another custom
-  /// palette. Only the tables are taken: a mono [base] does not make the
-  /// result mono.
-  const factory BeamColors.custom(List<Color> colors, {BeamColors base}) =
-      _CustomBeamColors;
+  /// The lists are checked when the palette is first resolved — in release
+  /// builds too — and a bad one throws an [ArgumentError].
+  const factory BeamColors(List<Color> colors, {List<double>? stops}) =
+      _StopBeamColors;
 
-  /// Derives a multi-blob palette from a single brand color.
+  /// A single [color] all the way round.
+  const factory BeamColors.solid(Color color) = _SolidBeamColors;
+
+  /// Derives a palette from a single brand color.
   ///
   /// [harmony] picks how the seed hue is spread (see [BeamSeedHarmony]).
   /// The derived colors are lifted into a readable glow band — lightness
   /// 0.55–0.70, saturation at least 0.55 — so a black, white or gray seed
-  /// still yields visible, distinguishable blobs.
-  ///
-  /// The palette *geometry* always comes from the [colorful] preset; only
-  /// the colors are derived.
+  /// still yields visible, distinguishable colors. They are spaced evenly
+  /// around the border.
   ///
   /// ```dart
-  /// BorderBeam.rotate(
+  /// BorderBeam(
   ///   colors: const BeamColors.fromSeed(Color(0xFF18A8F0)),
   ///   child: card,
   /// )
@@ -159,58 +101,151 @@ sealed class BeamColors {
       _SeedBeamColors;
 
   /// Builds a palette from a Material [ColorScheme]'s primary, secondary and
-  /// tertiary roles.
+  /// tertiary roles, spaced evenly around the border.
   ///
   /// Roles that are near-duplicates of an earlier one are dropped, so a
   /// scheme whose secondary matches its primary yields a two-color palette
-  /// rather than a doubled one. Geometry comes from the [colorful] preset.
-  factory BeamColors.fromScheme(ColorScheme scheme) => _CustomBeamColors(
+  /// rather than a doubled one.
+  factory BeamColors.fromScheme(ColorScheme scheme) => _StopBeamColors(
     _dedupe([scheme.primary, scheme.secondary, scheme.tertiary]),
   );
 
   /// Blends two color choices.
   ///
-  /// The result resolves to a palette whose every table entry is the
-  /// [Color.lerp] of the corresponding entries of [a] and [b] at [t].
-  /// Positions and sizes come from [a]; where [b]'s table is shorter its
-  /// colors cycle. `forcesStaticColors` and the mono treatment come from
-  /// whichever end is nearer, and the opacity multiplier is interpolated.
-  ///
-  /// [t] is not clamped — values outside 0–1 extrapolate, as with
-  /// [Color.lerp].
+  /// Both palettes are sampled at eight evenly spaced positions around the
+  /// border and each pair is mixed gamma-aware at [t], which is clamped to
+  /// 0–1. At exactly 0 or 1 the result is [a] or [b] unchanged. The hue is
+  /// fixed when the nearer end's is.
   const factory BeamColors.lerp(BeamColors a, BeamColors b, double t) =
       _LerpBeamColors;
 
-  /// Advanced: full per-blob control.
+  // ─── Presets ──────────────────────────────────────────────────────────────
+
+  /// Orange, magenta, violet, blue, green, and hot pink — the full spectrum.
+  /// The default.
+  static const BeamColors colorful = _PresetBeamColors(
+    'colorful',
+    colorfulPalette,
+  );
+
+  /// Whites and greys. The hue never drifts.
+  static const BeamColors mono = _PresetBeamColors('mono', monoPalette);
+
+  /// Blues and violets.
+  static const BeamColors ocean = _PresetBeamColors('ocean', oceanPalette);
+
+  /// Reds, oranges, and amber.
+  static const BeamColors sunset = _PresetBeamColors('sunset', sunsetPalette);
+
+  /// Northern lights: teal, violet, and green.
+  static const BeamColors aurora = _PresetBeamColors('aurora', auroraPalette);
+
+  /// Fully saturated magenta, lime, and cyan — the loudest preset.
+  static const BeamColors neon = _PresetBeamColors('neon', neonPalette);
+
+  /// Pastel pink, lavender, and peach.
+  static const BeamColors candy = _PresetBeamColors('candy', candyPalette);
+
+  /// Deep red, orange, and gold — the hot end of a fire.
+  static const BeamColors ember = _PresetBeamColors('ember', emberPalette);
+
+  /// Pale blue, white, and cyan.
+  static const BeamColors ice = _PresetBeamColors('ice', icePalette);
+
+  /// Warm monochrome: amber, gold, and bronze.
   ///
-  /// [border] replaces the 9-blob border table (any length ≥ 1) used by the
-  /// rotate stroke and as the pulse color source; each [BeamBlob.size] holds
-  /// the ellipse *radii*, not its diameters. Tables not provided
-  /// ([smallBorder], [lineBlobs]) are derived by cycling the border colors
-  /// over the default geometry.
-  const factory BeamColors.spec({
-    required List<BeamBlob> border,
-    List<BeamBlob>? smallBorder,
-    List<LineBlob>? lineBlobs,
-  }) = _SpecBeamColors;
+  /// Like [mono] it pins the hue — a hue sweep over a single-hue metal reads
+  /// as the metal changing material.
+  static const BeamColors gold = _PresetBeamColors('gold', goldPalette);
+
+  /// Desaturated pastels built for a hue sweep.
+  ///
+  /// The colors are deliberately low-contrast; the iridescence comes from
+  /// pairing them with a fast continuous hue drift:
+  ///
+  /// ```dart
+  /// BorderBeam(
+  ///   colors: BeamColors.holographic,
+  ///   style: const BeamStyle(hueMode: BeamHueMode.continuous),
+  ///   timing: const BeamTiming(huePeriod: Duration(seconds: 3)),
+  ///   child: card,
+  /// )
+  /// ```
+  static const BeamColors holographic = _PresetBeamColors(
+    'holographic',
+    holographicPalette,
+  );
+
+  /// Teal, aqua, and mint — shallow tropical water.
+  static const BeamColors lagoon = _PresetBeamColors('lagoon', lagoonPalette);
+
+  /// Indigo, violet, and rose — the sky after sundown.
+  static const BeamColors dusk = _PresetBeamColors('dusk', duskPalette);
+
+  /// Emerald, lime, and teal.
+  static const BeamColors forest = _PresetBeamColors('forest', forestPalette);
+
+  /// Pink, coral, and mauve.
+  static const BeamColors rose = _PresetBeamColors('rose', rosePalette);
+
+  /// Deep violet, electric blue, and magenta.
+  static const BeamColors cosmic = _PresetBeamColors('cosmic', cosmicPalette);
+
+  /// Lime, yellow, and tangerine.
+  static const BeamColors citrus = _PresetBeamColors('citrus', citrusPalette);
+
+  /// Cerulean, periwinkle, and a white-blue.
+  static const BeamColors sky = _PresetBeamColors('sky', skyPalette);
+
+  /// Lilac, lavender, and a soft pink.
+  static const BeamColors lavender = _PresetBeamColors(
+    'lavender',
+    lavenderPalette,
+  );
+
+  /// Every preset by name, in gallery order: the four originals, then the
+  /// rest.
+  static const Map<String, BeamColors> presets = {
+    'colorful': colorful,
+    'mono': mono,
+    'ocean': ocean,
+    'sunset': sunset,
+    'aurora': aurora,
+    'neon': neon,
+    'candy': candy,
+    'ember': ember,
+    'ice': ice,
+    'gold': gold,
+    'holographic': holographic,
+    'lagoon': lagoon,
+    'dusk': dusk,
+    'forest': forest,
+    'rose': rose,
+    'cosmic': cosmic,
+    'citrus': citrus,
+    'sky': sky,
+    'lavender': lavender,
+  };
 
   // ─── Transforms ───────────────────────────────────────────────────────────
 
-  /// Multiplies every table entry's alpha by [factor], clamping the result
-  /// to 0–1.
+  /// Multiplies every stop's alpha by [factor], clamping the result to 0–1.
   ///
-  /// This dims the palette itself rather than the layer opacity, so the
-  /// relative depth of the inner/stroke/bloom tables is preserved. [factor]
+  /// This dims the palette itself rather than the beam's overall strength,
+  /// so stops that were already fainter stay relatively fainter. [factor]
   /// must not be negative.
   BeamColors scaleAlpha(double factor) => _ScaledBeamColors(this, factor);
 
   // ─── Resolution ───────────────────────────────────────────────────────────
 
-  /// Resolves this color choice to concrete gradient tables.
+  /// Immutable value used by the resolved-palette LRU.
+  Object get _cacheKey;
+
+  /// Resolves this color choice to concrete stops.
   ///
   /// The result is memoized by *value*: two separately constructed but equal
   /// instances return the identical [BeamPalette], which is what lets a
-  /// config compare palettes cheaply. The memo is a bounded LRU, so a
+  /// beam compare palettes cheaply. The memo is a bounded LRU, so a
   /// long-lived app cycling through many palettes cannot grow it without
   /// limit; an evicted palette is simply rebuilt, and compares equal to the
   /// one it replaces.
@@ -225,7 +260,7 @@ sealed class BeamColors {
 
 /// How many distinct color choices keep a resolved palette. Comfortably
 /// above the handful a screen uses at once, small enough that the retained
-/// tables stay negligible.
+/// stops stay negligible.
 const int _paletteCacheCapacity = 32;
 
 // Insertion-ordered, so the first key is the least recently used: a hit
@@ -234,7 +269,7 @@ final LinkedHashMap<Object, BeamPalette> _paletteCache =
     LinkedHashMap<Object, BeamPalette>();
 
 BeamPalette _resolveCached(BeamColors colors) {
-  // User-provided tables may come from growable lists. Never put the public
+  // User-provided colors may come from growable lists. Never put the public
   // value object itself in a hash map: mutating one of those source lists
   // would change its hash while it was resident and make the entry
   // unreachable. Each implementation supplies an immutable snapshot of the
@@ -268,138 +303,20 @@ class _ListKey<T> {
   int get hashCode => Object.hashAll(values);
 }
 
-// The presets bypass the LRU: they are canonicalized const instances, so an
-// identity-keyed Expando memoizes them for the life of the isolate without
-// hashing a color table or competing with user palettes for a cache slot.
-final Expando<BeamPalette> _presetPaletteCache = Expando<BeamPalette>(
-  'BeamColors.preset',
-);
-
-// ─── Table helpers ──────────────────────────────────────────────────────────
-
-/// Distributes [colors] over [base]'s blob geometry, cycling when there are
-/// fewer colors than blob slots and preserving each table entry's alpha so
-/// the layered depth of the effect survives the substitution.
-BeamPresetData _distribute(List<Color> colors, BeamPresetData base) {
-  Color pick(int i, Color original) {
-    final c = colors[i % colors.length];
-    // Keep the preset's alpha so inner/bloom layering depth is preserved.
-    return c.withValues(alpha: original.a);
-  }
-
-  return BeamPresetData(
-    border: [
-      for (final (i, b) in base.border.indexed) b.withColor(pick(i, b.color)),
-    ],
-    spike: SpikeColors(
-      primary: pick(0, base.spike.primary),
-      secondary: pick(1, base.spike.secondary),
-    ),
-    spikeLt: SpikeColors(
-      primary: pick(0, base.spikeLt.primary),
-      secondary: pick(1, base.spikeLt.secondary),
-    ),
-    smallBorder: [
-      for (final (i, b) in base.smallBorder.indexed)
-        b.withColor(pick(i, b.color)),
-    ],
-    smallInner: [
-      for (final (i, b) in base.smallInner.indexed)
-        b.withColor(pick(i, b.color)),
-    ],
-    lineDark: [
-      for (final (i, b) in base.lineDark.indexed) b.withColor(pick(i, b.color)),
-    ],
-    lineLight: [
-      for (final (i, b) in base.lineLight.indexed)
-        b.withColor(pick(i, b.color)),
-    ],
-    lineInner: [
-      for (final (i, b) in base.lineInner.indexed)
-        b.withColor(pick(i, b.color)),
-    ],
-    lineBloomDark: [
-      for (final (i, s) in base.lineBloomDark.indexed)
-        SpikePair(pick(i, s.color1), pick(i, s.color2)),
-    ],
-    lineBloomLight: [
-      for (final (i, s) in base.lineBloomLight.indexed)
-        SpikePair(pick(i, s.color1), pick(i, s.color2)),
-    ],
-  );
-}
-
-/// Rebuilds [data] with every table color passed through [f], keeping all
-/// geometry.
-BeamPresetData _mapColors(BeamPresetData data, Color Function(Color) f) =>
-    BeamPresetData(
-      border: [for (final b in data.border) b.withColor(f(b.color))],
-      spike: SpikeColors(
-        primary: f(data.spike.primary),
-        secondary: f(data.spike.secondary),
-      ),
-      spikeLt: SpikeColors(
-        primary: f(data.spikeLt.primary),
-        secondary: f(data.spikeLt.secondary),
-      ),
-      smallBorder: [for (final b in data.smallBorder) b.withColor(f(b.color))],
-      smallInner: [for (final b in data.smallInner) b.withColor(f(b.color))],
-      lineDark: [for (final b in data.lineDark) b.withColor(f(b.color))],
-      lineLight: [for (final b in data.lineLight) b.withColor(f(b.color))],
-      lineInner: [for (final b in data.lineInner) b.withColor(f(b.color))],
-      lineBloomDark: [
-        for (final s in data.lineBloomDark) SpikePair(f(s.color1), f(s.color2)),
-      ],
-      lineBloomLight: [
-        for (final s in data.lineBloomLight)
-          SpikePair(f(s.color1), f(s.color2)),
-      ],
-    );
-
-/// Pairs [a]'s tables with [b]'s and combines their colors through [mix],
-/// keeping [a]'s geometry. Where [b]'s table is shorter its entries cycle;
-/// where it is empty, [a]'s color passes through untouched.
-BeamPresetData _zipColors(
-  BeamPresetData a,
-  BeamPresetData b,
-  Color Function(Color, Color) mix,
-) {
-  Color at<T>(List<T> other, int i, Color own, Color Function(T) color) =>
-      other.isEmpty ? own : mix(own, color(other[i % other.length]));
-
-  List<BeamBlob> blobs(List<BeamBlob> xa, List<BeamBlob> xb) => [
-    for (final (i, blob) in xa.indexed)
-      blob.withColor(at(xb, i, blob.color, (o) => o.color)),
-  ];
-  List<LineBlob> lines(List<LineBlob> xa, List<LineBlob> xb) => [
-    for (final (i, blob) in xa.indexed)
-      blob.withColor(at(xb, i, blob.color, (o) => o.color)),
-  ];
-  List<SpikePair> pairs(List<SpikePair> xa, List<SpikePair> xb) => [
-    for (final (i, s) in xa.indexed)
-      SpikePair(
-        at(xb, i, s.color1, (o) => o.color1),
-        at(xb, i, s.color2, (o) => o.color2),
-      ),
-  ];
-
-  return BeamPresetData(
-    border: blobs(a.border, b.border),
-    spike: SpikeColors(
-      primary: mix(a.spike.primary, b.spike.primary),
-      secondary: mix(a.spike.secondary, b.spike.secondary),
-    ),
-    spikeLt: SpikeColors(
-      primary: mix(a.spikeLt.primary, b.spikeLt.primary),
-      secondary: mix(a.spikeLt.secondary, b.spikeLt.secondary),
-    ),
-    smallBorder: blobs(a.smallBorder, b.smallBorder),
-    smallInner: blobs(a.smallInner, b.smallInner),
-    lineDark: lines(a.lineDark, b.lineDark),
-    lineLight: lines(a.lineLight, b.lineLight),
-    lineInner: lines(a.lineInner, b.lineInner),
-    lineBloomDark: pairs(a.lineBloomDark, b.lineBloomDark),
-    lineBloomLight: pairs(a.lineBloomLight, b.lineBloomLight),
+/// A validated palette built from caller-owned lists, snapshotted so a later
+/// mutation of those lists cannot change it.
+BeamPalette _paletteOf(
+  List<Color> colors,
+  List<double>? stops,
+  String name, {
+  bool fixedHue = false,
+}) {
+  final resolvedStops = stops ?? BeamPalette.evenStops(colors.length);
+  validatePalette(colors, resolvedStops, name);
+  return BeamPalette(
+    colors: List<Color>.unmodifiable(colors),
+    stops: List<double>.unmodifiable(resolvedStops),
+    fixedHue: fixedHue,
   );
 }
 
@@ -428,8 +345,8 @@ List<Color> _dedupe(List<Color> colors) {
 /// as a smudge on a dark surface.
 const double _seedMinLightness = 0.55;
 
-/// Highest lightness a derived seed color may take — above this the blobs
-/// wash out against a light surface.
+/// Highest lightness a derived seed color may take — above this the glow
+/// washes out against a light surface.
 const double _seedMaxLightness = 0.70;
 
 /// Saturation floor, so an achromatic seed still produces hue separation.
@@ -480,80 +397,89 @@ List<Color> _seedColors(Color seed, BeamSeedHarmony harmony) {
 // ─── Implementations ────────────────────────────────────────────────────────
 
 class _PresetBeamColors extends BeamColors {
-  const _PresetBeamColors(this.preset, {this.isMono = false}) : super._();
+  const _PresetBeamColors(this.name, this.palette) : super._();
 
-  final BeamPresetData preset;
-  final bool isMono;
-
-  @override
-  Object get _cacheKey => (#preset, preset, isMono);
+  final String name;
+  final BeamPalette palette;
 
   @override
-  BeamPalette resolve() => _presetPaletteCache[this] ??= _buildPalette();
+  Object get _cacheKey => (#preset, name);
+
+  // A preset's palette is a canonical const: no memo needed.
+  @override
+  BeamPalette resolve() => palette;
 
   @override
-  BeamPalette _buildPalette() => BeamPalette(
-    data: preset,
-    forcesStaticColors: isMono,
-    opacityMultiplier: isMono ? 0.5 : 1.0,
-    monoTreatment: isMono,
-  );
+  BeamPalette _buildPalette() => palette;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is _PresetBeamColors &&
-          identical(other.preset, preset) &&
-          other.isMono == isMono;
+          other.name == name &&
+          identical(other.palette, palette);
 
   @override
-  int get hashCode => Object.hash(identityHashCode(preset), isMono);
+  int get hashCode => Object.hash(_PresetBeamColors, name);
 
   @override
-  String toString() => 'BeamColors(preset, isMono: $isMono)';
+  String toString() => 'BeamColors.$name';
 }
 
-class _CustomBeamColors extends BeamColors {
-  const _CustomBeamColors(
-    this.colors, {
-    this.base = BeamColors.colorful,
-    this.staticHue = false,
-  }) : super._();
+class _StopBeamColors extends BeamColors {
+  const _StopBeamColors(this.colors, {this.stops}) : super._();
 
   final List<Color> colors;
-  final BeamColors base;
-
-  // Set only by the built-in single-hue presets; `BeamColors.custom` never
-  // exposes it, because pinning the hue of a palette the caller chose would
-  // silently ignore their `hueMode`.
-  final bool staticHue;
+  final List<double>? stops;
 
   @override
   Object get _cacheKey =>
-      (#custom, _ListKey(colors), base._cacheKey, staticHue);
+      (#stops, _ListKey(colors), stops == null ? null : _ListKey(stops!));
 
   @override
-  BeamPalette _buildPalette() {
-    validateColorTable(colors.length, 'BeamColors.custom colors');
-    return BeamPalette(
-      data: _distribute(colors, base.resolve().data),
-      forcesStaticColors: staticHue,
-    );
-  }
+  BeamPalette _buildPalette() => _paletteOf(colors, stops, 'BeamColors');
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is _CustomBeamColors &&
+      other is _StopBeamColors &&
           listEquals(other.colors, colors) &&
-          other.base == base &&
-          other.staticHue == staticHue;
+          listEquals(other.stops, stops);
 
   @override
-  int get hashCode => Object.hash(Object.hashAll(colors), base, staticHue);
+  int get hashCode => Object.hash(
+    Object.hashAll(colors),
+    stops == null ? null : Object.hashAll(stops!),
+  );
 
   @override
-  String toString() => 'BeamColors.custom($colors)';
+  String toString() => stops == null
+      ? 'BeamColors($colors)'
+      : 'BeamColors($colors, stops: $stops)';
+}
+
+class _SolidBeamColors extends BeamColors {
+  const _SolidBeamColors(this.color) : super._();
+
+  final Color color;
+
+  @override
+  Object get _cacheKey => (#solid, color);
+
+  @override
+  BeamPalette _buildPalette() =>
+      BeamPalette(colors: List<Color>.unmodifiable([color]), stops: const [0]);
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is _SolidBeamColors && other.color == color;
+
+  @override
+  int get hashCode => Object.hash(_SolidBeamColors, color);
+
+  @override
+  String toString() => 'BeamColors.solid($color)';
 }
 
 class _SeedBeamColors extends BeamColors {
@@ -567,9 +493,8 @@ class _SeedBeamColors extends BeamColors {
   Object get _cacheKey => (#seed, seed, harmony);
 
   @override
-  BeamPalette _buildPalette() => BeamPalette(
-    data: _distribute(_seedColors(seed, harmony), colorfulPreset),
-  );
+  BeamPalette _buildPalette() =>
+      _paletteOf(_seedColors(seed, harmony), null, 'BeamColors.fromSeed');
 
   @override
   bool operator ==(Object other) =>
@@ -592,6 +517,9 @@ class _LerpBeamColors extends BeamColors {
   final BeamColors b;
   final double t;
 
+  /// How many positions both ends are sampled at.
+  static const int _samples = maxPaletteStops;
+
   @override
   Object get _cacheKey => (#lerp, a._cacheKey, b._cacheKey, t);
 
@@ -599,16 +527,16 @@ class _LerpBeamColors extends BeamColors {
   BeamPalette _buildPalette() {
     final pa = a.resolve();
     final pb = b.resolve();
-    final nearer = t < 0.5 ? pa : pb;
+    final f = t.isNaN ? 0.0 : clampDouble(t, 0, 1);
+    if (f == 0) return pa;
+    if (f == 1) return pb;
+    final stops = BeamPalette.evenStops(_samples);
     return BeamPalette(
-      data: _zipColors(pa.data, pb.data, (x, y) => Color.lerp(x, y, t)!),
-      forcesStaticColors: nearer.forcesStaticColors,
-      opacityMultiplier: lerpDouble(
-        pa.opacityMultiplier,
-        pb.opacityMultiplier,
-        t,
-      )!,
-      monoTreatment: nearer.monoTreatment,
+      colors: List<Color>.unmodifiable([
+        for (final u in stops) mixColor(pa.sample(u), pb.sample(u), f),
+      ]),
+      stops: stops,
+      fixedHue: (f < 0.5 ? pa : pb).fixedHue,
     );
   }
 
@@ -635,16 +563,21 @@ class _ScaledBeamColors extends BeamColors {
 
   @override
   BeamPalette _buildPalette() {
-    assert(factor >= 0, 'BeamColors.scaleAlpha requires a non-negative factor');
+    if (!(factor >= 0)) {
+      throw ArgumentError.value(
+        factor,
+        'BeamColors.scaleAlpha factor',
+        'must not be negative',
+      );
+    }
     final base = source.resolve();
     return BeamPalette(
-      data: _mapColors(
-        base.data,
-        (c) => c.withValues(alpha: clampDouble(c.a * factor, 0, 1)),
-      ),
-      forcesStaticColors: base.forcesStaticColors,
-      opacityMultiplier: base.opacityMultiplier,
-      monoTreatment: base.monoTreatment,
+      colors: List<Color>.unmodifiable([
+        for (final c in base.colors)
+          c.withValues(alpha: clampDouble(c.a * factor, 0, 1)),
+      ]),
+      stops: base.stops,
+      fixedHue: base.fixedHue,
     );
   }
 
@@ -660,85 +593,4 @@ class _ScaledBeamColors extends BeamColors {
 
   @override
   String toString() => '$source.scaleAlpha($factor)';
-}
-
-class _SpecBeamColors extends BeamColors {
-  const _SpecBeamColors({
-    required this.border,
-    this.smallBorder,
-    this.lineBlobs,
-  }) : super._();
-
-  final List<BeamBlob> border;
-  final List<BeamBlob>? smallBorder;
-  final List<LineBlob>? lineBlobs;
-
-  @override
-  Object get _cacheKey => (
-    #spec,
-    _ListKey(border),
-    smallBorder == null ? null : _ListKey(smallBorder!),
-    lineBlobs == null ? null : _ListKey(lineBlobs!),
-  );
-
-  @override
-  BeamPalette _buildPalette() {
-    validateColorTable(border.length, 'BeamColors.spec border');
-    // The caller keeps their list, and a growable one they mutate later would
-    // otherwise change the palette this cache holds under a key that no
-    // longer matches it. Every table that reaches BeamPresetData is a
-    // snapshot of its own — the unmodifiable cache key alone does not make
-    // the resolved palette immutable.
-    final borderTable = List<BeamBlob>.unmodifiable(border);
-    final smallTable = smallBorder == null
-        ? null
-        : List<BeamBlob>.unmodifiable(smallBorder!);
-    final lineTable = lineBlobs == null
-        ? null
-        : List<LineBlob>.unmodifiable(lineBlobs!);
-    // Derive any missing tables by cycling the provided border colors over
-    // the default geometry.
-    final derived = _distribute([
-      for (final b in borderTable) b.color,
-    ], colorfulPreset);
-    return BeamPalette(
-      data: BeamPresetData(
-        border: borderTable,
-        spike: derived.spike,
-        spikeLt: derived.spikeLt,
-        smallBorder: smallTable ?? derived.smallBorder,
-        smallInner: smallTable != null
-            ? [
-                for (final b in smallTable)
-                  b.withColor(b.color.withValues(alpha: b.color.a * 0.45)),
-              ]
-            : derived.smallInner,
-        lineDark: lineTable ?? derived.lineDark,
-        lineLight: lineTable ?? derived.lineLight,
-        lineInner: derived.lineInner,
-        lineBloomDark: derived.lineBloomDark,
-        lineBloomLight: derived.lineBloomLight,
-      ),
-    );
-  }
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is _SpecBeamColors &&
-          listEquals(other.border, border) &&
-          listEquals(other.smallBorder, smallBorder) &&
-          listEquals(other.lineBlobs, lineBlobs);
-
-  @override
-  int get hashCode => Object.hash(
-    Object.hashAll(border),
-    smallBorder == null ? null : Object.hashAll(smallBorder!),
-    lineBlobs == null ? null : Object.hashAll(lineBlobs!),
-  );
-
-  @override
-  String toString() =>
-      'BeamColors.spec(border: ${border.length} blobs, '
-      'smallBorder: ${smallBorder?.length}, lineBlobs: ${lineBlobs?.length})';
 }

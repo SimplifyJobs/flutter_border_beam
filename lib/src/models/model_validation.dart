@@ -1,4 +1,7 @@
+import 'dart:ui';
+
 import 'beam_options.dart';
+import 'beam_palette.dart';
 import 'beam_timing.dart';
 
 /// Runtime counterpart to [BeamTiming]'s constructor assertions.
@@ -38,35 +41,11 @@ void validateBeamTiming(BeamTiming timing) {
     'must be finite and between 0 and 1',
   );
   require(
-    timing.beamCount == null || timing.beamCount! >= 1,
-    'beamCount',
-    timing.beamCount,
-    'must be at least 1',
-  );
-  require(
     timing.huePeriod == null || timing.huePeriod! > Duration.zero,
     'huePeriod',
     timing.huePeriod,
     'must be positive',
   );
-  require(
-    timing.bloomHuePeriod == null || timing.bloomHuePeriod! > Duration.zero,
-    'bloomHuePeriod',
-    timing.bloomHuePeriod,
-    'must be positive',
-  );
-  for (final (name, value) in [
-    ('breatheFactor', timing.breatheFactor),
-    ('spikeFactor', timing.spikeFactor),
-    ('spike2Factor', timing.spike2Factor),
-  ]) {
-    require(
-      value == null || (value.isFinite && value > 0),
-      name,
-      value,
-      'must be finite and positive',
-    );
-  }
 }
 
 /// Returns a valid repeat budget, including in release builds.
@@ -82,14 +61,34 @@ int? validateRepeat(BeamRepeat? repeat) {
   return cycles;
 }
 
-/// Rejects an empty color table, including in release builds.
+/// Rejects a malformed palette, including in release builds.
 ///
 /// `BeamColors` is a const hierarchy, so its constructors cannot assert on a
-/// list's length; resolution checks it instead. Every pulse layer reads its
-/// color through `index % table.length`, which would otherwise fail as an
-/// `IntegerDivisionByZeroException` deep inside a paint strategy.
-void validateColorTable(int length, String name) {
-  if (length < 1) {
-    throw ArgumentError.value(length, name, 'must contain at least one entry');
+/// list's length; resolution checks it instead. A palette needs 1 to
+/// [maxPaletteStops] colors and one stop per color, each finite, in
+/// `[0, 1)`, and ascending (equal neighbours make a hard edge).
+void validatePalette(List<Color> colors, List<double> stops, String name) {
+  if (colors.isEmpty || colors.length > maxPaletteStops) {
+    throw ArgumentError.value(
+      colors.length,
+      '$name colors',
+      'must contain 1 to $maxPaletteStops entries',
+    );
+  }
+  if (stops.length != colors.length) {
+    throw ArgumentError.value(
+      stops.length,
+      '$name stops',
+      'must contain one stop per color (${colors.length})',
+    );
+  }
+  for (var i = 0; i < stops.length; i++) {
+    final s = stops[i];
+    if (!s.isFinite || s < 0 || s >= 1) {
+      throw ArgumentError.value(s, '$name stops[$i]', 'must be in [0, 1)');
+    }
+    if (i > 0 && s < stops[i - 1]) {
+      throw ArgumentError.value(s, '$name stops[$i]', 'must not descend');
+    }
   }
 }

@@ -1,44 +1,24 @@
-import 'dart:ui';
-
 import 'package:flutter/foundation.dart';
 
-/// The shape of a beam's hue track: a swing back and forth, or one
-/// continuous revolution.
+/// How a beam's colours drift over time.
 enum BeamHueMode {
-  /// The hue swings from `-hueRange` to `+hueRange` and back over one hue
-  /// period — the traveling variants' default.
+  /// The hue swings from `-hueShift` to `+hueShift` and back over one hue
+  /// period — the default of most effects.
   pingPong,
 
   /// The hue advances through a full 360° revolution over one hue period,
-  /// never reversing — the pulse variants' default.
+  /// never reversing — the default of the breathing effects.
   continuous,
+
+  /// The colours never drift: the palette is painted as given (rotated by
+  /// `BeamStyle.hueBase`, if set).
+  none,
 }
 
-/// Which set of glow geometry the pulse-outside variant paints.
-///
-/// The two differ only in how far the outward glow is grown past the child
-/// and how heavily it is blurred; every other part of the variant is shared.
-enum BeamPulseOutsideTuning {
-  /// The demo-hero recipe the source's demo page layers over its own
-  /// defaults: insets and blurs scaled by the element's size, melting the
-  /// separate blobs into one continuous edge-hugging glow.
-  ///
-  /// The default, because it is the pulse-outside look the library is known
-  /// for.
-  demo,
-
-  /// The React library's own defaults: fixed insets and a per-brightness
-  /// blur, with no size-derived unit.
-  ///
-  /// Reach for it through `BeamStyle.pulseOutsideStock`, which also rolls
-  /// back the demo recipe's prominence and opacity multipliers.
-  stock,
-}
-
-/// Which way a beam travels around its contour.
+/// Which way a travelling effect moves.
 enum BeamDirection {
-  /// Clockwise for the rotate and small variants, left-to-right for the line
-  /// variant.
+  /// Clockwise around the border, or left-to-right (top-to-bottom on a side
+  /// edge) for `BeamEffect.line`.
   forward,
 
   /// The mirror of [forward]: counter-clockwise, or right-to-left.
@@ -49,18 +29,19 @@ enum BeamDirection {
   bounce,
 }
 
-/// Which edge of the box the line variant's beam rides.
+/// An edge of the beam's box — the edge `BeamEffect.line` rides, or the edge
+/// a `BeamAnchor.edge` sits on.
 enum BeamEdge {
-  /// The top edge, travelling horizontally.
+  /// The top edge.
   top,
 
-  /// The right edge, travelling vertically.
+  /// The right edge.
   right,
 
-  /// The bottom edge, travelling horizontally — the line variant's default.
+  /// The bottom edge — `BeamEffect.line`'s default.
   bottom,
 
-  /// The left edge, travelling vertically.
+  /// The left edge.
   left,
 }
 
@@ -87,7 +68,7 @@ enum BeamReducedMotion {
 /// does, rather than cutting off mid-sweep.
 ///
 /// ```dart
-/// BorderBeam.rotate(
+/// BorderBeam(
 ///   playback: const BeamPlayback(repeat: BeamRepeat.count(3)),
 ///   child: card,
 /// )
@@ -118,73 +99,4 @@ class BeamRepeat {
   @override
   String toString() =>
       cycles == null ? 'BeamRepeat.forever()' : 'BeamRepeat.count($cycles)';
-}
-
-/// An arbitrary outer contour for the beam to travel, replacing the rounded
-/// rectangle built from `BeamShape.radius`.
-///
-/// The beam's ring, its masks, and the path the traveling head follows are
-/// all built from [build], so any closed path works — a notched card, a
-/// speech bubble, a hand-drawn blob.
-///
-/// A contour is a value: `BeamConfig` keys its cache on it, so **every
-/// implementer must override `==` and `hashCode`**. A contour that compares
-/// by identity re-resolves the config on every rebuild. [BeamPathContour]
-/// shows the pattern — it compares on an explicit key, because two closures
-/// that draw the same path are never equal to each other.
-@immutable
-abstract class BeamContour {
-  /// Allows subclasses to be const.
-  const BeamContour();
-
-  /// Builds the contour path for a beam occupying [rect].
-  ///
-  /// Called with the beam's own bounds, already grown or shrunk by
-  /// `BeamShape.ringOffset`. Return a closed path in the same coordinate
-  /// space.
-  Path build(Rect rect);
-}
-
-/// A [BeamContour] that delegates to a builder function, comparing on an
-/// explicit [key].
-///
-/// ```dart
-/// BeamShape(
-///   contour: BeamPathContour(
-///     (rect) => Path()..addOval(rect),
-///     key: 'oval',
-///   ),
-/// )
-/// ```
-class BeamPathContour extends BeamContour {
-  /// Creates a contour that calls [builder], and compares equal to another
-  /// [BeamPathContour] carrying an equal [key].
-  const BeamPathContour(this.builder, {required this.key});
-
-  /// Draws the contour for the beam's bounds.
-  final Path Function(Rect rect) builder;
-
-  /// The value this contour compares and hashes on.
-  ///
-  /// Two contours built from the same drawing take the same key — Dart
-  /// closures compare by identity, so an inline builder would otherwise make
-  /// every rebuild a new value. Any value-equal object works: a string, an
-  /// enum, or a `Record` of the parameters the builder closes over.
-  final Object key;
-
-  @override
-  Path build(Rect rect) => builder(rect);
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is BeamPathContour &&
-          other.runtimeType == runtimeType &&
-          other.key == key;
-
-  @override
-  int get hashCode => Object.hash(runtimeType, key);
-
-  @override
-  String toString() => 'BeamPathContour($key)';
 }

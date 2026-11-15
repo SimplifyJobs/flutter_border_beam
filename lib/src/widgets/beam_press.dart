@@ -4,11 +4,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import '../border_beam.dart';
+import '../effects/beam_effect.dart';
 import '../models/beam_colors.dart';
 import '../models/beam_shape.dart';
 import '../models/beam_style.dart';
 import '../models/beam_timing.dart';
-import '../models/beam_variant.dart';
 
 /// Lights a beam around [child] while a finger is down on it.
 ///
@@ -43,7 +43,7 @@ class BeamPress extends StatefulWidget {
   const BeamPress({
     super.key,
     required this.child,
-    this.variant = BeamVariant.pulseInside,
+    this.effect = const BeamEffect.pulse(),
     this.colors,
     this.borderRadius,
     this.style,
@@ -56,9 +56,8 @@ class BeamPress extends StatefulWidget {
   /// The pressed content. Laid out and hit-tested normally.
   final Widget child;
 
-  /// Which effect the press paints. Defaults to [BeamVariant.pulseInside],
-  /// whose breathing glow reads as "held".
-  final BeamVariant variant;
+  /// Which effect the press paints. Defaults to [BeamEffect.pulse].
+  final BeamEffect effect;
 
   /// Shorthand for `style.colors`; a non-null value here wins over it.
   final BeamColors? colors;
@@ -91,7 +90,7 @@ class BeamPress extends StatefulWidget {
   void debugFillProperties(DiagnosticPropertiesBuilder properties) {
     super.debugFillProperties(properties);
     properties
-      ..add(EnumProperty<BeamVariant>('variant', variant))
+      ..add(DiagnosticsProperty<BeamEffect>('effect', effect))
       ..add(
         DiagnosticsProperty<BeamColors>('colors', colors, defaultValue: null),
       )
@@ -180,7 +179,7 @@ class _BeamPressState extends State<BeamPress> {
     onPointerUp: _handleUp,
     onPointerCancel: _handleCancel,
     child: BorderBeam(
-      variant: widget.variant,
+      effect: widget.effect,
       colors: widget.colors,
       active: _active,
       borderRadius: widget.borderRadius,

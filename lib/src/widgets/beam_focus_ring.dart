@@ -2,11 +2,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import '../border_beam.dart';
+import '../effects/beam_effect.dart';
 import '../models/beam_colors.dart';
 import '../models/beam_shape.dart';
 import '../models/beam_style.dart';
 import '../models/beam_timing.dart';
-import '../models/beam_variant.dart';
 
 /// Lights a beam around [child] while it holds keyboard focus.
 ///
@@ -46,7 +46,7 @@ class BeamFocusRing extends StatefulWidget {
     super.key,
     required this.child,
     this.focusNode,
-    this.variant = BeamVariant.small,
+    this.effect = const BeamEffect.spin(),
     this.colors = BeamColors.ocean,
     this.borderRadius,
     this.style,
@@ -62,9 +62,9 @@ class BeamFocusRing extends StatefulWidget {
   /// subtree through an inserted non-focusable [Focus].
   final FocusNode? focusNode;
 
-  /// Which effect the ring paints. Defaults to [BeamVariant.small], the
-  /// compact traveling beam.
-  final BeamVariant variant;
+  /// Which effect the ring paints. Defaults to [BeamEffect.spin], a gradient
+  /// ring that reads as focus at any size.
+  final BeamEffect effect;
 
   /// The ring's palette. Defaults to [BeamColors.ocean].
   final BeamColors colors;
@@ -92,7 +92,7 @@ class BeamFocusRing extends StatefulWidget {
   void debugFillProperties(DiagnosticPropertiesBuilder properties) {
     super.debugFillProperties(properties);
     properties
-      ..add(EnumProperty<BeamVariant>('variant', variant))
+      ..add(DiagnosticsProperty<BeamEffect>('effect', effect))
       ..add(DiagnosticsProperty<BeamColors>('colors', colors))
       ..add(DoubleProperty('borderRadius', borderRadius, defaultValue: null))
       ..add(
@@ -172,7 +172,7 @@ class _BeamFocusRingState extends State<BeamFocusRing> {
   @override
   Widget build(BuildContext context) {
     final beam = BorderBeam(
-      variant: widget.variant,
+      effect: widget.effect,
       colors: widget.colors,
       active: _focused && _showHighlight,
       borderRadius: widget.borderRadius,

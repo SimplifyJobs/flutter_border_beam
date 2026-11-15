@@ -21,19 +21,17 @@ enum BeamFadeStage {
 /// Mirrors the source library's model: every animated value is a pure
 /// function of elapsed time, driven by ONE [Ticker] (the React library uses
 /// one shared requestAnimationFrame loop). The clock integrates scaled
-/// deltas so [speed] changes and pauses keep continuity, runs the
+/// deltas so [speed] changes and pauses keep continuity, and runs the
 /// fade-in/fade-out envelope (spring-eased via [FadeSpringCurve] unless
-/// [fadeCurve] replaces it), and can
-/// cap its notification rate for the pulse variants (~30fps in the source).
+/// [fadeCurve] replaces it). It notifies on every display frame — the beam is
+/// cheap enough to run at the panel's full rate, 120Hz included.
 class BeamClock extends ChangeNotifier {
   /// Creates a clock. [createTicker] is typically
-  /// `TickerProviderStateMixin.createTicker`. [maxFps] caps notification
-  /// frequency while not fading (null = every frame). [onFadeComplete] fires
+  /// `TickerProviderStateMixin.createTicker`. [onFadeComplete] fires
   /// with `true` when a fade-in finishes and `false` when a fade-out
   /// finishes. [fadeCurve] replaces the spring easing of both fades.
   BeamClock({
     required Ticker Function(TickerCallback) createTicker,
-    this.maxFps,
     this.onFadeComplete,
     this.fadeCurve,
   }) : _createTicker = createTicker;
@@ -58,9 +56,6 @@ class BeamClock extends ChangeNotifier {
 
   final Ticker Function(TickerCallback) _createTicker;
 
-  /// Optional notification rate cap (frames per second) while not fading.
-  final double? maxFps;
-
   /// Fired when a fade completes; the argument is whether the beam is now
   /// active (`true` after fade-in, `false` after fade-out).
   final ValueChanged<bool>? onFadeComplete;
@@ -83,7 +78,6 @@ class BeamClock extends ChangeNotifier {
   BeamFadeStage _stage = BeamFadeStage.none;
   double _fadeStart = 0;
   double _fadeFromOpacity = 0;
-  double _lastNotify = -1;
   bool _visible = false;
   _Boost? _boost;
 
@@ -251,16 +245,15 @@ class BeamClock extends ChangeNotifier {
   /// Used when a beam's cycle duration changes mid-run: every animated
   /// track derived from the cycle reads `elapsed / cycleSeconds`, so
   /// multiplying elapsed time by `newCycle / oldCycle` leaves each track at
-  /// the exact fraction it had. The fade envelope and the frame-rate cap
-  /// are wall-clock schedules, not cycle-relative ones, so their anchors
-  /// move with the timeline rather than being scaled — the fade keeps its
-  /// current opacity and its remaining duration.
+  /// the exact fraction it had. The fade envelope is a wall-clock schedule,
+  /// not a cycle-relative one, so its anchor moves with the timeline rather
+  /// than being scaled — the fade keeps its current opacity and its
+  /// remaining duration.
   void retime(double factor) {
     assert(factor > 0, 'retime factor must be positive');
     final shift = _elapsed * factor - _elapsed;
     _elapsed += shift;
     _fadeStart += shift;
-    _lastNotify += shift;
     _boost = _boost?.shiftedBy(shift);
     notifyListeners();
   }
@@ -291,7 +284,6 @@ class BeamClock extends ChangeNotifier {
     _activeSeconds += deltaSeconds;
     _elapsed += deltaSeconds * _speed;
 
-    var mustNotify = true;
     if (_stage == BeamFadeStage.fadingIn &&
         _elapsed - _fadeStart >= fadeInSeconds) {
       _stage = BeamFadeStage.none;
@@ -304,19 +296,10 @@ class BeamClock extends ChangeNotifier {
       _elapsed = 0;
       _notifyTimelineReset();
       onFadeComplete?.call(false);
-    } else if (_stage == BeamFadeStage.none && maxFps != null && !isBoosting) {
-      // Rate cap (pulse variants): skip paint-frame notifications, matching
-      // the source's ~30fps pulse driver. Time still accumulates. A boost is
-      // short and steep, so it plays at the full frame rate.
-      final interval = 1 / maxFps! - 0.002;
-      if (_elapsed - _lastNotify < interval) mustNotify = false;
     }
     // Drop a spent boost, keeping the frame that lands back at 1.
     if (_boost?.isDoneAt(_elapsed) ?? false) _boost = null;
-    if (mustNotify) {
-      _lastNotify = _elapsed;
-      notifyListeners();
-    }
+    notifyListeners();
   }
 
   @override

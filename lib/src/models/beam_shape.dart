@@ -1,20 +1,20 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 
-import 'beam_options.dart';
 import 'beam_segment.dart';
 
-/// The geometry of a beam: its corner radii, ring thickness, corner family
-/// (circular arcs or superellipse), how far the ring sits from the child,
-/// and which edge the line variant rides.
+/// The geometry of a beam's outline: its corner radii and corner family
+/// (circular arcs or superellipse), the stroke thickness, how far the outline
+/// sits from the child, and which part of it is lit.
 ///
 /// Every field is nullable and means *inherit*. A field is resolved in this
 /// order: the value set on the widget (the `borderRadius` shorthand wins over
-/// [radius]), then the nearest `BorderBeamTheme`, then the variant's preset
-/// (radius 16, or 32 for `BeamVariant.small`; border width 1).
+/// [radius]), then the nearest `BorderBeamTheme`, then the default (radius
+/// 16, border width 1, ring offset 0, circular corners, the whole border,
+/// solid).
 ///
 /// ```dart
-/// BorderBeam.rotate(
+/// BorderBeam(
 ///   shape: const BeamShape.all(24, superellipse: true),
 ///   child: card,
 /// )
@@ -25,14 +25,13 @@ class BeamShape {
   /// inherited.
   const BeamShape({
     BorderRadiusGeometry? radius,
-    this.borderWidth,
     this.superellipse,
-    this.edge,
+    this.borderWidth,
     this.ringOffset,
-    this.contour,
     this.segment,
-    this.wrapCorners,
-  }) : _radius = radius,
+    this.dashes,
+  }) : assert(dashes == null || dashes >= 0, 'dashes must not be negative'),
+       _radius = radius,
        _uniformRadius = null;
 
   /// A shape whose four corners share one radius — the const path.
@@ -43,14 +42,13 @@ class BeamShape {
   /// [circular] compare equal for the same number.
   const BeamShape.all(
     double radius, {
-    this.borderWidth,
     this.superellipse,
-    this.edge,
+    this.borderWidth,
     this.ringOffset,
-    this.contour,
     this.segment,
-    this.wrapCorners,
-  }) : _uniformRadius = radius,
+    this.dashes,
+  }) : assert(dashes == null || dashes >= 0, 'dashes must not be negative'),
+       _uniformRadius = radius,
        _radius = null;
 
   /// A shape whose four corners share one [radius], built as a
@@ -61,107 +59,98 @@ class BeamShape {
   /// [BorderRadius] terms.
   BeamShape.circular(
     double radius, {
-    this.borderWidth,
     this.superellipse,
-    this.edge,
+    this.borderWidth,
     this.ringOffset,
-    this.contour,
     this.segment,
-    this.wrapCorners,
-  }) : _radius = BorderRadius.circular(radius),
+    this.dashes,
+  }) : assert(dashes == null || dashes >= 0, 'dashes must not be negative'),
+       _radius = BorderRadius.circular(radius),
        _uniformRadius = null;
 
   /// A pill: each corner rounds to half the shortest side of the box, so a
   /// square box comes out a circle.
   ///
-  /// The radius is infinite and the ring geometry clamps it per corner, which
-  /// is what makes it track the box as it resizes.
+  /// The radius is infinite and the outline clamps it per corner, which is
+  /// what makes it track the box as it resizes.
   const BeamShape.stadium({
-    this.borderWidth,
     this.superellipse,
-    this.edge,
+    this.borderWidth,
     this.ringOffset,
-    this.contour,
     this.segment,
-    this.wrapCorners,
-  }) : _radius = const BorderRadius.all(Radius.circular(double.infinity)),
+    this.dashes,
+  }) : assert(dashes == null || dashes >= 0, 'dashes must not be negative'),
+       _radius = const BorderRadius.all(Radius.circular(double.infinity)),
        _uniformRadius = null;
+
+  /// The corner radius used when no [radius] is set anywhere.
+  static const double defaultRadius = 16;
 
   final BorderRadiusGeometry? _radius;
   final double? _uniformRadius;
 
-  /// Corner radii of the beam contour, direction-aware.
+  /// Corner radii of the outline, direction-aware. Default 16 on every
+  /// corner.
   ///
   /// Resolved against the ambient [Directionality] (or LTR when there is
   /// none), then clamped per corner the way [RRect.scaleRadii] does: when two
   /// radii on one side exceed that side's length, all four scale down by the
   /// smallest offending ratio. Match your child's decoration radius — the
   /// beam does not read it.
-  ///
-  /// Ignored when [contour] is set.
   BorderRadiusGeometry? get radius {
     final uniform = _uniformRadius;
     return uniform == null ? _radius : BorderRadius.circular(uniform);
   }
 
-  /// Stroke ring thickness in logical px. Default 1, as in the source.
-  final double? borderWidth;
-
-  /// Whether the contour is a rounded superellipse (an Apple-style squircle)
-  /// instead of circular corner arcs.
-  ///
-  /// Defaults to false, matching the circular-arc corners of the source
-  /// library's CSS `border-radius`. Ignored when [contour] is set.
+  /// Whether the corners are superellipse curves (an Apple-style squircle,
+  /// matching `RoundedSuperellipseBorder`) instead of circular arcs.
+  /// Default false.
   final bool? superellipse;
 
-  /// Which edge the line variant's beam travels along. Default
-  /// [BeamEdge.bottom], as in the source. The other variants ignore it.
-  final BeamEdge? edge;
+  /// Stroke thickness in logical px. Default 1.
+  final double? borderWidth;
 
-  /// Logical px the ring is pushed outward (positive) or pulled inward
+  /// Logical px the outline is pushed outward (positive) or pulled inward
   /// (negative) from the child's bounds, so the beam can orbit at a distance
-  /// or tuck inside a padded surface. Default 0 — the ring sits on the
+  /// or tuck inside a padded surface. Default 0 — the outline sits on the
   /// bounds.
   final double? ringOffset;
 
-  /// An arbitrary contour for the beam to travel instead of the rounded
-  /// rectangle built from [radius].
+  /// The clockwise portion of the border on which the beam is visible.
   ///
-  /// Default null. When set, [radius] and [superellipse] are ignored — the
-  /// path the contour builds is the whole geometry.
-  final BeamContour? contour;
-
-  /// The clockwise portion of the contour on which the beam is visible.
-  ///
-  /// Null inherits, resolving to the full ring.
+  /// Null inherits, resolving to the whole border.
   final BeamSegment? segment;
 
-  /// Whether line-variant blobs use border-path space and bend around
-  /// corners instead of continuing straight past an edge.
+  /// Breaks the border into this many evenly spaced dashes.
   ///
-  /// Null inherits, resolving to false.
-  final bool? wrapCorners;
+  /// Null, 0, and 1 keep the border solid (the default); 2 or more paints
+  /// that many dashes. Must not be negative.
+  final int? dashes;
+
+  /// [radius] resolved against [textDirection], or [defaultRadius] on every
+  /// corner when it is unset.
+  ///
+  /// The result is not yet clamped to a box — the outline does that.
+  BorderRadius resolveRadius(TextDirection textDirection) =>
+      radius?.resolve(textDirection) ??
+      const BorderRadius.all(Radius.circular(defaultRadius));
 
   /// Returns a copy with the given fields replaced. A null argument keeps the
   /// current value; build a new [BeamShape] to clear a field back to inherit.
   BeamShape copyWith({
     BorderRadiusGeometry? radius,
-    double? borderWidth,
     bool? superellipse,
-    BeamEdge? edge,
+    double? borderWidth,
     double? ringOffset,
-    BeamContour? contour,
     BeamSegment? segment,
-    bool? wrapCorners,
+    int? dashes,
   }) => BeamShape(
     radius: radius ?? this.radius,
-    borderWidth: borderWidth ?? this.borderWidth,
     superellipse: superellipse ?? this.superellipse,
-    edge: edge ?? this.edge,
+    borderWidth: borderWidth ?? this.borderWidth,
     ringOffset: ringOffset ?? this.ringOffset,
-    contour: contour ?? this.contour,
     segment: segment ?? this.segment,
-    wrapCorners: wrapCorners ?? this.wrapCorners,
+    dashes: dashes ?? this.dashes,
   );
 
   /// Layers [other] over this shape: every non-null field of [other] wins,
@@ -170,13 +159,11 @@ class BeamShape {
       ? this
       : copyWith(
           radius: other.radius,
-          borderWidth: other.borderWidth,
           superellipse: other.superellipse,
-          edge: other.edge,
+          borderWidth: other.borderWidth,
           ringOffset: other.ringOffset,
-          contour: other.contour,
           segment: other.segment,
-          wrapCorners: other.wrapCorners,
+          dashes: other.dashes,
         );
 
   @override
@@ -184,37 +171,31 @@ class BeamShape {
       identical(this, other) ||
       other is BeamShape &&
           other.radius == radius &&
-          other.borderWidth == borderWidth &&
           other.superellipse == superellipse &&
-          other.edge == edge &&
+          other.borderWidth == borderWidth &&
           other.ringOffset == ringOffset &&
-          other.contour == contour &&
           other.segment == segment &&
-          other.wrapCorners == wrapCorners;
+          other.dashes == dashes;
 
   @override
   int get hashCode => Object.hash(
     radius,
-    borderWidth,
     superellipse,
-    edge,
+    borderWidth,
     ringOffset,
-    contour,
     segment,
-    wrapCorners,
+    dashes,
   );
 
   @override
   String toString() {
     final fields = <String>[
       if (radius != null) 'radius: $radius',
-      if (borderWidth != null) 'borderWidth: $borderWidth',
       if (superellipse != null) 'superellipse: $superellipse',
-      if (edge != null) 'edge: $edge',
+      if (borderWidth != null) 'borderWidth: $borderWidth',
       if (ringOffset != null) 'ringOffset: $ringOffset',
-      if (contour != null) 'contour: $contour',
       if (segment != null) 'segment: $segment',
-      if (wrapCorners != null) 'wrapCorners: $wrapCorners',
+      if (dashes != null) 'dashes: $dashes',
     ];
     return 'BeamShape(${fields.join(', ')})';
   }
