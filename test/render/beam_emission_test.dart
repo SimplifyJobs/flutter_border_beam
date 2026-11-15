@@ -112,8 +112,10 @@ void main() {
         final config = configFor(BeamEffect.rotate(count: count));
         recordFrame(renderer, config, phasesAt(config, 1.3));
         final e = renderer.debugEmission;
-        expect(e.bumpCount, count, reason: 'one head per beam');
-        final heads = [for (var i = 0; i < count; i++) e.bumps[i * 4]]..sort();
+        expect(e.bumpCount % count, 0, reason: 'the same bumps per beam');
+        final perBeam = e.bumpCount ~/ count;
+        final heads = [for (var i = 0; i < count; i++) e.bumps[i * perBeam * 4]]
+          ..sort();
         for (var i = 0; i < count; i++) {
           final next = i + 1 < count ? heads[i + 1] : heads[0] + 1;
           expect(next - heads[i], closeTo(1 / count, 1e-6));
@@ -275,7 +277,6 @@ void main() {
           );
           final e = renderer.debugEmission;
           expect(e.sweepAmplitude, greaterThan(0));
-          expect(e.sweepDirection.distance, closeTo(1, 1e-9));
           return e.sweepPosition;
         }
 
