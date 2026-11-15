@@ -58,7 +58,7 @@ BorderBeam(
 ```
 
 - **`direction`** — `forward` (clockwise; reading order for `line`), `reverse` (the mirror), or `bounce` (alternating each cycle). It applies to the travelling effects; `flow` and `spin` also stream counter-clockwise under `reverse`.
-- **`phaseOffset`** — the fraction of a cycle, 0–1, the travel starts at. Two beams on the same cycle with different offsets run out of step. It applies to the travelling effects.
+- **`phaseOffset`** — the fraction of a cycle, 0–1, the timeline starts at. Two beams on the same cycle with different offsets run out of step — a travelling beam sits further along its sweep, an ambient one breathes or streams out of phase.
 - **`BeamEffect.rotate(count:)`** — how many beams lap the border at once, 1–4, spaced evenly. They share one clock and one draw, so the count costs nothing extra.
 
 `count` with `bounce` is worth trying on a wide card: the beams meet and part rather than chasing each other.

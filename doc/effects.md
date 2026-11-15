@@ -18,7 +18,7 @@ All eight are drawn by the same shader in the same single draw call, so they cos
 - `BorderBeam.progress` — the position from a value instead of the clock;
 - `BorderBeam.follow` — the position eased toward a point in the box.
 
-**Ambient** — `pulse`, `halo`, `flow`, `spin`. Light breathes or streams around the whole border at once. They ignore `cycleGap`, `phaseOffset`, `progress`, and `follow`. `flow` and `spin` stream counter-clockwise under `BeamDirection.reverse`; `bounce` does not alternate them, and `pulse` and `halo` have no direction.
+**Ambient** — `pulse`, `halo`, `flow`, `spin`. Light breathes or streams around the whole border at once. They ignore `cycleGap`, `progress`, and `follow`; `phaseOffset` puts their breathing out of step. `flow` and `spin` stream counter-clockwise under `BeamDirection.reverse`; `bounce` does not alternate them, and `pulse` and `halo` have no direction.
 
 `BeamEffect.travels` answers the question in code.
 

@@ -16,7 +16,8 @@ import 'beam_options.dart';
 /// ignored.
 ///
 /// ```dart
-/// BorderBeam.pulseInside(
+/// BorderBeam(
+///   effect: const BeamEffect.pulse(),
 ///   playback: BeamPlayback(
 ///     active: isWorking,
 ///     startAfter: const Duration(milliseconds: 500),

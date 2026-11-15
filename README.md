@@ -166,7 +166,7 @@ BorderBeam(effect: const BeamEffect.charge(), progress: uploaded, child: card);
 | `shimmer` | `angle` (degrees from vertical, default 20) | none |
 | `charge` | — | none |
 
-The two families take different inputs. **Travelling** effects (`rotate`, `line`, `shimmer`, `charge`) move a position along the border once per cycle; they respond to `direction`, `cycleGap`, `phaseOffset`, `progress`, and `follow`. **Ambient** effects (`pulse`, `halo`, `flow`, `spin`) light the whole border at once and ignore those inputs — except that `flow` and `spin` stream the other way under `BeamDirection.reverse`.
+The two families take different inputs. **Travelling** effects (`rotate`, `line`, `shimmer`, `charge`) move a position along the border once per cycle; they respond to `direction`, `cycleGap`, `progress`, and `follow`. **Ambient** effects (`pulse`, `halo`, `flow`, `spin`) light the whole border at once and ignore those inputs — except that `flow` and `spin` stream the other way under `BeamDirection.reverse`. `phaseOffset` applies to both families.
 
 Every effect is drawn by the same shader in the same single draw, so they cost the same order of GPU time. Pick for the look.
 

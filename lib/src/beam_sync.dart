@@ -18,7 +18,7 @@ import 'models/beam_options.dart';
 ///   child: Row(
 ///     children: [
 ///       for (final card in cards)
-///         BorderBeam.rotate(child: card),
+///         BorderBeam(child: card),
 ///     ],
 ///   ),
 /// )
@@ -29,7 +29,7 @@ import 'models/beam_options.dart';
 /// spaced around the cycle rather than perfectly on top of each other:
 ///
 /// ```dart
-/// BorderBeam.rotate(
+/// BorderBeam(
 ///   timing: BeamTiming(phaseOffset: i / cards.length),
 ///   child: card,
 /// )

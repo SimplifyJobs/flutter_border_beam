@@ -337,7 +337,7 @@ BeamTiming _configTiming(BeamTiming timing) => BeamTiming(
 const double _slowMotionFactor = 0.25;
 
 // How far outside the viewport a beam keeps running before its clock is
-// paused, matching the root margin the source's IntersectionObserver uses.
+// paused: far enough that a beam scrolling into view is already running.
 const double _offscreenMarginPx = 256;
 
 // How long the follow easing takes to cover most of the distance to the

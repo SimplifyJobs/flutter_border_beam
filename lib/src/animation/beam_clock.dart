@@ -18,9 +18,8 @@ enum BeamFadeStage {
 
 /// The single time source of a beam instance.
 ///
-/// Mirrors the source library's model: every animated value is a pure
-/// function of elapsed time, driven by ONE [Ticker] (the React library uses
-/// one shared requestAnimationFrame loop). The clock integrates scaled
+/// Every animated value is a pure function of elapsed time, driven by ONE
+/// [Ticker]. The clock integrates scaled
 /// deltas so [speed] changes and pauses keep continuity, and runs the
 /// fade-in/fade-out envelope (spring-eased via [FadeSpringCurve] unless
 /// [fadeCurve] replaces it). It notifies on every display frame — the beam is
@@ -36,10 +35,10 @@ class BeamClock extends ChangeNotifier {
     this.fadeCurve,
   }) : _createTicker = createTicker;
 
-  /// Fade-in duration in seconds (React `beam-fade-in 0.6s`).
+  /// Fade-in duration in seconds.
   static const double fadeInSeconds = 0.6;
 
-  /// Fade-out duration in seconds (React `beam-fade-out 0.5s`).
+  /// Fade-out duration in seconds.
   static const double fadeOutSeconds = 0.5;
 
   /// How far [pulse] lifts [boost] at its peak.
@@ -47,8 +46,8 @@ class BeamClock extends ChangeNotifier {
 
   /// How far [flash] lifts [boost] at its peak.
   ///
-  /// High enough that every layer reaches the clamp `BeamLayerUtils`
-  /// applies, which is what makes the blink read as full opacity.
+  /// High enough that the beam saturates at full opacity, which is what
+  /// makes the blink read as a flash.
   static const double flashPeak = 4;
 
   // Spring-eased fade, isolated here so the curve is trivially replaceable.

@@ -5,13 +5,14 @@ import 'animation/beam_clock.dart';
 /// Programmatic playback control for a [BorderBeam].
 ///
 /// When a controller is attached the widget gives up scheduling entirely:
-/// `startAfter`, `duration`, and `autoPlay` must not be set, the beam starts
+/// `startAfter` and `duration` must not be set, `active` and `autoPlay` are
+/// ignored, the beam starts
 /// hidden, and playback is driven exclusively through this API:
 ///
 /// ```dart
 /// final controller = BorderBeamController();
 ///
-/// BorderBeam.rotate(controller: controller, child: card);
+/// BorderBeam(controller: controller, child: card);
 ///
 /// controller.start();       // fade in, begin animating
 /// controller.pause();       // freeze the current frame
