@@ -2,13 +2,13 @@
 #
 # Two things about this workflow are deliberate and easy to get wrong:
 #
-#  1. The Flutter version is PINNED to 3.44.2 rather than tracking `stable`.
-#     The golden files in `test/` were generated on Flutter 3.44.2 (Dart 3.12)
-#     on macOS, and rasterization of blurs and gradients shifts between
-#     Flutter releases. An unpinned `stable` would turn every Flutter release
-#     into a spurious golden diff. Regenerate the goldens (macOS,
+#  1. The Flutter version is PINNED to 3.47.4 rather than tracking `stable`.
+#     The golden files in `test/golden/` were generated on Flutter 3.47.4
+#     (Dart 3.13) on macOS, and shader compilation and rasterization shift
+#     between Flutter releases. An unpinned `stable` would turn every Flutter
+#     release into a spurious golden diff. Regenerate the goldens (macOS,
 #     `flutter test --update-goldens --tags golden`) in the same commit that
-#     bumps this pin.
+#     bumps this pin, and move release.yaml's and pages.yaml's pins with it.
 #  2. The `min-sdk` job builds and tests on Flutter 3.35.0 — the exact lower
 #     bound declared by `environment: flutter: ">=3.35.0"` in pubspec.yaml.
 #     Without it that bound is an untested claim and consumers on the oldest
@@ -35,7 +35,7 @@ permissions:
 
 env:
   # The pinned SDK. Keep in sync with the goldens and with release.yaml.
-  FLUTTER_VERSION: 3.44.2
+  FLUTTER_VERSION: 3.47.4
   # The declared lower bound from pubspec.yaml's `environment:` block.
   FLUTTER_MIN_VERSION: 3.35.0
 

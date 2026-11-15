@@ -38,19 +38,21 @@ Please give us a reasonable window to ship a fix before disclosing publicly.
 
 ## Scope
 
-This is a **rendering package**. It draws animated borders with Flutter's
-canvas API: it opens no sockets, reads and writes no files, stores nothing,
-and collects nothing. It has no runtime dependencies beyond the Flutter SDK.
+This is a **rendering package**. It draws animated borders with one fragment
+shader that ships inside the package: it opens no sockets, reads no files
+other than its own bundled shader asset, writes nothing, stores nothing, and
+collects nothing. It has no runtime dependencies beyond the Flutter SDK.
 Most of the vulnerability classes a security report usually covers simply
 have no surface here.
 
 In scope:
 
-- Attacker-controllable input to the public API — colors, radii, durations,
-  a `BeamContour` path — that causes a crash, an unbounded allocation, a hang,
-  or an unrecoverable render-loop failure in a host app.
+- Attacker-controllable input to the public API — colors, stops, radii,
+  durations, segment anchors — that causes a crash, an unbounded allocation, a
+  hang, or an unrecoverable render-loop failure in a host app.
 - A compromise of the release path: the publishing workflow, the pub.dev
-  automated-publishing configuration, or the published archive's contents.
+  automated-publishing configuration, or the published archive's contents
+  (including `shaders/beam.frag`).
 - Anything in the package that reaches the network or the filesystem. There
   should be nothing; if you find something, that is the report.
 

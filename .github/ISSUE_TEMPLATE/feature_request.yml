@@ -1,16 +1,16 @@
 name: Feature request
-description: Propose a new variant, option, palette, or API.
+description: Propose a new effect, option, palette, or API.
 title: "[feat]: "
 labels: [enhancement]
 body:
   - type: markdown
     attributes:
       value: |
-        This package is a port of the
-        [border-beam](https://github.com/Jakubantalik/border-beam) React
-        library. Features that exist upstream are the easiest sell — say so if
-        yours does, and link the source. Flutter-only additions are welcome
-        too; they just need to stay out of the parity tables.
+        Every effect is drawn by one fragment shader in a single draw call,
+        with no offscreen layers or blurs. Proposals that fit that model — new
+        light along the border, new motion, new palettes, new options — are
+        the easiest sell. Describe the look you want; how to render it is a
+        conversation for the issue.
 
   - type: textarea
     id: problem
@@ -31,8 +31,8 @@ body:
         fine — the shape is what matters.
       render: dart
       placeholder: |
-        BorderBeam.rotate(
-          style: const BeamStyle(tailLength: 0.4),
+        BorderBeam(
+          effect: const BeamEffect.rotate(length: 0.4),
           child: ...,
         )
     validations:
@@ -68,7 +68,6 @@ body:
     attributes:
       label: Anything else
       description: >-
-        References, a link to the React implementation, screenshots or a
-        mockup of the effect.
+        References, screenshots, a video, or a mockup of the effect.
     validations:
       required: false

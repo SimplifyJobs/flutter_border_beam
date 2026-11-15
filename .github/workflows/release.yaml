@@ -10,7 +10,8 @@
 #     "Today, you can only automate publishing of existing packages. To create
 #     a new package, you must publish the first version using `dart pub
 #     publish`." (https://dart.dev/tools/pub/automated-publishing). Until
-#     0.1.0 is on pub.dev there is nothing to attach automated publishing to.
+#     the first version is on pub.dev there is nothing to attach automated
+#     publishing to.
 #  2. On pub.dev, open
 #         https://pub.dev/packages/flutter_border_beam/admin
 #     → "Automated publishing" → "Enable publishing from GitHub Actions", and
@@ -64,7 +65,7 @@ permissions:
 
 env:
   # Must match ci.yaml's pin.
-  FLUTTER_VERSION: 3.44.2
+  FLUTTER_VERSION: 3.47.4
 
 jobs:
   publish:

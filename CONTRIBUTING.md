@@ -1,18 +1,17 @@
 # Contributing to flutter_border_beam
 
-Thanks for helping out. This package is a faithful Flutter port of the
-[border-beam](https://github.com/Jakubantalik/border-beam) React library, and
-most of its rules exist to keep that port honest. Read the two hard rules
-below ([constants](#the-constants-rule) and the
-[saveLayer budget](#the-savelayer-budget)) before changing anything under
-`lib/src/constants/` or `lib/src/painting/` — they are what a reviewer will
-check first.
+Thanks for helping out. This package draws every beam with one fragment
+shader in a single draw call, and most of its rules exist to keep it that
+cheap. Read [the rendering rules](#the-rendering-rules) before changing
+anything under `lib/src/render/`, `lib/src/effects/`, or `shaders/` — they are
+what a reviewer will check first. [doc/architecture.md](doc/architecture.md)
+explains how a frame is built.
 
 ## Setup
 
 You need **Flutter ≥ 3.35** (the lower bound declared in `pubspec.yaml`; CI
 tests that exact version in its `min-sdk` job) and, for goldens, **Flutter
-3.44.2 on macOS**.
+3.47.4 on macOS**.
 
 ```bash
 git clone https://github.com/SimplifyJobs/flutter_border_beam.git
@@ -20,7 +19,7 @@ cd flutter_border_beam
 flutter pub get
 
 # The demo gallery + interactive playground. It consumes the package by path,
-# so it picks up your edits with a hot reload.
+# so it picks up your edits with a hot reload — shader edits included.
 cd example && flutter pub get && flutter run
 ```
 
@@ -42,104 +41,108 @@ cd example && flutter analyze && flutter test # the gallery is a CI gate too
 
 `flutter analyze` must report **zero** issues, infos included. The lint set
 turns on `public_member_api_docs`, so every new public member — class, field,
-enum value, constructor — needs a doc comment. That is not busywork: it is a
-scored pub.dev signal, and CI's `pana` job fails when the score drops.
+enum value, constructor — needs a doc comment. That is a scored pub.dev
+signal, and CI's `pana` job fails when the score drops.
 
 ### Goldens
 
-Golden files are **macOS-generated and pinned to Flutter 3.44.2**. Blur and
-gradient rasterization shifts between Flutter releases and between platforms,
-so a golden regenerated anywhere else will produce a diff that has nothing to
-do with your change. CI runs them in a single `macos-latest` job.
+Golden files are **macOS-generated and pinned to Flutter 3.47.4**. Shader
+compilation and rasterization shift between Flutter releases and between
+platforms, so a golden regenerated anywhere else produces a diff that has
+nothing to do with your change. CI runs them in a single `macos-latest` job.
 
-Regenerate **only the scenes you added**, by name:
+Regenerate **only the scenes you added or deliberately changed**, by name:
 
 ```bash
-flutter test --update-goldens --tags golden --plain-name 'rotate dark aurora'
+flutter test --update-goldens --tags golden --plain-name 'rotate dark colorful'
 ```
 
-Never run a blanket `flutter test --update-goldens`. Rewriting existing
-goldens is a rendering change, and a PR that does it must say in its
-description **which** goldens changed and **why the pixels legitimately
-moved** — a new blur radius, a corrected gradient stop, a Flutter pin bump.
+Never run a blanket `flutter test --update-goldens` to make a failure go away.
+Rewriting existing goldens is a rendering change, and a PR that does it must
+say in its description **which** goldens changed and **why the pixels
+legitimately moved** — a retuned effect, a shader fix, a Flutter pin bump.
 "The test was failing" is not a justification; that is the test doing its job.
-If you must bump the Flutter pin, do it in the same commit as the regenerated
+If you bump the Flutter pin, do it in the same commit as the regenerated
 goldens and update `FLUTTER_VERSION` in `.github/workflows/ci.yaml`,
 `.github/workflows/release.yaml`, and `.github/workflows/pages.yaml` together.
 
 Golden failures in CI upload as a `golden-failures` artifact — download it to
 see the actual/expected/diff triple.
 
-## The constants rule
+## The rendering rules
 
-**Everything in `lib/src/constants/` is a verbatim transcription of the React
-source's `src/styles.ts`. Never tweak a value there to make something look
-better.** Visual parity with the React library is the whole point of the port;
-these tables are the parity. If a number looks wrong, check the source first:
+### One draw, no offscreen work
 
-```bash
-git clone https://github.com/Jakubantalik/border-beam /tmp/border-beam-react
-```
+A beam frame is **one** `drawRect` or `drawDRRect` with the beam shader, and
+nothing else: no `saveLayer`, no clip, no `ImageFilter`, no `MaskFilter`.
+`test/render/frame_budget_test.dart` records every effect across themes,
+palettes, shape families, options, and instants through a counting canvas and
+asserts exactly that. A new look is new shader maths or new data in
+`BeamEmission` — never a layer, a blur, or a second draw. If something truly
+cannot be expressed that way, open an issue before writing it.
 
-That covers `palettes.dart`, `theme_presets.dart`, `pulse_tables.dart`,
-`pulse_params.dart`, and `line_keyframes.dart`. A change to any of them needs
-a source citation in the PR description.
+### The uniform contract
 
-Flutter-only additions are fine, but they live in **clearly headed separate
-files** that say up front they are not transcriptions — `extra_palettes.dart`
-is the model. Do not mix an original value into a transcription table.
+`shaders/beam.frag` and `BeamRenderer._pack` in
+`lib/src/render/beam_renderer.dart` agree float for float, and
+`beamUniformFloats` holds the total. Change all three in the same commit.
+Uniforms are `vec4`s and `vec4[8]` arrays only, so the layout is the same on
+every backend. `test/render/uniform_layout_test.dart` parses the shader and
+checks the types, the array lengths, and the total — but it cannot see the
+order, so check that by hand: a uniform reordered on one side only shifts every
+value after it.
 
-## The saveLayer budget
+### The CPU mirrors
 
-`saveLayer` is the expensive primitive in this package and the best single
-proxy for the cost of a frame. One frame (`paintBehind` + `paintAbove`) is
-budgeted per variant:
+Two pieces of shader maths also run in Dart, and must match exactly:
 
-| variant | layers | what they are |
-| --- | --- | --- |
-| `rotate` | 4 | inner + inner mask + stroke + blurred bloom |
-| `small` | 3 | inner + stroke + blurred bloom (single-mask inner) |
-| `line` | 4 | inner + inner mask + stroke + blurred bloom |
-| `pulseInside` | 4 | inner + inner mask + stroke + blurred bloom |
-| `pulseOutside` | 3 | behind: core glow + bloom halo; above: stroke |
+- **`BeamOutline`** (`lib/src/render/beam_outline.dart`) mirrors the shader's
+  `outline()` — the corner model, the signed distance, and the perimeter
+  coordinate `u`. Emitters place lights with it and segments resolve against
+  it.
+- **Colour mixing** (`lib/src/render/color_math.dart`) mirrors the shader's
+  `mixColor` and `paletteAt`: gamma-aware, interpolating squared channels.
 
-`test/painting/save_layer_budget_test.dart` measures every variant × brightness
-× palette × time sample through a counting canvas and asserts the count
-**exactly**, plus save/restore balance. A regression *and* an improvement both
-fail until the table is updated in the test and in `CLAUDE.md`.
+### Budgets and light
 
-So: a new option must fold into a layer that already exists. If it genuinely
-cannot, add a budget row and justify it in the PR — say which layer, why it is
-unavoidable, and what you tried instead. Two things are never a justification:
-
-- A `ColorFilter`. Hue, brightness, and saturation are folded into gradient
-  colors on the CPU (`BeamColorMatrix.transform`). A filter may ride on a
-  layer that exists anyway; it never earns one.
-- Convenience. Blur is the only effect allowed to justify a layer of its own.
+- At most **8** bumps, **8** point lights, and **8** palette stops per frame.
+- Glows that reach **inside** the shape are point lights, anchored on the
+  border in their own frame. Never shade an inward glow from `u`: inside the
+  shape it jumps across the medial axis and shows a seam.
+- Emitters are **pure** (a function of config, phases, outline, and colours)
+  and **allocation-free per frame**: they write into the renderer's reused
+  `BeamEmission`, and anything that depends only on the outline is cached per
+  outline.
 
 ## Where things go
 
-**Adding a variant** — `lib/src/models/beam_variant.dart` (the enum value, its
-doc comment, and its default cycle duration), a strategy in
-`lib/src/painting/strategies/` implementing `BeamVariantStrategy`, the
-dispatch map at the top of `lib/src/painting/beam_painter.dart`, a named
-constructor on `BorderBeam` in `lib/src/border_beam.dart`, any per-variant
-defaults in `lib/src/models/beam_config.dart` — plus a budget row, a golden
-scene, and a paint-smoke case.
+**Adding an effect** — a `final class` extending `BeamEffect` in
+`lib/src/effects/beam_effect.dart` (with a `const factory` on `BeamEffect`, a
+doc comment, `travels`, `defaultCycle`, and any non-default `defaultCycleGap` /
+`defaultHueMode` / `defaultHuePeriod`, plus `==` / `hashCode`), an entry in
+`BeamEffect.values`, the export in `lib/flutter_border_beam.dart`, and an
+emitter in `lib/src/effects/effect_emitters.dart`. The `switch` statements over
+`BeamEffect` (the emitter dispatch, `BorderBeam.follow`) are exhaustive, so the
+analyzer lists every place that needs a case. Then a golden scene, and the
+effect shows up in the render tests automatically through `render_utils.dart`'s
+`effectsByName`.
 
 **Adding an option** — declare it on the value object it belongs to
 (`beam_style.dart`, `beam_shape.dart`, `beam_timing.dart`,
-`beam_playback.dart`), extending `copyWith`/`merge`/`==`/`hashCode`. A null
-field means *inherit*, so the default must be null. Small option types live in
-`beam_options.dart`. Resolve it in `BeamConfig.resolve` and consume it in the
-strategy. Value equality is load-bearing: `BeamPainter.shouldRepaint` compares
-configs, so an option that does not participate in `==` will silently fail to
-repaint.
+`beam_playback.dart`), extending `copyWith` / `merge` / `==` / `hashCode`. A
+null field means *inherit*, so the default must be null. Small option types
+live in `beam_options.dart`. Resolve it in `BeamConfig.resolve` and consume it
+in the emitter or the renderer. Value equality is load-bearing:
+`BeamPainter.shouldRepaint` compares configs, so an option that does not take
+part in `==` silently fails to repaint. An option parameter that belongs to one
+effect goes on that effect's class instead (`BeamEffect.rotate(length:)`).
 
-**Adding a palette** — source colors in
-`lib/src/constants/extra_palettes.dart`, exposed as a `static const BeamColors`
-on `BeamColors` in `lib/src/models/beam_colors.dart`, plus a palette golden and
-a playground entry (`example/lib/src/playground/`).
+**Adding a palette** — a `const BeamPalette` in
+`lib/src/models/beam_presets.dart` (at most 8 stops, ascending, in `[0, 1)`),
+exposed as a `static const BeamColors` on `BeamColors` and added to
+`BeamColors.presets`, plus a palette golden and a playground entry
+(`example/lib/src/playground/`). Presets are design data: edit freely, and
+check the result on both dark and light surfaces.
 
 Anything public also needs a doc comment, a `CHANGELOG.md` entry, and a README
 mention if it changes what a user would reach for first.
@@ -150,18 +153,23 @@ Tests are grouped by what they protect. Put a new test with its family:
 
 | directory | covers |
 | --- | --- |
-| `test/models/` | value objects, `BeamConfig.resolve`, palettes, equality |
-| `test/widget/` | `BorderBeam` behavior — lifecycle, theming, shorthands, speed, sync |
+| `test/models/` | value objects, `BeamConfig.resolve`, palettes, effects, segments, equality |
+| `test/animation/` | the clock, the spring, phase sampling, travel |
+| `test/render/` | the frame budget, the uniform layout, the outline mirror, emission sanity, boundaries, paint smoke, where light lands |
+| `test/widget/` | `BorderBeam` behaviour — lifecycle, theming, shorthands, speed, sync, progress, follow |
 | `test/widgets/` | the surface widgets (`BeamDecoration`, `BeamFocusRing`, `BeamHover`, `BeamPress`) |
-| `test/painting/` | paint smoke, boundary geometry, ring geometry, color matrix, the saveLayer budget |
-| `test/animation/` | the clock, oscillators, phase sampling, spring curves |
 | `test/golden/*_golden_test.dart` | pixel scenes (macOS only, `@Tags(['golden'])`) |
 
-Two conventions worth knowing:
+Conventions worth knowing:
 
+- Anything that reads pixels needs the shader loaded:
+  `setUpAll(BorderBeam.precache)`.
+- For new rendering behaviour, prefer comparing regions of a real frame
+  against each other (see `test/render/paint_structure_test.dart`) over
+  pinning pixel values — those survive a retune; goldens are for the look.
 - The first tick after `Ticker.start()` reports elapsed 0 — pump once before
   pumping durations.
-- A test that documents behavior the code does not have yet is marked
+- A test that documents behaviour the code does not have yet is marked
   `skip: 'defect: <one line>'`, not rewritten to match the bug. (`testWidgets`
   only takes a bool, so the reason goes in a comment beside it.)
 
@@ -170,10 +178,11 @@ Every bug fix ships with a regression test.
 ## Writing prose
 
 Docs and code comments **describe how the code works now**. No change-history
-prose — no "no longer", "was removed", "previously", "this used to". Git
-carries the history; a comment that narrates a change goes stale the moment
-someone reads it out of context. Describe the current behavior and why it is
-that way.
+prose — no "no longer", "was removed", "previously", "this used to". Git and
+`CHANGELOG.md` carry the history; a comment that narrates a change goes stale
+the moment someone reads it out of context. Describe the current behaviour and
+why it is that way. Don't quote tuning values (glow reaches, layer weights) in
+docs — they live in the emitters and change.
 
 ## Commits and PRs
 
@@ -184,12 +193,13 @@ Conventional Commits, for both commit subjects and PR titles:
 ```
 
 Lowercase type (`feat`, `fix`, `refactor`, `docs`, `chore`, `ci`, `test`,
-`perf`), an optional short scope (`painting`, `motion`, `colors`, `widgets`,
-`api`), imperative summary under 72 characters. For example:
+`perf`, `style`), an optional short scope (`render`, `shader`, `effects`,
+`motion`, `colors`, `widgets`, `api`), imperative summary under 72
+characters. For example:
 
 ```
-feat(painting): add a comet tail to the rotate strategy
-fix(motion): keep the line beam inside its edge-fade plateau
+feat(effects): add a comet tail to the rotate effect
+fix(shader): keep the dash ends soft on the outer halo
 ```
 
 Before opening a PR:
@@ -198,7 +208,8 @@ Before opening a PR:
 - [ ] `flutter analyze --fatal-infos` — zero issues (package **and** `example/`)
 - [ ] `flutter test` — green (say if you could not run goldens)
 - [ ] Goldens: none regenerated, or the PR names which and why
-- [ ] saveLayer budget: unchanged, or the new rows are justified
+- [ ] Frame budget: still one draw, no layers, clips, or filters
+- [ ] Shader uniforms, `_pack`, and `beamUniformFloats` changed together (if touched)
 - [ ] Public API is documented, and the README covers anything user-facing
 - [ ] `CHANGELOG.md` has an entry under the unreleased version
 

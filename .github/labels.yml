@@ -14,7 +14,7 @@
 
 - name: enhancement
   color: a2eeef
-  description: A new variant, option, palette, or API.
+  description: A new effect, option, palette, or API.
 
 - name: documentation
   color: 0075ca
@@ -22,11 +22,11 @@
 
 - name: rendering
   color: 8a63d2
-  description: Painting, geometry, gradients, goldens — anything about the pixels.
+  description: The shader, geometry, colour, goldens — anything about the pixels.
 
 - name: performance
   color: fbca04
-  description: Frame cost, saveLayer budget, repaint churn, memory.
+  description: Frame cost, the one-draw budget, repaint churn, memory.
 
 - name: good first issue
   color: 7057ff

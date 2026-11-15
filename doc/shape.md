@@ -1,6 +1,6 @@
 # Shape
 
-`BeamShape` describes the geometry the beam travels: corner radii, ring thickness, the corner family, how far the ring sits from the child, an optional partial segment or line corner wrap, and — when a rounded rectangle is not enough — an arbitrary path. The [README's shape table](../README.md#shape) lists the fields and defaults; this guide covers the parts with sharp edges.
+`BeamShape` describes the outline the light follows: its corner radii and corner family, the stroke width, how far the outline sits from the child, which part of it is lit, and whether it is broken into dashes. Every field is nullable and means *inherit*; with nothing set, the outline is a 16px rounded rectangle on the child's bounds with a 1px stroke.
 
 ## Three constructors, one shape
 
@@ -11,16 +11,16 @@ const BeamShape.stadium();            // a pill; a circle on a square box
 const BeamShape(radius: someGeometry) // per-corner
 ```
 
-`BeamShape.all` and `BeamShape.circular` describe the same shape and **compare equal** for the same number. The split exists because building a `BorderRadius` from a parameter is a runtime construction, so `circular` cannot be `const`; `all` stores the double and grows it into a `BorderRadius` where `radius` is read. Use `all` in a `const` widget or a `const BorderBeamThemeData`, and `circular` when you already have a radius in `BorderRadius` terms.
+`BeamShape.all` and `BeamShape.circular` describe the same shape and **compare equal** for the same number. The split exists because building a `BorderRadius` from a parameter is a runtime construction, so `circular` cannot be `const`; `all` stores the number and grows it into a `BorderRadius` where `radius` is read. Use `all` in a `const` widget or a `const BorderBeamThemeData`, and `circular` when you already think in `BorderRadius` terms.
 
-`stadium` sets an infinite radius and lets the ring geometry clamp it per corner, which is what makes it track the box as it resizes — no rebuild needed when the chip's label changes length.
+`stadium` sets an infinite radius and lets the outline clamp it per corner, which is what makes it track the box as it resizes — no rebuild when a chip's label changes length.
 
 ## Per-corner radii and direction
 
 `radius` is a `BorderRadiusGeometry`, so `BorderRadiusDirectional` works and resolves against the ambient `Directionality`:
 
 ```dart
-BorderBeam.rotate(
+BorderBeam(
   shape: const BeamShape(
     radius: BorderRadiusDirectional.only(
       topStart: Radius.circular(28),
@@ -33,16 +33,16 @@ BorderBeam.rotate(
 
 In an RTL subtree the same shape mirrors, exactly as the child's own decoration does.
 
-Radii are clamped the way `RRect.scaleRadii` clamps: when two radii on one side exceed that side's length, **all four** scale down by the smallest offending ratio — so an over-large radius shrinks the whole shape proportionally instead of deforming one corner.
+Radii are clamped the way `RRect.scaleRadii` clamps: when two radii on one side add up to more than that side, **all four** scale down by the smallest offending ratio, so an over-large radius shrinks the whole shape proportionally instead of deforming one corner. An elliptical radius (`Radius.elliptical`) is drawn as a circular corner with the mean of its two axes.
 
 ## Match the child yourself
 
-The beam does not read the child's decoration. That is deliberate: it wraps widgets that have no decoration to read (a `Text`, a `Row`, a third-party card), and guessing wrong is worse than asking. Pass the same number:
+The beam does not read the child's decoration. It wraps widgets that have none to read (a `Text`, a `Row`, a third-party card), and guessing wrong is worse than asking. Pass the same number:
 
 ```dart
 const radius = 16.0;
 
-BorderBeam.rotate(
+BorderBeam(
   borderRadius: radius,
   child: Card(
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
@@ -51,96 +51,50 @@ BorderBeam.rotate(
 );
 ```
 
-A mismatch is the single most common visual complaint, and it always looks like the beam is "wrong" rather than the radius being out of sync.
+A mismatch is the most common visual complaint, and it always looks like the beam is wrong rather than the radius being out of step.
 
 ## Superellipse corners
 
-`superellipse: true` swaps circular corner arcs for a rounded superellipse — the Apple-style squircle, whose curvature is continuous where it meets the straight edge instead of stepping. It needs Flutter ≥ 3.35, the package's declared minimum, where `RSuperellipse` is stable.
+`superellipse: true` swaps circular corner arcs for a superellipse — the Apple-style squircle, whose curvature eases into the straight edge instead of stepping. The curve is fitted to Flutter's own `RSuperellipse`, so the stroke sits on the edge of a child shaped by `RoundedSuperellipseBorder` with the same radius.
 
 ```dart
-BorderBeam.rotate(
+BorderBeam(
   shape: const BeamShape.all(28, superellipse: true),
-  child: card,
+  child: DecoratedBox(
+    decoration: ShapeDecoration(
+      color: surface,
+      shape: RoundedSuperellipseBorder(borderRadius: BorderRadius.circular(28)),
+    ),
+    child: content,
+  ),
 );
 ```
 
-It is a Flutter-only addition — the original's CSS `border-radius` produces circular arcs — so use it when your child is a squircle too, and leave it off when you want the source's exact contour.
+The outline is computed in the shader, so the option costs no path building and no extra draw.
+
+## Border width
+
+`borderWidth` is the stroke's thickness in logical px, 1 by default. The stroke is drawn just inside the outline (from the outline inward by `borderWidth`), anti-aliased over one device pixel. It is independent of your child's border: on a hairline-bordered card, keeping both at 1 makes the beam read as the border lighting up rather than as a second ring.
 
 ## Ring offset
 
-`ringOffset` moves the beam's ring outward (positive) or inward (negative) from the child's bounds:
+`ringOffset` moves the outline outward (positive) or inward (negative) from the child's bounds:
 
 ```dart
 // The beam orbits 8px clear of the card.
-BorderBeam.rotate(
-  shape: const BeamShape.all(24, ringOffset: 8),
-  child: card,
-);
+BorderBeam(shape: const BeamShape.all(32, ringOffset: 8), child: card);
 
 // Tucked inside a padded surface.
-BorderBeam.rotate(
-  shape: const BeamShape.all(12, ringOffset: -12),
-  child: paddedSurface,
-);
+BorderBeam(shape: const BeamShape.all(12, ringOffset: -12), child: paddedSurface);
 ```
 
-A positive offset paints further outside the widget's box, so it needs the same clip-free room `pulseOutside` does — add padding in the parent, and check for a `ClipRRect` above the beam. Corner radii are not adjusted for you; an offset ring around a rounded child usually wants its radius moved by the same amount to stay concentric.
-
-## Arbitrary contours
-
-When the shape is not a rounded rectangle at all, hand the beam a path. `BeamContour.build(Rect)` is called with the beam's bounds — already grown or shrunk by `ringOffset` — and returns a closed path in the same coordinate space. `radius` and `superellipse` are ignored while a contour is set.
-
-`BeamPathContour` is the ready-made implementation:
-
-```dart
-BorderBeam.rotate(
-  shape: BeamShape(
-    contour: BeamPathContour((rect) => Path()..addOval(rect), key: 'oval'),
-  ),
-  child: card,
-);
-```
-
-The `key` is not optional garnish. **A contour is a config-cache key**, so every implementer must override `==` and `hashCode`; a contour that compares by identity re-resolves the whole beam configuration on every rebuild. Dart closures compare by identity, so an inline builder would be a new value each time — the key is what makes two contours drawing the same path equal. Any value-equal object works: a string, an enum, or a record of the parameters the builder closes over.
-
-For a shape parameterized at runtime, put the parameters in the key:
-
-```dart
-class NotchedContour extends BeamContour {
-  const NotchedContour(this.notch);
-
-  final double notch;
-
-  @override
-  Path build(Rect rect) {
-    return Path()
-      ..moveTo(rect.left, rect.top)
-      ..lineTo(rect.center.dx - notch, rect.top)
-      ..lineTo(rect.center.dx, rect.top + notch)
-      ..lineTo(rect.center.dx + notch, rect.top)
-      ..lineTo(rect.right, rect.top)
-      ..lineTo(rect.right, rect.bottom)
-      ..lineTo(rect.left, rect.bottom)
-      ..close();
-  }
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is NotchedContour && other.notch == notch;
-
-  @override
-  int get hashCode => notch.hashCode;
-}
-```
-
-The traveling variants walk the path's perimeter, so a contour with a very uneven perimeter distribution (a long thin spur, say) will pass through it quickly — that is arc-length behavior, not a bug.
+A positive offset paints further outside the widget's box, so leave room for it. Corner radii are not adjusted for you: an offset outline around a rounded child usually wants its radius moved by the same amount to stay concentric (24 + 8 = 32 above).
 
 ## Segments
 
-`BeamShape.segment` restricts visibility to part of the contour. It is a mask over the unchanged full-ring animation: the variant's constants, timing, and blob positions stay in full-contour space. The mask adds no compositing layers.
+`BeamShape.segment` limits the light to part of the border. It is a mask over the unchanged animation: the effect still runs on the whole border, and the segment shows the part inside it.
 
-Public perimeter positions are arc-length fractions measured clockwise from top-center:
+Perimeter positions are arc-length fractions measured clockwise from top-centre:
 
 ```text
                   0 / 1
@@ -153,22 +107,19 @@ Public perimeter positions are arc-length fractions measured clockwise from top-
                    0.5
 ```
 
-On a square, `0.25`, `0.5`, and `0.75` are approximately right-center, bottom-center, and left-center. Rounded corners change the exact fractions of edge landmarks because every coordinate is measured by path length, not by angle or box position.
+On a square, `0.25`, `0.5`, and `0.75` are right-centre, bottom-centre, and left-centre. On other boxes, and with rounded corners, landmarks sit at other fractions, because every position is measured along the outline, not by angle.
 
-### Anchors and direction
+### Anchors
 
-Three anchor constructors cover raw and semantic positions:
+- `BeamAnchor.fraction(t)` — an arc-length fraction, taken modulo one.
+- `BeamAnchor.edge(edge, t)` — `t` of the way along an edge's straight run, clockwise: left to right on top, top to bottom on the right, right to left on the bottom, bottom to top on the left. `t` defaults to 0.5.
+- `BeamAnchor.corner(corner, t)` — `t` of the way through a corner curve, clockwise. `t` defaults to 0.5; corners are `BeamCorner.topLeft`, `topRight`, `bottomRight`, `bottomLeft`.
+- `BeamAnchor.topCenter`, `rightCenter`, `bottomCenter`, `leftCenter` name the four common landmarks.
 
-- `BeamAnchor.fraction(t)` is an arc-length fraction; values resolve modulo one.
-- `BeamAnchor.edge(edge, t)` follows the named straight run in clockwise travel: left-to-right on top, top-to-bottom on right, right-to-left on bottom, and bottom-to-top on left. `t` defaults to `0.5`.
-- `BeamAnchor.corner(corner, t)` follows the named corner arc clockwise. `t` defaults to `0.5`; corners are named by `BeamCorner.topLeft`, `topRight`, `bottomRight`, and `bottomLeft`.
-
-The static anchors `topCenter`, `rightCenter`, `bottomCenter`, and `leftCenter` name the four common landmarks.
-
-`BeamSegment(start: ..., end: ..., feather: 32)` covers the clockwise span from `start` to `end`. When the end fraction is smaller than the start fraction, the span wraps through the `0` / top-center origin. Swapping the endpoints selects the complementary span. `feather` is the distance in logical pixels along the perimeter over which each end fades; `0` produces a hard cut.
+`BeamSegment(start: …, end: …, feather: 32)` covers the clockwise span from `start` to `end`, wrapping through top-centre when the end comes before the start. Swapping the two selects the rest of the border. `feather` is the distance in logical px along the border over which each end fades; `0` is a hard cut. A glow fades out toward the end of the track rather than stopping at a hard line across it.
 
 ```dart
-BorderBeam.rotate(
+BorderBeam(
   shape: const BeamShape(
     radius: BorderRadius.all(Radius.circular(24)),
     segment: BeamSegment.bottomHalf,
@@ -181,44 +132,38 @@ BorderBeam.rotate(
 
 | Preset | Clockwise coverage |
 | --- | --- |
-| `bottomHalf` | right-center → bottom-center → left-center |
-| `topHalf` | left-center → top-center → right-center |
-| `leftHalf` | bottom-center → left-center → top-center |
-| `rightHalf` | top-center → right-center → bottom-center |
-| `bottomEdge` | bottom-right arc + bottom straight run + bottom-left arc |
-| `topEdge` | top-left arc + top straight run + top-right arc |
-| `leftEdge` | bottom-left arc + left straight run + top-left arc |
-| `rightEdge` | top-right arc + right straight run + bottom-right arc |
+| `bottomHalf` | right-centre → bottom-centre → left-centre |
+| `topHalf` | left-centre → top-centre → right-centre |
+| `leftHalf` | bottom-centre → left-centre → top-centre |
+| `rightHalf` | top-centre → right-centre → bottom-centre |
+| `bottomEdge` | bottom-right corner + bottom straight run + bottom-left corner |
+| `topEdge` | top-left corner + top straight run + top-right corner |
+| `leftEdge` | bottom-left corner + left straight run + top-left corner |
+| `rightEdge` | top-right corner + right straight run + bottom-right corner |
 
-`bottomHalf` produces the half-phone composition: both bottom corners, the bottom edge, and the lower halves of both sides.
+### How each effect reads a segment
 
-### Variant behavior
+- **`rotate`** travels the segment: in forward travel it appears at the start and moves clockwise to the end, then begins again.
+- **`line`** rides the segment instead of its `edge`, in border space — `bottomEdge` carries the streak around both bottom corners; `bottomHalf` takes it down the right side, along the bottom, and up the left.
+- **`charge`** fills the segment from its start (from its end under `reverse`).
+- **`shimmer`** and the ambient effects light only the part of the border inside the segment, and their inner glows fade near its ends.
 
-- **`rotate` and `small`:** the conic window keeps its full sweep. In forward travel the beam appears at the segment start, moves clockwise to its end, and is invisible for the rest of the cycle.
-- **`line`:** the streak travels the segment in border-path space. For `bottomHalf` it descends the right edge, rounds the bottom-right corner, crosses the bottom, rounds the bottom-left corner, and climbs the left edge to the endpoint, with the usual fade at both ends of travel. `BeamShape.edge` is ignored when a segment is set.
-- **`pulseInside` and `pulseOutside`:** blobs outside the segment are hidden and blobs near an endpoint fade. `bottomHalf` therefore leaves only the lower blobs breathing.
+`BeamTiming.direction` changes which way a traveller crosses the segment, not which span the segment selects. Stack a forward beam and a `reverse` one on the same segment for two arcs sweeping toward each other. `ringOffset` moves the outline before positions are measured, so a segment follows an offset ring.
 
-`BeamTiming.direction` changes travel direction without changing which clockwise span the segment selects. Stack a forward beam and a second beam with `direction: BeamDirection.reverse` for two counter-sweeping arcs. `beamCount` places multiple travelers on the same unchanged full-contour timeline, and the segment reveals each only while it crosses the selected span. Pulse variants ignore both travel settings. `cycleGap` adds the usual invisible rest to traveling variants.
+## Dashes
 
-`ringOffset` moves the path before its perimeter is measured, so the segment and its feather follow the offset ring. A custom `BeamContour` works too: top-center is the point on its path nearest the box's top-center, and fractions advance by measured path length. Semantic edge and corner anchors resolve against the corresponding regions of that measured perimeter.
-
-## Corner wrap
-
-`BeamShape.wrapCorners` applies to `line` when no segment is set. The default line geometry runs along the selected `edge`; with `wrapCorners: true`, the streak is placed in border-path space and bends around the two corner arcs adjacent to that edge instead of continuing straight past them.
+`dashes` breaks the border into that many evenly spaced dashes. 2 or more paints dashes; null, 0, and 1 keep the border solid. A dash's ends are crisp on the stroke and soften the further its glow reaches from it, the way a blur would.
 
 ```dart
-BorderBeam.line(
-  shape: const BeamShape.all(
-    24,
-    edge: BeamEdge.bottom,
-    wrapCorners: true,
-  ),
-  child: card,
+BorderBeam(
+  effect: const BeamEffect.spin(),
+  shape: const BeamShape.all(16, dashes: 12),
+  child: badge,
 );
 ```
 
-A segment already places the line in border-path space and defines its endpoints, so it takes precedence over both `edge` and `wrapCorners`.
+Dashes combine with segments and with every effect; `spin` with dashes reads as a marching ring.
 
-## Border width
+## Light outside the bounds
 
-`borderWidth` is the stroke ring's thickness, 1px by default and in the source. It is independent of your child's border: the beam's ring is a painted glow, not a border you can lay out against. On a hairline-bordered card, keeping both at 1 makes the beam read as the border lighting up rather than as a second ring around it.
+Most light stays on the border and inside it. Four things paint outside the child's box: `BeamEffect.halo()`, `BeamEffect.rotate(comet: true)`, `spin`'s outer glow, and a positive `ringOffset`. Give those room — padding in the parent — and check for a `ClipRRect`, `ClipPath`, or a scroll view's clip above the beam.

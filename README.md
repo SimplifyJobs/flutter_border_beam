@@ -1,7 +1,7 @@
 <div align="center">
   <h1><b>flutter_border_beam</b></h1>
   <p>
-    A traveling or breathing glow around any widget — cards, buttons, inputs, search bars.
+    Animated light around any widget's border — cards, buttons, inputs, search bars.
   </p>
 </div>
 
@@ -16,59 +16,65 @@
 </p>
 
 <div align="center">
-  <img width="600" src="https://raw.githubusercontent.com/SimplifyJobs/flutter_border_beam/main/assets/showcase/showcase.gif" alt="The five beam variants animating in the example gallery">
+  <img width="600" src="https://raw.githubusercontent.com/SimplifyJobs/flutter_border_beam/main/assets/showcase/showcase.gif" alt="Border beams animating in the example gallery">
 </div>
 
 
 ## Overview
 
-A faithful Flutter port of the [border-beam](https://github.com/Jakubantalik/Libraries/tree/main/packages/border-beam) React library by [Jakub Antalik](https://x.com/jakubantalik) ([live demo](https://beam.jakubantalik.com)). Every palette, gradient, mask, blur, and timing constant is transcribed from the original source, so the effects are pixel-matched — with Flutter-native additions on top.
+`flutter_border_beam` draws light that travels, breathes, or flows around a widget's border. Wrap a widget in `BorderBeam`, pick an effect, and the beam paints over it — matched to its corner radius, adapted to a dark or light surface, and animated by one ticker.
 
-**Five variants**, each a named constructor with tuned defaults:
+The whole beam is **one fragment shader drawn in one pass**: no `saveLayer`, no blur filters, no clips, and no offscreen render targets. It runs at the display's refresh rate, 120Hz included, and is cheap enough to leave on a card while the user scrolls.
 
-- **`rotate`** — a beam travels the full border. Cards, surfaces, panels.
-- **`small`** — the compact cut, on a 32px radius. Icon buttons, chips.
-- **`line`** — a streak rides one edge, with a bloom and spikes. Inputs, search bars.
-- **`pulseInside`** — a contained glow breathing inward from the border.
-- **`pulseOutside`** — a halo blooming outward, behind the child.
+**Eight effects**, chosen with `effect:`:
+
+| Effect | Family | Default cycle | Use it for |
+| --- | --- | --- | --- |
+| `BeamEffect.rotate()` | travelling | 2.4s | A beam with a soft tail laps the border. Cards, panels, surfaces. The default. |
+| `BeamEffect.line()` | travelling | 3.1s | A streak rides one edge with light spiking up from it. Inputs, search bars, composers. |
+| `BeamEffect.pulse()` | ambient | 2.3s | Colour breathes inward from the whole border, strongest at the corners. A contained "thinking" state. |
+| `BeamEffect.halo()` | ambient | 2.3s | A halo breathes outward around the widget. Needs room around it. |
+| `BeamEffect.flow()` | ambient | 6s | Colours stream round the border with an inner glow that swells and ebbs. "Listening". |
+| `BeamEffect.spin()` | ambient | 3s | A full gradient ring spins around the border. Buttons, badges, focus. |
+| `BeamEffect.shimmer()` | travelling | 1.4s + 1.6s rest | A glint sweeps across the border, then rests. Calls to action, new items. |
+| `BeamEffect.charge()` | travelling | 2.6s + 0.6s rest | The border fills clockwise with a hot leading edge. Progress. |
 
 <table>
   <tr>
     <td width="50%" align="center">
-      <img src="screenshots/rotate.png" width="360" alt="Rotate beam" /><br/>
-      <sub><b>Rotate</b> — a beam travels around the border</sub>
+      <img src="screenshots/rotate.png" width="360" alt="Rotate effect on a card" /><br/>
+      <sub><b>rotate</b> — a beam laps the border</sub>
     </td>
     <td width="50%" align="center">
-      <img src="screenshots/pulse_outside.png" width="360" alt="Pulse outside halo" /><br/>
-      <sub><b>Pulse outside</b> — a breathing halo blooms behind the child</sub>
+      <img src="screenshots/pulse_outside.png" width="360" alt="Halo effect around a card" /><br/>
+      <sub><b>halo</b> — light breathes outward around the widget</sub>
     </td>
   </tr>
   <tr>
     <td width="50%" align="center">
-      <img src="screenshots/line.png" width="360" alt="Line beam" /><br/>
-      <sub><b>Line</b> — the beam rides the bottom edge</sub>
+      <img src="screenshots/line.png" width="360" alt="Line effect on an input" /><br/>
+      <sub><b>line</b> — a streak rides the bottom edge</sub>
     </td>
     <td width="50%" align="center">
-      <img src="screenshots/squircle.png" width="360" alt="Squircle beam" /><br/>
-      <sub><b>Superellipse</b> — Apple-style squircle borders, <code>ocean</code> palette</sub>
+      <img src="screenshots/squircle.png" width="360" alt="Superellipse corners in the ocean palette" /><br/>
+      <sub><b>superellipse</b> corners, <code>ocean</code> palette</sub>
     </td>
   </tr>
 </table>
 
-And on top of the effects themselves:
+Around the effects:
 
-- **Eleven palettes** — the four from the original plus seven Flutter-only ones, with `custom`, `fromSeed` harmonies, `fromScheme`, `lerp`, `scaleAlpha`, and per-blob `spec`.
-- **Value-object API** — `BeamStyle`, `BeamShape`, `BeamTiming`, `BeamPlayback`; every field nullable, so anything you leave out is inherited from a `BorderBeamTheme` or the variant default.
-- **Shapes** — per-corner direction-aware radii, stadium, Apple-style superellipse, ring offset, arbitrary path contours, partial segments, and corner-wrapping lines.
-- **Motion** — cycle gap, forward / reverse / bounce, phase offset, several beams on one contour, driven `progress`, pointer `follow`.
-- **Synchronized groups** — `BeamSync` puts a whole subtree on one ticker and one timeline, so a row of cards reads as one system.
-- **Surfaces & interactions** — `BorderBeam.overlay`, a `BeamDecoration` for existing `Container`s, and `BeamFocusRing` / `BeamHover` / `BeamPress`.
-- **Accessible** — four documented reduced-motion behaviors; beams add no semantics and never intercept a pointer.
-- **Fast** — one ticker per beam, a ~30fps cap on the pulse variants, `RepaintBoundary` isolation, CPU-folded color matrices, an offscreen pause, and a `saveLayer` budget pinned by a test.
+- **19 palettes** plus your own: colour stops anywhere on the ring, `fromSeed` harmonies, `fromScheme`, `lerp`, and `scaleAlpha`.
+- **Value-object API** — `BeamStyle`, `BeamShape`, `BeamTiming`, `BeamPlayback`. Every field is nullable, so anything you leave out comes from a `BorderBeamTheme` or the effect's default.
+- **Shapes** — per-corner, direction-aware radii, stadiums, superellipse ("squircle") corners, ring offset, partial segments, and dashes.
+- **Motion** — rest between sweeps, forward / reverse / bounce, phase offset, several beams at once, a driven `progress`, and pointer `follow`.
+- **Synchronized groups** — `BeamSync` puts a subtree on one ticker and one timeline.
+- **Surfaces and interactions** — `BorderBeam.overlay`, `BeamDecoration` for an existing `Container`, and `BeamFocusRing` / `BeamHover` / `BeamPress`.
+- **Accessible** — four reduced-motion behaviours; beams add no semantics and never intercept a pointer.
 
 ### Live playground
 
-**<https://simplifyjobs.github.io/flutter_border_beam/>** — every variant, palette, and tuning hook on live controls, with the matching Dart snippet and a shareable link. Built from [`example/`](example).
+**<https://simplifyjobs.github.io/flutter_border_beam/>** — the example app built for web, with live controls, the matching Dart snippet, and a shareable link. Built from [`example/`](example).
 
 
 ## Installation
@@ -83,11 +89,11 @@ import 'package:flutter_border_beam/flutter_border_beam.dart';
 
 | Requirement | Version |
 | --- | --- |
-| Flutter | ≥ 3.35 (stable `RoundedSuperellipseBorder` / `RSuperellipse`) |
+| Flutter | ≥ 3.35 |
 | Dart | ≥ 3.9 |
 | Dependencies | none beyond the Flutter SDK |
 
-> Tracks upstream **border-beam 1.4.0**. Where this package deliberately differs from the original, and why, is spelled out in [Parity with the original](#parity-with-the-original).
+The shader is declared in the package's own `pubspec.yaml`, so Flutter compiles and bundles it into your app. There is nothing to add to your app's pubspec.
 
 
 ## Usage
@@ -95,7 +101,7 @@ import 'package:flutter_border_beam/flutter_border_beam.dart';
 ### Quick start
 
 ```dart
-BorderBeam.rotate(
+BorderBeam(
   borderRadius: 16,
   colors: BeamColors.ocean,
   child: Card(
@@ -108,11 +114,13 @@ BorderBeam.rotate(
 )
 ```
 
-That is the whole API for the common case. Everything else is a field on one of four value objects — `style`, `shape`, `timing`, `playback` — and every one of their fields is nullable, meaning *inherit*.
+That is a rotating beam — `BeamEffect.rotate()` is the default effect. Pass the same radius your child uses; the beam does not read it from the child.
+
+Everything else is a field on one of four value objects — `style`, `shape`, `timing`, `playback` — and every field on them is nullable, meaning *inherit*:
 
 ```dart
 BorderBeam(
-  variant: BeamVariant.line,
+  effect: const BeamEffect.line(),
   style: const BeamStyle(colors: BeamColors.sunset, strength: 0.8),
   shape: const BeamShape.all(24, superellipse: true),
   timing: const BeamTiming(cycleGap: Duration(seconds: 1)),
@@ -121,47 +129,77 @@ BorderBeam(
 )
 ```
 
-### Variants
+Optionally load the shader before the first beam appears:
 
 ```dart
-BorderBeam.rotate(child: card);        // full border beam — cards, surfaces
-BorderBeam.small(child: iconButton);   // compact — buttons, chips (32px radius)
-BorderBeam.line(child: searchBar);     // travels one edge — inputs
-BorderBeam.pulseInside(child: card);   // contained breathing glow
-BorderBeam.pulseOutside(child: card);  // halo blooming outward behind the child
-
-// Picked at runtime — same parameters, no switch:
-BorderBeam(variant: variant, child: card);
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await BorderBeam.precache();
+  runApp(const App());
+}
 ```
 
-| Variant | Upstream name | Family | Default cycle | Default radius | Default hue track | Paints |
-| --- | --- | --- | --- | --- | --- | --- |
-| `rotate` | `md` | traveling | 1.96s | 16 | ping-pong, 12s | over the child |
-| `small` | `sm` | traveling | 1.96s | 32 | ping-pong, 12s | over the child |
-| `line` | `line` | traveling | 3.1s | 16 | ping-pong, 12s (bloom 8s) | over the child |
-| `pulseInside` | `pulse-inner` | pulse | 2.3s | 16 | continuous, 16s | over the child |
-| `pulseOutside` | `pulse-outside` | pulse | 2.3s | 16 | continuous, 14s | behind and outside the child |
+Without it, a beam loads the shader on demand and paints nothing for the few milliseconds that takes, which its 0.6s fade-in hides.
 
-The two families differ in more than looks: the traveling variants sweep a window around the contour and respond to `direction`, `cycleGap`, `beamCount`, `progress`, and `follow`; the pulse variants breathe from a bank of oscillators and ignore all of those.
+### Effects
 
-> ⚠️ **pulse-outside contract** (the same one the original states): the child must be **opaque**, so only the outward spill shows; it should carry its **own 1px border** for a defined idle edge; and it needs **clip-free room** around it — padding in the parent, no tight `ClipRRect`. A halo with nowhere to bloom is a halo you cannot see.
+```dart
+BorderBeam(effect: const BeamEffect.rotate(), child: card);
+BorderBeam(effect: const BeamEffect.rotate(length: 1.5, count: 2, comet: true), child: card);
+BorderBeam(effect: const BeamEffect.line(edge: BeamEdge.top), child: searchBar);
+BorderBeam(effect: const BeamEffect.pulse(), child: card);
+BorderBeam(effect: const BeamEffect.halo(), child: card);
+BorderBeam(effect: const BeamEffect.flow(), child: composer);
+BorderBeam(effect: const BeamEffect.spin(), child: button);
+BorderBeam(effect: const BeamEffect.shimmer(angle: 30), child: cta);
+BorderBeam(effect: const BeamEffect.charge(), progress: uploaded, child: card);
+```
 
-[Full documentation →](doc/variants.md)
+| Effect | Parameters | Default hue drift |
+| --- | --- | --- |
+| `rotate` | `length` (tail, 0.25–2, default 1), `count` (1–4 beams, default 1), `comet` (outer trailing glow, default false) | ping-pong, 12s |
+| `line` | `edge` (default `BeamEdge.bottom`) | ping-pong, 8s |
+| `pulse` | — | continuous, 16s |
+| `halo` | — | continuous, 14s |
+| `flow` | — | none |
+| `spin` | — | none |
+| `shimmer` | `angle` (degrees from vertical, default 20) | none |
+| `charge` | — | none |
+
+The two families take different inputs. **Travelling** effects (`rotate`, `line`, `shimmer`, `charge`) move a position along the border once per cycle; they respond to `direction`, `cycleGap`, `phaseOffset`, `progress`, and `follow`. **Ambient** effects (`pulse`, `halo`, `flow`, `spin`) light the whole border at once and ignore those inputs — except that `flow` and `spin` stream the other way under `BeamDirection.reverse`.
+
+Every effect is drawn by the same shader in the same single draw, so they cost the same order of GPU time. Pick for the look.
+
+`BeamEffect.values` lists all eight with their defaults, and each effect is a value type, so `BorderBeam(effect: someEffect)` picked at runtime needs no switch.
+
+[Full documentation →](doc/effects.md)
 
 ### Palettes
 
 ```dart
-// Presets
-BorderBeam.rotate(colors: BeamColors.ocean, child: card);
+// A preset
+BorderBeam(colors: BeamColors.aurora, child: card);
 
-// Your own colors, distributed over the preset blob geometry
-BorderBeam.rotate(
-  colors: const BeamColors.custom([Colors.pink, Colors.cyan, Colors.amber]),
+// Your own colours, evenly spaced clockwise from top-centre
+BorderBeam(
+  colors: const BeamColors([Colors.pink, Colors.cyan, Colors.amber]),
   child: card,
 );
 
-// One brand color, spread into a harmony
-BorderBeam.rotate(
+// …or placed at chosen positions around the ring
+BorderBeam(
+  colors: const BeamColors(
+    [Colors.indigo, Colors.pink, Colors.orange],
+    stops: [0.0, 0.4, 0.7],
+  ),
+  child: card,
+);
+
+// One colour all the way round
+BorderBeam(colors: const BeamColors.solid(Color(0xFF18A8F0)), child: card);
+
+// One brand colour, spread into a harmony
+BorderBeam(
   colors: const BeamColors.fromSeed(
     Color(0xFF18A8F0),
     harmony: BeamSeedHarmony.triadic,
@@ -170,34 +208,44 @@ BorderBeam.rotate(
 );
 
 // The app's Material scheme
-BorderBeam.rotate(
+BorderBeam(
   colors: BeamColors.fromScheme(Theme.of(context).colorScheme),
   child: card,
 );
 
 // Blend two palettes, and dim one
-BorderBeam.rotate(
+BorderBeam(
   colors: const BeamColors.lerp(BeamColors.ocean, BeamColors.sunset, 0.35),
   child: card,
 );
-BorderBeam.rotate(colors: BeamColors.ember.scaleAlpha(0.6), child: card);
+BorderBeam(colors: BeamColors.ember.scaleAlpha(0.6), child: card);
 ```
 
-| Preset | Origin | Colors | Notes |
-| --- | --- | --- | --- |
-| `colorful` | upstream | rainbow spectrum | the default |
-| `mono` | upstream | grayscale | pins the hue and halves layer opacity |
-| `ocean` | upstream | blue, purple | |
-| `sunset` | upstream | orange, yellow, red | |
-| `aurora` | Flutter-only | teal, violet, green, glacier blue | |
-| `neon` | Flutter-only | magenta, cyan, lime | the loudest |
-| `candy` | Flutter-only | pink, lavender, peach | pastel |
-| `ember` | Flutter-only | deep red, orange, gold | |
-| `ice` | Flutter-only | pale blue, white, cyan | |
-| `gold` | Flutter-only | amber, gold, bronze | pins the hue, keeps full opacity |
-| `holographic` | Flutter-only | desaturated pastels | built to be paired with a fast continuous hue drift |
+A palette is a ring of 1–8 colour stops around the border: position 0 is top-centre and positions increase clockwise. Neighbouring stops blend, and the last blends back into the first. Travelling effects reveal the colours where the beam passes; `flow` and `spin` move the ring itself; `line` spreads the palette across its streak.
 
-Every `BeamColors` is a value type and resolution is memoized by value, so rebuilding `BeamColors.custom([...])` inline in `build` does not re-resolve the gradient tables.
+| Preset | Colours | Notes |
+| --- | --- | --- |
+| `colorful` | orange, magenta, violet, blue, green, hot pink | the default |
+| `mono` | whites and greys | hue never drifts |
+| `ocean` | blues and violets | |
+| `sunset` | reds, oranges, amber | |
+| `aurora` | teal, violet, green | |
+| `neon` | magenta, lime, cyan | the loudest |
+| `candy` | pastel pink, lavender, peach | |
+| `ember` | deep red, orange, gold | |
+| `ice` | pale blue, white, cyan | |
+| `gold` | amber, gold, bronze | hue never drifts |
+| `holographic` | desaturated pastels | pair with a fast continuous hue drift |
+| `lagoon` | teal, aqua, mint | |
+| `dusk` | indigo, violet, rose | |
+| `forest` | emerald, lime, teal | |
+| `rose` | pink, coral, mauve | |
+| `cosmic` | deep violet, electric blue, magenta | |
+| `citrus` | lime, yellow, tangerine | |
+| `sky` | cerulean, periwinkle, white-blue | |
+| `lavender` | lilac, lavender, soft pink | |
+
+`BeamColors.presets` maps every preset's name to its value, in this order. Every `BeamColors` is a value type and resolution is memoized by value, so building `BeamColors([...])` inline in `build` costs nothing after the first frame.
 
 [Full documentation →](doc/palettes.md)
 
@@ -205,13 +253,10 @@ Every `BeamColors` is a value type and resolution is memoized by value, so rebui
 
 ```dart
 // Uniform radius, const
-BorderBeam.rotate(
-  shape: const BeamShape.all(24, superellipse: true),
-  child: card,
-);
+BorderBeam(shape: const BeamShape.all(24, superellipse: true), child: card);
 
 // Per-corner, direction-aware
-BorderBeam.rotate(
+BorderBeam(
   shape: const BeamShape(
     radius: BorderRadiusDirectional.only(topStart: Radius.circular(28)),
   ),
@@ -219,35 +264,27 @@ BorderBeam.rotate(
 );
 
 // A pill (a circle on a square box) that tracks the box as it resizes
-BorderBeam.small(shape: const BeamShape.stadium(), child: chip);
+BorderBeam(effect: const BeamEffect.spin(), shape: const BeamShape.stadium(), child: chip);
 
-// The ring 8px outside the child, with the beam on the top edge
-BorderBeam.line(
-  shape: const BeamShape.all(16, ringOffset: 8, edge: BeamEdge.top),
-  child: card,
-);
-
-// An arbitrary contour
-BorderBeam.rotate(
-  shape: BeamShape(
-    contour: BeamPathContour((rect) => Path()..addOval(rect), key: 'oval'),
-  ),
+// The outline 8px outside the child, with a 2px stroke
+BorderBeam(
+  shape: const BeamShape.all(24, ringOffset: 8, borderWidth: 2),
   child: card,
 );
 ```
 
-Three constructors cover the common cases: `BeamShape.all(r)` is the **const** path to a uniform radius (it stores the number rather than building a `BorderRadius`), `BeamShape.circular(r)` is the same shape when you already think in `BorderRadius` terms (**not** const), and `BeamShape.stadium()` rounds each corner to half the shortest side. `radius` resolves against the ambient `Directionality` and clamps per corner the way `RRect.scaleRadii` does.
+`BeamShape.all(r)` is the **const** path to a uniform radius, `BeamShape.circular(r)` builds the same shape from a `BorderRadius` (not const), and `BeamShape.stadium()` rounds each corner to half the shortest side. `radius` resolves against the ambient `Directionality` and is clamped per corner the way `RRect.scaleRadii` does. `superellipse: true` follows Flutter's `RoundedSuperellipseBorder`, so the stroke sits on the edge of a squircle-clipped child.
 
-There is **no auto-detection of the child's radius** — pass the same value your child uses.
+The default radius is 16. There is **no auto-detection of the child's radius** — pass the value your child uses.
 
 [Full documentation →](doc/shape.md)
 
-### Segments and partial contours
+### Segments and dashes
 
-`BeamShape.segment` masks the unchanged full-ring animation to a clockwise portion of the contour. Constants and blob positions stay in full-ring space, and the mask adds no compositing layer.
+`BeamShape.segment` limits the light to a clockwise portion of the border. The animation runs unchanged on the whole border; the segment shows the part inside it and fades its ends over `feather` logical pixels (32 by default).
 
 ```dart
-BorderBeam.rotate(
+BorderBeam(
   shape: const BeamShape(
     radius: BorderRadius.all(Radius.circular(24)),
     segment: BeamSegment.bottomHalf,
@@ -256,90 +293,80 @@ BorderBeam.rotate(
 );
 ```
 
-Positions are arc-length fractions from top-center, clockwise: `0` is top-center, `0.25` approximately right-center on a square, `0.5` bottom-center, `0.75` approximately left-center. Build endpoints with `BeamAnchor.fraction(t)`, `BeamAnchor.edge(edge, t)`, or `BeamAnchor.corner(corner, t)`, or use `topCenter` / `rightCenter` / `bottomCenter` / `leftCenter`. `BeamSegment(start: …, end: …, feather: 32)` runs clockwise from start to end, wrapping through top-center when necessary; `feather` is the fade distance in logical pixels at each end, and `0` makes a hard cut.
+Positions are arc-length fractions from top-centre, clockwise. Build endpoints with `BeamAnchor.fraction(t)`, `BeamAnchor.edge(edge, t)`, or `BeamAnchor.corner(corner, t)`, or use `BeamAnchor.topCenter` / `rightCenter` / `bottomCenter` / `leftCenter`. `BeamSegment(start: …, end: …, feather: 32)` runs clockwise from `start` to `end`, wrapping through top-centre when needed; `feather: 0` makes a hard cut.
 
 | Preset | Coverage |
 | --- | --- |
-| `bottomHalf` / `topHalf` | The lower / upper half between the side centers |
-| `leftHalf` / `rightHalf` | The left / right half between the top and bottom centers |
-| `bottomEdge` / `topEdge` | The named straight run plus both adjacent corner arcs |
-| `leftEdge` / `rightEdge` | The named straight run plus both adjacent corner arcs |
+| `bottomHalf` / `topHalf` | The lower / upper half between the side centres |
+| `leftHalf` / `rightHalf` | The left / right half between the top and bottom centres |
+| `bottomEdge` / `topEdge` / `leftEdge` / `rightEdge` | The named straight run plus both adjacent corner curves |
 
-Each family reads a segment differently: **`rotate` / `small`** keep the conic window's full sweep, appearing at `start` and traveling to `end`; **`line`** rides the segment, rounding its corners and fading at both ends (`shape.edge` is ignored while a segment is set); **pulse** hides blobs outside the segment and fades those near either end.
+`rotate` appears at `start` and travels to `end`; `line` rides the segment instead of its `edge`, around corners included; `charge` fills the segment; the ambient effects light only the part inside it.
 
-For two counter-sweeping arcs, stack a second beam with `timing: const BeamTiming(direction: BeamDirection.reverse)`. For a full-contour line, `wrapCorners: true` bends the streak around the two corner arcs adjacent to `edge`.
+`BeamShape.dashes` breaks the border into that many evenly spaced dashes (2 or more; 0 and 1 keep it solid):
+
+```dart
+BorderBeam(
+  effect: const BeamEffect.spin(),
+  shape: const BeamShape.all(16, dashes: 12),
+  child: badge,
+);
+```
 
 ### Style
 
 ```dart
-BorderBeam.rotate(
+BorderBeam(
   style: const BeamStyle(
     colors: BeamColors.aurora,
+    theme: BeamTheme.dark,
     strength: 0.8,
-    comet: true,
-    sparkle: 0.4,
-    tailLength: 1.4,
+    glow: 1.3,
+    hueMode: BeamHueMode.continuous,
+    hueBase: 40,
   ),
   child: card,
 );
 ```
 
-Twenty-six fields, all listed in the [`BeamStyle` reference](#beamstyle). Four are worth a sentence each.
+| Field | Meaning |
+| --- | --- |
+| `colors` | The palette. |
+| `theme` | `dark`, `light`, or `auto` (follows `Theme.of(context).brightness`). Each effect is tuned separately for dark and light surfaces. |
+| `strength` | Overall opacity, 0–1. |
+| `glow` | Scales the size and intensity of every glow around the stroke; the stroke itself is unchanged. |
+| `hueMode` | How the colours drift: `pingPong` (swing ±`hueShift`), `continuous` (a full turn per `huePeriod`), or `none`. Defaults per effect. |
+| `hueShift` | Degrees either side for `pingPong`. |
+| `hueBase` | A fixed hue rotation, in degrees, on top of any drift. |
 
-**`themeConfig`** replaces the whole variant × brightness preset — layer opacities, inset shadow, and the default brightness/saturation. Start from a preset rather than inventing one:
-
-```dart
-BorderBeam.rotate(
-  style: BeamStyle(
-    themeConfig: BeamThemeConfig.presetFor(
-      BeamVariant.rotate,
-      Brightness.dark,
-    ).copyWith(bloomOpacity: 0.4),
-  ),
-  child: card,
-);
-```
-
-**`innerSizeScale`** multiplies the size of `pulseInside`'s inner blobs. Below 1 the wash pulls tighter to the border, leaving more of the child clear; above 1 it floods further in. The perimeter ring and the bloom keep their own geometry, so the border itself does not move.
-
-**`renderScale`** is the fraction of the box the beam is *painted* at before being magnified back to fill it (0.25–1). The palettes are authored against a 350×140 card, so on a screen-width box the blobs read as small and sparse; painting at 0.5 and magnifying restores the proportions the palette was drawn for — glow, blurs, and corner radii all grow together. It costs one canvas transform and no extra layer, but it *is* a magnification, so the ring's own edge softens as the factor drops.
-
-```dart
-BorderBeam.rotate(
-  style: const BeamStyle(renderScale: 0.35),
-  child: fullScreenSurface,
-);
-```
-
-**`BeamStyle.pulseOutsideStock`** is a ready-made style carrying the upstream library's **stock** pulse-outside look — a tighter, dimmer halo sitting closer to the child. `BorderBeam.pulseOutside` paints the tuned demo recipe by default, because that is the look the library is known for; the stock style rolls every part of that tuning back. Layer your own fields over it with `copyWith` — anything you set wins.
-
-```dart
-BorderBeam.pulseOutside(style: BeamStyle.pulseOutsideStock, child: card);
-```
+`mono` and `gold` never drift, whatever `hueMode` says.
 
 ### Motion
 
 ```dart
-BorderBeam.rotate(
+BorderBeam(
+  effect: const BeamEffect.rotate(count: 3),
   timing: const BeamTiming(
-    cycle: Duration(seconds: 3),      // one sweep
-    cycleGap: Duration(seconds: 1),   // rest between sweeps
+    cycle: Duration(seconds: 3),      // one lap
+    cycleGap: Duration(seconds: 1),   // rest between laps
     direction: BeamDirection.bounce,  // alternate each cycle
-    beamCount: 3,                     // three beams, equally spaced
+    phaseOffset: 0.25,                // start a quarter of the way in
     speed: 1.5,                       // playback rate
+    huePeriod: Duration(seconds: 8),  // colour drift period
   ),
   child: card,
 );
 ```
 
-Changing `cycle` while the beam runs **retimes it in place** — every track keeps its phase, so the beam speeds up or slows down without a jump. `cycleGap` parks the beam at the end of its travel between sweeps, fading out and back in over `min(0.25s, gap / 2)` at each end; the hue, breathe, and spike tracks are textures rather than the sweep, so they keep running through the gap. Every field is in the [`BeamTiming` reference](#beamtiming).
+Changing `cycle` while the beam runs **retimes it in place** — the beam keeps its position and speeds up or slows down without a jump. `cycleGap` parks a travelling effect at the end of its travel after each sweep and fades it out and back in over `min(0.25s, gap / 2)` at each end; the hue drift keeps running through the gap.
 
 [Full documentation →](doc/motion.md)
 
 ### Playback
 
 ```dart
-BorderBeam.pulseInside(
+BorderBeam(
+  effect: const BeamEffect.pulse(),
   active: isLoading,                          // fades in 0.6s / out 0.5s
   playback: const BeamPlayback(
     startAfter: Duration(milliseconds: 500),
@@ -353,20 +380,14 @@ BorderBeam.pulseInside(
 );
 ```
 
-`reducedMotion` has four behaviors, all of them applying to all five variants:
-
-| `BeamReducedMotion` | Behavior |
+| `BeamReducedMotion` | Behaviour |
 | --- | --- |
-| `staticFrame` | Paints a single static frame and stops ticking. **The default.** |
+| `staticFrame` | Paints one static frame and stops ticking. **The default.** |
 | `hide` | Paints nothing; the child is left bare and no ticker runs. |
 | `slow` | Keeps animating at a quarter of the configured speed. |
-| `animate` | Ignores the request and animates normally. |
+| `animate` | Ignores the request. |
 
-`debugFrozenAt` pins the beam to one instant and never starts its clock — for screenshots and tests rather than product code. Every animated value is a pure function of elapsed time, so a fixed time is a fixed frame: two runs a week apart paint the same pixels.
-
-`fadeCurve` swaps the fade envelope. The package eases fades with a spring, which carries a little momentum and overshoots slightly; `BeamPlayback.cssEase` is the web's `cubic-bezier(0.25, 0.1, 0.25, 1)`, for a fade that matches the original exactly.
-
-The full field list is in the [`BeamPlayback` reference](#beamplayback).
+`pauseWhenOffscreen` (default on) stops a beam's clock while it is scrolled more than 256px out of its nearest `Scrollable`, and resumes it where it left off. `fadeCurve` replaces the spring that eases the fades. `debugFrozenAt` pins the beam to one instant of its timeline — for screenshots and golden tests, not product code.
 
 
 ## Advanced
@@ -376,6 +397,7 @@ The full field list is in the [`BeamPlayback` reference](#beamplayback).
 ```dart
 BorderBeamTheme(
   data: const BorderBeamThemeData(
+    effect: BeamEffect.flow(),
     style: BeamStyle(colors: BeamColors.ocean, strength: 0.8),
     shape: BeamShape.all(20, superellipse: true),
     timing: BeamTiming(cycle: Duration(seconds: 3)),
@@ -385,18 +407,18 @@ BorderBeamTheme(
 );
 ```
 
-`BorderBeamThemeData` has one slot per value object, and each slot's fields are nullable, so a theme fills in only what it sets. `BorderBeamTheme.of` walks **every** enclosing scope, depends on each, and merges them outside-in — an inner theme overrides just the fields it names, and a change to an outer one rebuilds the beam exactly as an inner one does.
+`BorderBeamThemeData` has a slot for the effect and one per value object; each object's fields are nullable, so a theme fills in only what it sets. `BorderBeamTheme.of` walks **every** enclosing theme and merges them outside-in, so an inner theme overrides only the fields it names.
 
 [Full documentation →](doc/theming.md)
 
 ### Controller
 
-Attach a `BorderBeamController` for programmatic playback. The controller takes **full ownership**: `playback.startAfter` and `playback.duration` must not be set (on the widget or on a theme — it is asserted), `active` and `autoPlay` are ignored, the controller's `speed` replaces `timing.speed`, and the beam starts hidden until you `start()`.
+A `BorderBeamController` takes **full ownership** of playback: `playback.startAfter` and `playback.duration` must not be set (on the widget or a theme — it is asserted), `active` and `autoPlay` are ignored, the controller's `speed` replaces `timing.speed`, and the beam starts hidden until you call `start()`.
 
 ```dart
 final controller = BorderBeamController();
 
-BorderBeam.rotate(controller: controller, child: card);
+BorderBeam(controller: controller, child: card);
 
 controller.start();                      // fade in, play
 controller.pause();                      // freeze the current frame
@@ -404,52 +426,48 @@ controller.resume();
 controller.speed = 2;                    // playback rate; must be positive
 controller.seek(const Duration(seconds: 1));
 controller.pulse();                      // one brightness bump, ~0.6s settle
-controller.flash();                      // blink to full, hold 120ms, decay
+controller.flash();                      // a sharper blink, hold 120ms, decay
 controller.stop();                       // fade out, halt
 ```
 
-`isAttached`, `isActive`, and `isRunning` report state, and the controller is a `ChangeNotifier`, so a button can rebuild from it. **One controller drives one beam** — attaching a second asserts. A beam under a `BeamSync` runs on the group's clock and cannot also take a controller; drive the group through `BeamSync` instead.
-
-`stop()` fades out over 0.5s; `pause()` freezes the current frame with no fade at all, and `resume()` continues from exactly there. `pulse()` and `flash()` are accents on a running beam: they raise brightness and let it settle without touching the timeline, so a beam already sweeping can mark a moment. Both are no-ops while the beam is hidden or frozen.
+`isAttached`, `isActive`, and `isRunning` report state, and the controller is a `ChangeNotifier`. **One controller drives one beam.** A beam under a `BeamSync` runs on the group's clock and cannot also take a controller.
 
 ### Driving the beam yourself
 
-Four inputs take the beam off its own schedule without a controller.
-
 ```dart
-// A glowing progress ring (or, with .line, a progress bar).
-BorderBeam.rotate(progress: downloaded / total, child: card);
+// A glowing progress ring; with BeamEffect.charge() the border fills.
+BorderBeam(progress: downloaded / total, child: card);
 
-// The sweep gravitates to a point in the box.
-BorderBeam.rotate(follow: const Offset(0.5, 0.2), child: card);
+// The sweep gravitates to a point in the box (normalized 0–1).
+BorderBeam(follow: const Offset(0.5, 0.2), child: card);
 
 // Live opacity and rate, without rebuilding.
-BorderBeam.rotate(
+BorderBeam(
   strengthListenable: micLevel, // ValueListenable<double>
   speedListenable: tempo,       // ValueListenable<double>, positive
   child: card,
 );
 ```
 
-| Input | Type | Effect |
+| Input | Type | What it does |
 | --- | --- | --- |
-| `progress` | `double?` (0–1) | Places the sweep instead of the clock. The clock still runs, so the fade, hue, and line tracks stay alive — the beam looks lit, not frozen. Repaints without re-resolving the config, so it is cheap to drive from an animation. |
-| `follow` | `Offset?` (normalized) | Eases the sweep to the perimeter point nearest a point in the box — critically damped, ~150ms. Setting it back to null hands the sweep back to the clock without a snap. `progress` wins over it. |
-| `strengthListenable` | `ValueListenable<double>?` | The live twin of `style.strength`: scales every layer's opacity each frame, no rebuild. |
-| `speedListenable` | `ValueListenable<double>?` | The live twin of `timing.speed`, and it wins over both that and a controller's rate. |
+| `progress` | `double?` (0–1) | Places the travel instead of the clock: `rotate` becomes a progress ring, `line` a progress bar, `charge` fills to it, `shimmer` sits at it. The clock keeps running underneath, so the fade and hue stay alive. Cheap to drive every frame. |
+| `follow` | `Offset?` (normalized) | Eases the travel to the border point nearest a point in the box — critically damped, about 150ms. Null hands it back to the clock without a snap. `progress` wins over it. |
+| `strengthListenable` | `ValueListenable<double>?` | Scales the beam's opacity each frame, without a rebuild. |
+| `speedListenable` | `ValueListenable<double>?` | Sets the playback rate each frame; wins over `timing.speed` and a controller's rate. |
 
-The pulse variants have no travel, so they ignore `progress` and `follow`. Feeding `follow` from a `MouseRegion` is what `BeamHover` does for you.
+Ambient effects ignore `progress` and `follow`. `BeamHover` wires `follow` to the mouse for you.
 
 ### Synchronized groups
 
-A beam owns its own ticker. Ten beams on a screen means ten tickers, each started at a different instant, so their sweeps drift apart — right for beams that have nothing to do with each other, wrong for a row of cards that should read as one system. `BeamSync` hands the whole subtree **one clock**: one ticker, one timeline, identical phases.
+Each beam owns its own ticker, so beams started at different moments drift apart. `BeamSync` gives a subtree **one clock** — one ticker, one timeline, identical phases:
 
 ```dart
 BeamSync(
   child: Row(
     children: [
       for (final (i, card) in cards.indexed)
-        BorderBeam.rotate(
+        BorderBeam(
           timing: BeamTiming(phaseOffset: i / cards.length),
           child: card,
         ),
@@ -458,11 +476,11 @@ BeamSync(
 );
 ```
 
-Beams stay individually configurable — palette, variant, shape, and `phaseOffset` are per beam — but **the group owns playback**: `active`, `autoPlay`, `startAfter`, `duration`, and `repeat` are ignored below a `BeamSync`. Use its own `active` and `speed` instead. Reduced motion is group-owned too, through `BeamSync.reducedMotion`.
+Effect, palette, shape, and `phaseOffset` stay per beam, but **the group owns playback**: `active`, `autoPlay`, `startAfter`, `duration`, and `repeat` are ignored below a `BeamSync`. Use its own `active`, `speed`, and `reducedMotion` instead.
 
 ### Overlay and decoration
 
-`BorderBeam.overlay` is a beam with no child of its own, sized by its parent — it traces content it does not have to wrap:
+`BorderBeam.overlay` is a beam with no child of its own, sized by its parent:
 
 ```dart
 Stack(
@@ -473,12 +491,12 @@ Stack(
 );
 ```
 
-`BeamDecoration` is the same engine as a `Decoration`, for dropping into a `Container` you already have:
+`BeamDecoration` is the same renderer as a `Decoration`, for a `Container` you already have. Put it in `foregroundDecoration:` so it paints over the child, as `BorderBeam` does:
 
 ```dart
 Container(
   foregroundDecoration: BeamDecoration(
-    variant: BeamVariant.rotate,
+    effect: const BeamEffect.rotate(),
     brightness: Theme.of(context).brightness,
     theme: BorderBeamTheme.of(context),
     colors: BeamColors.ocean,
@@ -492,16 +510,7 @@ Container(
 );
 ```
 
-A decoration paints in exactly one slot, so the variant decides which: `rotate`, `small`, `line`, and `pulseInside` go in `foregroundDecoration:`; `pulseOutside` goes in `decoration:`, because its halo blooms behind the child.
-
-A `BoxPainter` gets a canvas and nothing else, which costs the decoration four things the widget has. Prefer `BorderBeam` when any of them matter:
-
-- **Ambient theming is passed in, not read.** `brightness` is required and `theme:` takes what `BorderBeamTheme.of(context)` would have returned.
-- **The ticker is unmanaged.** It is not created through a `TickerProvider`, so `TickerMode` does not mute it — a beam in a scrollable's cache extent or under an inactive route keeps ticking until the decoration is replaced or its render object is disposed.
-- **Reduced motion is not observed.** `MediaQuery.disableAnimationsOf` is unreachable, so `playback.reducedMotion` is inert here.
-- **`active` is a starting state, not a toggle**, and the decoration does not interpolate: `lerpFrom`/`lerpTo` return null, so an `AnimatedContainer` snaps between two beam decorations at the halfway point.
-
-Like the widget, it never absorbs a pointer: `hitTest` returns false.
+A `BoxPainter` has no `BuildContext`, so the decoration form gives up four things the widget has: ambient theming is passed in (`brightness` is required, `theme:` takes `BorderBeamTheme.of(context)`); its ticker is not muted by `TickerMode`; reduced motion and `pauseWhenOffscreen` are not observed; and `active` is a starting state, not a toggle. Prefer `BorderBeam` when any of those matter.
 
 ### Interaction wrappers
 
@@ -511,82 +520,52 @@ BeamHover(borderRadius: 20, child: pricingCard);
 BeamPress(borderRadius: 20, onTap: submit, child: card);
 ```
 
-| Widget | Lights when | Default variant | Notable knobs |
+| Widget | Lights when | Default effect | Notable options |
 | --- | --- | --- | --- |
-| `BeamFocusRing` | `child`'s subtree (or `focusNode`) holds focus | `small`, `ocean` | `alwaysShow` lights it under `FocusHighlightMode.touch` too |
-| `BeamHover` | the cursor is over `child`, pulling the sweep toward it | `rotate` | `followPointer`, `holdAfterExit` (300ms) |
-| `BeamPress` | a finger is down on `child` | `pulseInside` | `minimumDuration` (600ms), `onTap` |
+| `BeamFocusRing` | `child`'s subtree (or `focusNode`) holds focus | `spin`, `ocean` palette | `alwaysShow` lights it under touch focus too |
+| `BeamHover` | the cursor is over `child`, pulling the travel toward it | `rotate` | `followPointer`, `holdAfterExit` (300ms) |
+| `BeamPress` | a finger is down on `child` | `pulse` | `minimumDuration` (600ms), `onTap` |
 
-Each is a thin wrapper that flips `BorderBeam`'s `active` (and, for `BeamHover`, feeds `follow`), so a transition gets the beam's own fades rather than a cut, and each passes `style`, `shape`, and `timing` straight through.
-
-`BeamFocusRing` follows `FocusManager.highlightMode`, the same rule `FocusableActionDetector` uses: it shows for keyboard and mouse focus and stays dark for touch. `BeamHover` is a desktop and web wrapper — on a touch device no mouse ever enters and the beam stays dark; `BeamPress` is its touch counterpart, holding the beam lit until `minimumDuration` has passed so a quick tap is a pulse rather than a flicker. `BeamPress` observes raw pointer events through a translucent `Listener` and never enters the gesture arena, so a button inside keeps its own taps and a scrollable above keeps its drags.
+Each flips `BorderBeam`'s `active` (and `BeamHover` feeds `follow`), so transitions use the beam's own fades, and each passes `effect`, `style`, `shape`, and `timing` through. `BeamPress` listens through a translucent `Listener` and never enters the gesture arena, so buttons inside keep their taps and scrollables above keep their drags.
 
 
 ## Reference
 
-Every field is nullable and a null means *inherit*, so these tables are the defaults you get by leaving a field out.
+Every field is nullable and null means *inherit*; the defaults below are what you get when nothing sets a field.
 
 ### `BeamStyle`
 
-| Field | Type | Default | Applies to |
-| --- | --- | --- | --- |
-| `colors` | `BeamColors?` | `BeamColors.colorful` | all |
-| `theme` | `BeamTheme?` | `BeamTheme.auto` | all |
-| `strength` | `double?` | `1.0` (clamped 0–1) | all |
-| `brightness` | `double?` | preset, else `1.3` | all |
-| `saturation` | `double?` | preset | all |
-| `hueRange` | `double?` | `30` (`line` caps at 13) | all |
-| `hueMode` | `BeamHueMode?` | `pingPong` traveling, `continuous` pulse | all |
-| `hueBase` | `double?` | `0` | all |
-| `staticColors` | `bool?` | `false` (forced on by `mono` and `gold`) | all |
-| `strokeOpacityFactor` | `double?` | `1` | all |
-| `innerOpacityFactor` | `double?` | `1` | all |
-| `bloomOpacityFactor` | `double?` | `1` | all |
-| `glowBoost` | `double?` | `1` | `pulseInside`, `pulseOutside` |
-| `coreBlur` | `double?` | preset | `pulseOutside` |
-| `bloomBlur` | `double?` | preset | `pulseOutside` |
-| `glowBrightness` | `double?` | preset | `pulseOutside` |
-| `glowSaturation` | `double?` | preset | `pulseOutside` |
-| `tailLength` | `double?` | `1` | `rotate`, `small` |
-| `glowSpread` | `double?` | `1` | all |
-| `comet` | `bool?` | `false` | `rotate`, `small` |
-| `sparkle` | `double?` | `0` (clamped 0–1) | `rotate`, `small` |
-| `segments` | `int?` | none (solid ring) | `rotate`, `small`, `line` |
-| `innerSizeScale` | `double?` | `1` | `pulseInside` |
-| `renderScale` | `double?` | `1` (clamped 0.25–1) | all |
-| `pulseOutsideTuning` | `BeamPulseOutsideTuning?` | `demo` | `pulseOutside` |
-| `themeConfig` | `BeamThemeConfig?` | per variant × brightness | all |
-
-`pulseOutsideTuning` switches only the glow geometry: `BeamPulseOutsideTuning.demo` (the default) scales insets and blurs by the element's size, melting the separate blobs into one continuous edge-hugging glow; `.stock` uses the library's fixed insets and per-brightness blur.
+| Field | Type | Default |
+| --- | --- | --- |
+| `colors` | `BeamColors?` | `BeamColors.colorful` |
+| `theme` | `BeamTheme?` | `BeamTheme.auto` |
+| `strength` | `double?` | `1` (clamped 0–1) |
+| `glow` | `double?` | `1` (must not be negative) |
+| `hueMode` | `BeamHueMode?` | per effect (see [Effects](#effects)) |
+| `hueShift` | `double?` | `30` |
+| `hueBase` | `double?` | `0` |
 
 ### `BeamShape`
 
-| Field | Type | Default | Applies to |
-| --- | --- | --- | --- |
-| `radius` | `BorderRadiusGeometry?` | 16 (32 for `small`) | all — ignored when `contour` is set |
-| `borderWidth` | `double?` | `1` | all |
-| `superellipse` | `bool?` | `false` | all — ignored when `contour` is set |
-| `edge` | `BeamEdge?` | `BeamEdge.bottom` | `line` |
-| `ringOffset` | `double?` | `0` | all |
-| `contour` | `BeamContour?` | none | all |
-| `segment` | `BeamSegment?` | none (full contour) | all |
-| `wrapCorners` | `bool?` | `false` | `line`, without a segment |
+| Field | Type | Default |
+| --- | --- | --- |
+| `radius` | `BorderRadiusGeometry?` | 16 on every corner |
+| `superellipse` | `bool?` | `false` |
+| `borderWidth` | `double?` | `1` |
+| `ringOffset` | `double?` | `0` |
+| `segment` | `BeamSegment?` | the whole border |
+| `dashes` | `int?` | `0` (solid) |
 
 ### `BeamTiming`
 
-| Field | Type | Default | Applies to |
-| --- | --- | --- | --- |
-| `cycle` | `Duration?` | 1.96s rotate/small · 3.1s line · 2.3s pulse | all |
-| `cycleGap` | `Duration?` | `Duration.zero` | `rotate`, `small`, `line` |
-| `speed` | `double?` | `1` (a controller's `speed` wins) | all |
-| `direction` | `BeamDirection?` | `forward` | `rotate`, `small`, `line` |
-| `phaseOffset` | `double?` | `0` (fraction of a cycle, 0–1) | all |
-| `beamCount` | `int?` | `1` | `rotate`, `small`, `line` |
-| `huePeriod` | `Duration?` | 12s traveling · 16s pulseInside · 14s pulseOutside | all |
-| `bloomHuePeriod` | `Duration?` | 8s | `line` |
-| `breatheFactor` | `double?` | `1.3` × `cycle` | `line` |
-| `spikeFactor` | `double?` | `1.33` × `cycle` | `line` |
-| `spike2Factor` | `double?` | `1.7` × `cycle` | `line` |
+| Field | Type | Default |
+| --- | --- | --- |
+| `cycle` | `Duration?` | per effect (see [Overview](#overview)) |
+| `cycleGap` | `Duration?` | 1.6s `shimmer` · 0.6s `charge` · zero otherwise; travelling effects only |
+| `speed` | `double?` | `1` (a controller's `speed` replaces it) |
+| `direction` | `BeamDirection?` | `forward` |
+| `phaseOffset` | `double?` | `0` (fraction of a cycle, 0–1) |
+| `huePeriod` | `Duration?` | per effect (see [Effects](#effects)) |
 
 ### `BeamPlayback`
 
@@ -595,127 +574,85 @@ Every field is nullable and a null means *inherit*, so these tables are the defa
 | `active` | `bool?` | `true` | Play state. Toggling fades in (0.6s) / out (0.5s). |
 | `autoPlay` | `bool?` | `true` | Whether the beam starts by itself. |
 | `startAfter` | `Duration?` | none | Delay before autoplay. Must be null with a controller. |
-| `duration` | `Duration?` | none (plays on) | Total play time before a self fade-out. Must be null with a controller. |
-| `repeat` | `BeamRepeat?` | `BeamRepeat.forever()` | `forever()`, `once()`, or `count(n)` cycles, then a fade-out. |
+| `duration` | `Duration?` | none | Total play time before the beam fades out by itself. Must be null with a controller. |
+| `repeat` | `BeamRepeat?` | `forever()` | `forever()`, `once()`, or `count(n)` cycles, then a fade-out. |
 | `reducedMotion` | `BeamReducedMotion?` | `staticFrame` | What to do when the platform asks for reduced motion. |
-| `pauseWhenOffscreen` | `bool?` | `true` | Stops the clock while the beam is scrolled out of its nearest enclosing `Scrollable`, with a 256px margin. |
-| `fadeCurve` | `Curve?` | the fade spring | The easing both fade envelopes run on. |
-| `debugFrozenAt` | `Duration?` | none | Pins the beam to one instant of its timeline and never starts its clock. The frozen frame is still scaled by the live strength. |
-
-### Palette constructors and transforms
-
-| Constructor / transform | Signature | What it does |
-| --- | --- | --- |
-| `BeamColors.custom` | `custom(List<Color> colors, {BeamColors base = BeamColors.colorful})` | Distributes your colors over `base`'s blob geometry, cycling when there are fewer colors than slots and preserving each entry's alpha. The list must not be empty. |
-| `BeamColors.fromSeed` | `fromSeed(Color seed, {BeamSeedHarmony harmony = BeamSeedHarmony.analogous})` | Spreads one brand color into `analogous`, `complementary`, `triadic`, or `monochrome`. Derived colors are lifted into a readable glow band (lightness 0.55–0.70, saturation ≥ 0.55), so a black or gray seed still reads. |
-| `BeamColors.fromScheme` | `fromScheme(ColorScheme scheme)` | Takes `primary`, `secondary`, `tertiary`, dropping roles that duplicate an earlier one. |
-| `BeamColors.lerp` | `lerp(BeamColors a, BeamColors b, double t)` | Table-by-table `Color.lerp`. `t` is not clamped, so it extrapolates. |
-| `scaleAlpha` | `scaleAlpha(double factor)` | Multiplies every table entry's alpha, preserving the relative depth of the inner / stroke / bloom layers. `factor` must not be negative. |
-| `BeamColors.spec` | `spec({required List<BeamBlob> border, List<BeamBlob>? smallBorder, List<LineBlob>? lineBlobs})` | Full per-blob control. `BeamBlob.size` holds ellipse **radii**, not diameters; omitted tables are derived by cycling the border colors. |
+| `pauseWhenOffscreen` | `bool?` | `true` | Stop the clock while scrolled out of view (256px margin). |
+| `fadeCurve` | `Curve?` | the fade spring | The easing of both fades. `BeamPlayback.cssEase` is the web's `ease`. |
+| `debugFrozenAt` | `Duration?` | none | Pin the beam to one instant and never start its clock. |
 
 ### Shorthands and precedence
 
-Three fields are common enough to sit directly on the widget: `colors`, `active`, and `borderRadius` (a uniform `shape.radius`). They are shorthands, not separate settings — each folds into the matching value object, winning over the same field there.
-
-A field is resolved in one order, and only one:
+`colors`, `active`, and `borderRadius` sit directly on the widget as shorthands for `style.colors`, `playback.active`, and a uniform `shape.radius`. A field resolves in one order:
 
 ```text
-flat shorthand  >  value object on the widget  >  BorderBeamTheme  >  variant default
+shorthand  >  value object on the widget  >  BorderBeamTheme (inner over outer)  >  effect default
 ```
-
-Nested `BorderBeamTheme`s merge inner over outer before the widget's own values are applied on top.
 
 
 ## Accessibility
 
-- **Reduced motion is honored by default.** With `MediaQuery.disableAnimations` set, every variant falls back to a single static frame; `hide`, `slow`, and `animate` are one field away. See the [Playback](#playback) table.
-- **Beams add no semantics.** They are decoration, and decoration that announced itself would be noise. Screen readers describe your child exactly as they would without the beam.
-- **Nothing is conveyed by the beam alone.** A beam marks a state that is already stated somewhere else — the button's label, the field's helper text, a status line. Treat it as emphasis, never as the only signal that something is loading, focused, or selected.
-- **Pointers pass through.** No beam layer intercepts a pointer, so hit-testing, focus traversal, and gesture handling behave as if the beam were not there.
-- **`BeamFocusRing` complements the platform focus ring**; it does not replace the focused widget's semantics, and it respects `FocusManager.highlightMode` so a tapped field does not sprout a keyboard-focus ring.
+- **Reduced motion is honoured by default.** When the platform asks for it, every effect falls back to a single static frame; `hide`, `slow`, and `animate` are one field away.
+- **Beams add no semantics.** Screen readers describe your child exactly as they would without the beam.
+- **Never let the beam be the only signal.** A beam emphasizes a state that is stated elsewhere — a label, helper text, a status line.
+- **Pointers pass through.** Nothing the beam paints takes part in hit-testing.
+- **`BeamFocusRing` complements the focused widget's own semantics** and follows `FocusManager.highlightMode`, so a tapped field does not get a keyboard focus ring.
 
 [Full documentation →](doc/accessibility.md)
 
 
 ## Performance
 
-- **One ticker per beam** — or exactly one per `BeamSync`, however many beams are in the group.
-- **~30fps cap on the pulse variants**, matching the original's pulse driver. Time still accumulates at full resolution; only notifications are throttled, and a `pulse()`/`flash()` boost lifts the cap while it plays.
-- **`RepaintBoundary` isolation.** The child sits in its own boundary inside the beam's, so animating the beam never re-rasterizes your content.
-- **Color matrices are folded on the CPU.** Hue, brightness, and saturation are baked into gradient colors rather than carried on a `ColorFilter`, which would need a layer of its own.
-- **Offscreen pause.** With `pauseWhenOffscreen` (the default), a beam scrolled out of its nearest enclosing `Scrollable` — with a 256px margin — stops its clock and resumes exactly where it left off. Play state, fades, and callbacks are untouched.
+- **One shader, one draw.** Every frame of every effect is a single `drawRect` or `drawDRRect` with the beam's fragment shader. There is no `saveLayer`, no clip, no `ImageFilter` or `MaskFilter` blur, and no offscreen render target. Glows are evaluated analytically per pixel instead of blurred. A test asserts this for every effect, theme, and shape.
+- **Fragment work only where light can land.** The draw covers the box grown by the furthest outward glow, minus the interior beyond the furthest inward one.
+- **Little CPU per frame.** The effect computes a few bumps of light along the border and up to eight point lights, then writes a fixed block of uniform floats into a `FragmentShader` it reuses for the beam's lifetime. There is no path building and no gradient construction per frame.
+- **Display-rate animation.** Every effect ticks on every frame the engine produces, with no frame-rate cap. To get 120Hz on ProMotion iPhones, your app's `ios/Runner/Info.plist` needs:
 
-The `saveLayer` count per frame — `paintBehind` plus `paintAbove` — is a fixed, measured budget, not an estimate:
+  ```xml
+  <key>CADisableMinimumFrameDurationOnPhone</key>
+  <true/>
+  ```
 
-| Variant | `saveLayer`s per frame |
-| --- | --- |
-| `rotate` | 4 |
-| `small` | 3 |
-| `line` | 4 |
-| `pulseInside` | 4 |
-| `pulseOutside` | 3 |
+  Without it iOS holds Flutter apps to 60Hz.
+- **`BorderBeam.precache()`** loads the shader once, ahead of the first beam.
+- **One ticker per beam**, or one per `BeamSync` group, and **an offscreen pause** that stops beams scrolled out of view.
+- **`RepaintBoundary` isolation.** The child sits in its own repaint boundary, so the beam animating never re-rasterizes your content.
 
-`test/painting/save_layer_budget_test.dart` counts them through a counting canvas for every variant × brightness × palette × time sample and asserts each number **exactly**, so a regression and an improvement both fail the suite until the table is updated.
+Keep the beam out from under widgets that force an offscreen pass, which costs more than the beam itself: `Opacity` / `AnimatedOpacity` / `FadeTransition` with a value between 0 and 1, `ShaderMask`, `BackdropFilter`, `ColorFiltered`, and `ImageFiltered`. To fade a beam, use `style.strength`, `strengthListenable`, or `active` instead of wrapping it in `Opacity`.
 
 [Full documentation →](doc/performance.md)
-
-
-## Parity with the original
-
-The constants are transcribed verbatim from the upstream `src/styles.ts`, so the rendering matches. Where this package deliberately differs:
-
-| Area | flutter_border_beam | The original |
-| --- | --- | --- |
-| Fade envelope | A spring (mass 1, stiffness 180, damping 20) | CSS `ease` — available here as `fadeCurve: BeamPlayback.cssEase` |
-| Reduced motion | All five variants, defaulting to a static frame | Pulse variants only (the web build hides them; iOS and React Native do the same) |
-| pulse-outside defaults | Bake the tuning the original's web demo applies | The library's stock values — available here as `BeamStyle.pulseOutsideStock` |
-| `BeamTheme.auto` | Follows `Theme.of(context)` | Follows the OS color scheme |
-| Child radius | Passed in; no auto-detection | Read from the child |
-
-Flutter-only additions, with no upstream counterpart: `hueBase`, custom palettes (`custom` / `fromSeed` / `fromScheme` / `lerp` / `scaleAlpha` / `spec`) and the seven extra presets, per-corner radii, superellipse corners, stadium shapes, arbitrary contours, `BeamShape.segment`, `BeamShape.wrapCorners`, `segments`, `direction`, `cycleGap`, `beamCount`, `progress`, `follow`, `BeamSync`, `BeamDecoration`, and the `BeamFocusRing` / `BeamHover` / `BeamPress` wrappers.
-
-[Full documentation →](doc/parity.md)
-
-
-## How it works
-
-Everything animated is a **pure function of elapsed time** — there are no `AnimationController`s anywhere.
-
-1. **Clock.** One `Ticker` per beam (or per `BeamSync`) accumulates `elapsedSeconds`, scaled by the playback rate and gated by the fade envelope. It mirrors the original's single shared `requestAnimationFrame` loop.
-2. **Phases.** Each frame, a resolver recomputes every animated track from that one number — sweep position, hue, the line variant's breathe and spike scales, the pulse oscillator bank. Same time in, same frame out, which is what makes goldens and `debugFrozenAt` possible.
-3. **Strategies.** One strategy per variant family turns those phases into geometry: the traveling window and its mask, or the breathing blob table.
-4. **Layers.** A single `CustomPainter` paints the stroke ring, the inner glow, and the bloom within the budget above, on a `behind` pass (pulse-outside) or an `above` pass (everything else).
-
-[Full documentation →](doc/architecture.md)
 
 
 ## FAQ
 
 **The beam's corners don't match my card's.**
-Pass the same radius your child uses — `borderRadius:` or `shape.radius`. The beam does not read the child's decoration, deliberately: it also wraps widgets that have no decoration to read.
+Pass the same radius your child uses — `borderRadius:` or `shape.radius` — and `superellipse: true` if the child uses `RoundedSuperellipseBorder`. The beam does not read the child's decoration.
 
 **My beam is clipped.**
-The beam paints outside the child's bounds. `pulseOutside` needs real room around it, and a positive `ringOffset` pushes the ring further out still. Add padding in the parent and remove any tight `ClipRRect` / `ClipPath` above the beam.
+`halo`, `rotate(comet: true)`, `spin`'s outer glow, and a positive `ringOffset` paint outside the child's bounds. Give the beam room — padding in the parent — and remove any tight `ClipRRect` / `ClipPath` above it.
 
 **Nothing shows up at all.**
-Check reduced motion. With `reducedMotion: BeamReducedMotion.hide`, a platform request for reduced motion paints nothing — that is the behavior working. `staticFrame` (the default) always leaves a visible frame.
+Check reduced motion: with `reducedMotion: BeamReducedMotion.hide`, a platform request for reduced motion paints nothing. In a widget test, `await BorderBeam.precache()` in `setUpAll` before checking pixels — the shader loads asynchronously.
 
-**The squircle option does nothing on my Flutter version.**
-`superellipse` needs Flutter ≥ 3.35, where `RSuperellipse` is stable. That is the package's declared minimum, and CI tests against exactly that version.
+**Is it 120Hz?**
+It runs at whatever rate the engine renders. On ProMotion iPhones that needs `CADisableMinimumFrameDurationOnPhone` in your `Info.plist` — see [Performance](#performance).
+
+**Does the halo need an opaque child?**
+No. Like every effect, `halo` paints in one pass over the child: a thin stroke on the border and its glow outside it. Nothing is drawn behind the child, so it can be translucent.
 
 **Why does my segment run the wrong way?**
-Segments always run clockwise from `start` to `end`, wrapping through top-center when needed. Swap the two anchors to select the complementary direction around the contour.
+Segments always run clockwise from `start` to `end`, wrapping through top-centre. Swap the anchors for the other side of the border.
 
 **Does it work on web?**
-Yes — the [live playground](https://simplifyjobs.github.io/flutter_border_beam/) is a web build of the example app, and CI builds it on every commit. The blur-heavy variants (`line`, `pulseOutside`) are the most expensive there, so prefer a single hero beam over a grid of them on web.
+Yes — the [live playground](https://simplifyjobs.github.io/flutter_border_beam/) is a web build of the example app, and CI builds it on every commit.
 
-**Can I animate between two beam configurations?**
-With `BorderBeam`, yes — changing `cycle` retimes in place, and palettes crossfade with `BeamColors.lerp` driven by an `Animation<double>`. With `BeamDecoration`, no: it does not interpolate, so an `AnimatedContainer` snaps.
+**Can I animate between two configurations?**
+With `BorderBeam`, yes: changing `cycle` retimes in place, and `BeamColors.lerp` driven by an animation crossfades palettes. `BeamDecoration` does not interpolate, so an `AnimatedContainer` snaps.
 
 
 ## Example app
 
-[`example/`](example) is the full gallery — the original demo recreated, with mock chat inputs, task cards, and search bars, plus the interactive playground behind the [live playground](https://simplifyjobs.github.io/flutter_border_beam/) link, live code snippets, and shareable URLs:
+[`example/`](example) is the gallery behind the [live playground](https://simplifyjobs.github.io/flutter_border_beam/): mock chat inputs, task cards, and search bars, plus an interactive playground with live code snippets and shareable URLs.
 
 ```console
 cd example && flutter run
@@ -727,23 +664,21 @@ Demo reels live in `example/lib/*.dart` and use the marker-based harness in `exa
 tool/record_demo.sh --target lib/showcase.dart --prefix SHOWCASE --contact
 ```
 
-Outputs land in `.demos/` (gitignored) as 60fps center-cropped mp4s with a contact sheet for review.
+Outputs land in `.demos/` (gitignored).
 
 
 ## Contributing
 
-Issues and pull requests are welcome — start with [CONTRIBUTING.md](CONTRIBUTING.md) for the local setup, the golden-test rules, and what a good change looks like here. Security reports go through [SECURITY.md](SECURITY.md).
-
-One rule worth knowing before you open an editor: **never tweak values in `lib/src/constants/`**. They are transcribed 1:1 from the upstream source and visual parity depends on them — see [doc/parity.md](doc/parity.md).
+Issues and pull requests are welcome — start with [CONTRIBUTING.md](CONTRIBUTING.md) for the setup, the rendering rules, and the golden-test workflow. [doc/architecture.md](doc/architecture.md) explains how a frame is built. Security reports go through [SECURITY.md](SECURITY.md).
 
 
 ## Credits
 
-This package is a port of **[border-beam](https://github.com/Jakubantalik/Libraries/tree/main/packages/border-beam)** — created and designed by **[Jakub Antalik](https://x.com/jakubantalik)** and released under the MIT license, with its own home at [Jakubantalik/border-beam](https://github.com/Jakubantalik/border-beam). All visual design — the five effects, color palettes, gradient geometry, animation timings, and the demo it ships with — is his work. If you like the effect, go star the original.
+This package was originally ported from, and remains inspired by, **[border-beam](https://github.com/Jakubantalik/Libraries/tree/main/packages/border-beam)** by **[Jakub Antalik](https://x.com/jakubantalik)** ([live demo](https://beam.jakubantalik.com), [Jakubantalik/border-beam](https://github.com/Jakubantalik/border-beam)), released under the MIT license. The effects that came from it (`rotate`, `line`, `pulse`, `halo`), the four original palettes, and the timings they started from are his design — if you like the look, go star the original.
 
-The Flutter port adds the widget/controller architecture, superellipse shapes, custom palette API, and the canvas rendering engine.
+Version 0.2.0 replaced the port with an independent native renderer: a single fragment shader written for Flutter, which no longer tracks the original's source.
 
 
 ## License
 
-MIT. See [LICENSE](LICENSE) for details — it includes the original work's copyright notice.
+MIT. See [LICENSE](LICENSE) — it includes the original work's copyright notice.

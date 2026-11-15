@@ -1,74 +1,86 @@
 # Performance
 
-A beam is an animated blur — the most expensive thing a phone GPU does per pixel. The engine is built around keeping that cost fixed and small, and around never paying it for a beam nobody can see.
+A beam is meant to be something you can leave running on a card while the user scrolls, at the display's full rate, without the phone warming up. The renderer is built around one rule: **one shader, one draw, no offscreen work.**
 
-## What the engine does for you
+## What a frame costs
 
-**One ticker per beam.** Not per layer, not per track. Every animated value is recomputed from one elapsed-seconds number each frame, so there is no per-track state to advance and no controller graph to walk. Under a [`BeamSync`](motion.md#beamsync) the whole subtree shares a single ticker.
+**One draw call.** Every frame of every effect is a single `drawRect` or `drawDRRect` whose paint carries the beam's fragment shader. There is no `saveLayer` (no offscreen render target to allocate, fill, and composite back), no clip, and no `ImageFilter` or `MaskFilter` (no blur pass). Glows that would conventionally be blurred — the bloom around the stroke, the outer halo, the light reaching inward — are evaluated analytically per pixel instead: a gaussian or a smooth falloff of the distance to the border.
 
-**A ~30fps cap on the pulse variants**, matching the original's pulse driver. Time still accumulates at full resolution — only notifications are throttled — so the animation is not slowed, just sampled less often. A `pulse()` or `flash()` boost lifts the cap while it plays, because a brightness accent at 30fps reads as a step.
+`test/render/frame_budget_test.dart` asserts this for every effect, on both surface tunings, across a palette subset, every shape family (rounded, per-corner, superellipse, stadium, segment, dashes, inward and outward ring offset, a thick border), the effect options, driven progress, and several instants: exactly one draw with the beam shader, zero `saveLayer`s, zero clips, no image or mask filter, and balanced saves and restores. A frame the fade or a cycle gap has blacked out draws nothing at all.
 
-**`RepaintBoundary` isolation, twice.** The beam sits in its own boundary, and the child sits in another one inside it. The consequence is the one that matters: **your child never re-rasterizes** when the beam animates, however complex the child is.
+**Pixels only where light can land.** The draw covers the box grown by the furthest outward glow, minus the interior beyond the furthest inward one — a ring, not the whole box. A beam whose light hugs the border shades a thin band of pixels.
 
-**Color matrices folded on the CPU.** Hue, brightness, and saturation are baked into the gradient colors before painting rather than carried on a `ColorFilter`. A filter needs a layer to ride on; folding it costs a few multiplications per frame instead.
+**Little CPU per frame.** Per frame the beam samples its phases from one elapsed-seconds number, hue-rotates at most eight palette colours, computes a few bumps of light along the border and up to eight point lights, and writes a fixed block of uniform floats into a `FragmentShader` it reuses for its lifetime. There is no path building, no gradient construction, and no per-frame buffer allocation; the outline is computed in the shader and its Dart mirror is cached until the box or radius changes.
 
-**An offscreen pause.** With `playback.pauseWhenOffscreen` (the default), a beam watches its nearest enclosing `Scrollable` and stops its clock once it is more than 256px outside the viewport, resuming exactly where it left off — play state, fade, and callbacks untouched. A long list of beamed cards therefore costs the beams you can see, not the beams you have. With no enclosing `Scrollable` it does nothing.
+**Every effect costs about the same.** They share the shader and the single draw, so choose effects for their look.
 
-## The saveLayer budget
+## 120Hz
 
-`saveLayer` is the expensive call: it allocates an offscreen surface, paints into it, and composites it back. The per-frame count — `paintBehind` plus `paintAbove` — is fixed per variant and **measured**, not estimated:
+The beam's clock ticks on every frame the engine produces; there is no frame-rate cap on any effect. On a 120Hz display the beam animates at 120Hz.
 
-| Variant | `saveLayer`s per frame |
-| --- | --- |
-| `rotate` | 4 |
-| `small` | 3 |
-| `line` | 4 |
-| `pulseInside` | 4 |
-| `pulseOutside` | 3 |
+On ProMotion iPhones, iOS holds an app to 60Hz unless the app opts in. Add this to your app's `ios/Runner/Info.plist`:
 
-Each entry is a layer the variant genuinely composites: the inner glow, the stroke, the bloom, the mask sub-layer where two masks intersect (`rotate`, `line`, `pulseInside`), and pulse-outside's two behind-child glows.
+```xml
+<key>CADisableMinimumFrameDurationOnPhone</key>
+<true/>
+```
 
-A segment adds two `dstIn` gradient draws per painted layer and zero `saveLayer`s; the budget test includes segment rows to pin that invariant.
+The example app sets it. iPads with ProMotion need no key.
 
-`test/painting/save_layer_budget_test.dart` measures the count through a counting canvas for every variant × brightness × palette × time sample and asserts it **exactly**, along with save/restore balance. A regression and an improvement both fail the suite until the table is updated in both the test and this document — which is the point: the number is a contract, not a high-water mark.
+## Loading the shader
 
-The rule the engine follows: never add a `saveLayer` to carry a `ColorFilter`. A filter rides on a layer that exists anyway, and blur is the only filter allowed to justify a layer of its own.
+The shader is a package asset, compiled by the Flutter tool and loaded once per process with `FragmentProgram.fromAsset`. A beam starts the load itself and paints nothing until it resolves — a few milliseconds that the 0.6s fade-in hides. To have the very first frame ready, load it at startup:
+
+```dart
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await BorderBeam.precache();
+  runApp(const App());
+}
+```
+
+In widget tests that read pixels, `await BorderBeam.precache()` in `setUpAll`.
+
+## What the widget does for you
+
+**One ticker per beam** — or exactly one per `BeamSync`, however many beams are in the group.
+
+**`RepaintBoundary` isolation, twice.** The beam sits in its own repaint boundary and the child in another inside it, so **your child never re-rasterizes** when the beam animates, however complex it is.
+
+**An offscreen pause.** With `playback.pauseWhenOffscreen` (the default), a beam watches its nearest enclosing `Scrollable` and stops its clock once it is more than 256px outside the viewport, resuming exactly where it left off — play state, fade, and callbacks untouched. A long list of beamed cards costs the beams you can see. With no enclosing `Scrollable` it does nothing.
+
+**Repaints without rebuilds.** The clock, `progress`, `strengthListenable`, and `speedListenable` drive the painter directly; none of them rebuilds a widget per frame.
+
+## Impeller: keep the beam off offscreen ancestors
+
+The beam itself never asks for an offscreen pass, but an ancestor can force one around it, and then the beam's pixels are rendered into a texture and composited back every frame. Keep a beam out from under:
+
+- **`Opacity`, `AnimatedOpacity`, and `FadeTransition`** with a value strictly between 0 and 1;
+- **`ShaderMask`**;
+- **`BackdropFilter`**;
+- **`ColorFiltered`** and **`ImageFiltered`**;
+- a clip with `Clip.antiAliasWithSaveLayer`.
+
+To fade a beam, use `style.strength` (static), `strengthListenable` (per frame, no rebuild), or `active` (the beam's own fade) instead of wrapping it in `Opacity`. To dim only the colours, use `BeamColors.scaleAlpha`.
 
 ## Measuring your own scene
 
-**Count the layers a widget paints.** The same technique the budget test uses works on any widget:
+**Check the raster thread.** A beam does very little on the UI thread; its cost is a single draw on the raster thread. In DevTools' Performance view, a frame budget blown by beams shows up as a tall raster bar with a short UI bar.
 
-```dart
-import 'dart:ui' as ui;
+**Look for offscreen passes above the beam.** If raster time is high, check the layer tree for an `OpacityLayer`, `ShaderMaskLayer`, `BackdropFilterLayer`, or `ColorFilterLayer` above the beam — that is the ancestor problem above, not the beam.
 
-final recorder = ui.PictureRecorder();
-final canvas = Canvas(recorder);
-// Paint your beam's painter into `canvas`, then inspect the recorded picture.
-```
+**Use the repaint overlay.** With *Highlight repaints* on, each beam's boundary should change colour every frame while the child inside it does not. If the child flashes too, something above the beam is invalidating it.
 
-For a scene rather than a painter, the simplest reliable count is DevTools: open the **Performance** view, enable **Track widget builds**, and use the *Raster* timeline — `saveLayer` calls show up as separate raster work in the frame's layer tree.
-
-**Check the raster thread, not the UI thread.** A beam does almost nothing on the UI thread; its cost is entirely raster. A frame budget blown by beams shows up as a tall raster bar with a short UI bar.
-
-**Toggle the two DevTools flags that matter here:**
-
-- *Highlight repaints* — every beam should show its own boundary changing color while the child inside it does not. If the child flashes too, something above the beam is invalidating it.
-- *Render Surface Layers* (`debugRepaintRainbowEnabled` / the raster overlay) — confirms the beam is compositing on its own surface rather than forcing the page to.
-
-**Profile in profile mode, on a device.** Blur cost in debug mode on a simulator tells you nothing.
+**Profile in profile mode, on a device.** Debug builds and simulators tell you little about GPU cost.
 
 ## Getting a scene cheaper
 
-In rough order of how much they buy:
-
-1. **Use fewer beams.** A beam is emphasis; a screen where everything is emphasized has none. One hero beam almost always looks better than six.
-2. **Put a group on a `BeamSync`.** Ten beams become one ticker and one timeline, and the group reads as deliberate rather than noisy.
-3. **Prefer `small` and `pulseOutside`** where the design allows — they are the two three-layer variants.
-4. **Drop `sparkle` and `comet`** on a scene that is already tight; both add geometry to the traveling head.
-5. **Lower `renderScale`** on very large boxes. It paints the beam smaller and scales up, which cuts blur cost as well as making a card-sized palette read at screen size.
-6. **Keep `pauseWhenOffscreen` on.** Turn it off only when a beam must stay phase-locked to something visible while it is itself out of view.
-7. **Keep palettes value-equal.** A palette that compares unequal each build re-resolves the config and rebuilds the phase resolver every frame. See [palettes](palettes.md#values-equality-and-the-memo).
+1. **Use fewer beams.** A beam is emphasis; a screen where everything is emphasized has none. One hero beam usually looks better than six.
+2. **Put a group on a `BeamSync`.** Many beams become one ticker and one timeline, and the group reads as deliberate.
+3. **Keep glows proportionate.** `style.glow` scales how far light reaches; a larger reach means more pixels shaded. `halo` and `rotate(comet: true)` reach furthest outward.
+4. **Keep `pauseWhenOffscreen` on.** Turn it off only when a beam must stay in step with something visible while it is itself out of view.
+5. **Keep palettes value-equal.** A palette that compares unequal on every build re-resolves the config each time. See [palettes](palettes.md#values-equality-and-the-memo).
 
 ## Web
 
-The package compiles and runs on web — the [playground](https://simplifyjobs.github.io/flutter_border_beam/) is a web build of the example app, and CI builds it on every commit. Blur is the expensive part on every web renderer, so `line` and `pulseOutside` cost the most there. A single hero beam is a safe bet; a grid of them is not.
+The package compiles and runs on web — the [playground](https://simplifyjobs.github.io/flutter_border_beam/) is a web build of the example app, and CI builds it on every commit. The renderer is the same single shader draw there.
