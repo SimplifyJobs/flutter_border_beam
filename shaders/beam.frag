@@ -21,7 +21,8 @@
 //
 // Uniforms are vec4s and vec4 arrays only, so the float layout is identical on
 // every backend (Impeller Metal / Vulkan / GLES, and Skia's SkSL). The Dart
-// packer in lib/src/render/beam_uniforms.dart mirrors this order exactly.
+// packer (`_pack` in lib/src/render/beam_renderer.dart) mirrors this order
+// exactly; test/render/ parses this file to keep the two in step.
 
 #version 460 core
 
