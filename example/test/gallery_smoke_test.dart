@@ -6,6 +6,10 @@ import 'package:flutter_border_beam_example/src/mocks.dart';
 import 'package:flutter_border_beam_example/src/playground/controls_panel.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+/// What the playground prints for a default configuration.
+const String defaultSnippet =
+    'BorderBeam(\n  effect: const BeamEffect.rotate(),\n  child: child,\n)';
+
 /// Reads the playground's generated snippet.
 String snippetText(WidgetTester tester) =>
     tester.widget<Text>(find.byKey(const ValueKey('playground-snippet'))).data!;
@@ -18,14 +22,8 @@ Future<void> settle(WidgetTester tester) async {
   await tester.pump(const Duration(milliseconds: 300));
 }
 
-/// Scrolls [label] into view before tapping it — the demo is one long
-/// scroll view, and a tap on an off-screen widget silently hits nothing.
-Future<void> tapLabel(WidgetTester tester, String label) async {
-  await tapFinder(tester, find.text(label));
-}
-
-/// The same, for a label that also appears elsewhere on the page: the
-/// playground's own controls are scoped to the [ControlsPanel].
+/// Taps a playground control: labels are scoped to the [ControlsPanel],
+/// since the gallery above it reuses several of them.
 Future<void> tapControl(WidgetTester tester, String label) async {
   await tapFinder(
     tester,
@@ -33,7 +31,16 @@ Future<void> tapControl(WidgetTester tester, String label) async {
   );
 }
 
-/// Scrolls [finder] into view and taps it.
+/// Taps one of the gallery's Rotate/Pulse tabs.
+Future<void> tapTab(WidgetTester tester, String label) async {
+  await tapFinder(
+    tester,
+    find.descendant(of: find.byType(PillTabBar), matching: find.text(label)),
+  );
+}
+
+/// Scrolls [finder] into view and taps it — the demo is one long scroll
+/// view, and a tap on an off-screen widget silently hits nothing.
 Future<void> tapFinder(WidgetTester tester, Finder finder) async {
   await settle(tester);
   await tester.ensureVisible(finder);
@@ -43,221 +50,99 @@ Future<void> tapFinder(WidgetTester tester, Finder finder) async {
 }
 
 /// Mounts the demo on a tall viewport — the gallery is one long page.
-Future<void> pumpGallery(WidgetTester tester) async {
-  tester.view.physicalSize = const Size(1200, 3600);
-  tester.view.devicePixelRatio = 2;
+Future<void> pumpGallery(
+  WidgetTester tester, {
+  Size size = const Size(1200, 3600),
+  double devicePixelRatio = 2,
+}) async {
+  tester.view.physicalSize = size;
+  tester.view.devicePixelRatio = devicePixelRatio;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(const BorderBeamDemoApp());
   await tester.pump(const Duration(milliseconds: 300));
 }
 
 void main() {
+  setUpAll(BorderBeam.precache);
+
   testWidgets('gallery renders both tabs, the themed section, and the '
       'playground', (tester) async {
-    tester.view.physicalSize = const Size(1200, 3600);
-    tester.view.devicePixelRatio = 2;
-    addTearDown(tester.view.reset);
-
-    await tester.pumpWidget(const BorderBeamDemoApp());
-    await tester.pump(const Duration(milliseconds: 300));
+    await pumpGallery(tester);
 
     expect(find.text('Border beam'), findsOneWidget);
     expect(find.text('Build anything...'), findsWidgets);
     expect(find.text('Playground'), findsOneWidget);
 
-    // The themed gallery: three variants under one BorderBeamTheme.
+    // The themed gallery: three effects under one BorderBeamTheme.
     expect(find.text('Themed'), findsOneWidget);
-    expect(find.text('rotate'), findsOneWidget);
-    expect(find.text('small'), findsOneWidget);
-    expect(find.text('pulseInside'), findsOneWidget);
+    for (final label in ['themed rotate', 'themed flow', 'themed pulse']) {
+      expect(find.text(label), findsOneWidget);
+    }
     expect(find.text('Rest between sweeps'), findsOneWidget);
     expect(find.text('Partial contours'), findsOneWidget);
-    expect(find.text('Half phone'), findsOneWidget);
-    expect(find.text('Half phone · line'), findsOneWidget);
-    expect(find.text('Half phone · pulse'), findsOneWidget);
-    expect(find.text('Corner wrap'), findsOneWidget);
-
-    // Switch to the Pulse tab.
-    await tapLabel(tester, 'Pulse');
-    expect(find.text('Working...'), findsOneWidget);
-    expect(find.text('Subscribe'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('playground: a default configuration prints the one-liner', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(1200, 3600);
-    tester.view.devicePixelRatio = 2;
-    addTearDown(tester.view.reset);
-
-    await tester.pumpWidget(const BorderBeamDemoApp());
-    await tester.pump(const Duration(milliseconds: 300));
-
-    expect(snippetText(tester), 'BorderBeam.rotate(\n  child: child,\n)');
-  });
-
-  testWidgets('playground: variant, shape, and palette changes reach the '
-      'snippet', (tester) async {
-    tester.view.physicalSize = const Size(1200, 3600);
-    tester.view.devicePixelRatio = 2;
-    addTearDown(tester.view.reset);
-
-    await tester.pumpWidget(const BorderBeamDemoApp());
-    await tester.pump(const Duration(milliseconds: 300));
-
-    final before = snippetText(tester);
-
-    await tapLabel(tester, 'Line');
-    expect(snippetText(tester), startsWith('BorderBeam.line('));
-    expect(snippetText(tester), isNot(before));
-
-    await tapLabel(tester, 'Ocean');
-    expect(snippetText(tester), contains('colors: BeamColors.ocean'));
-
-    await tapLabel(tester, 'Stadium');
-    expect(snippetText(tester), contains('BeamShape.stadium('));
-
-    await tapLabel(tester, 'Squircle');
-    expect(snippetText(tester), contains('superellipse: true'));
-
-    await tapLabel(tester, 'Pulse Outside');
-    expect(snippetText(tester), startsWith('BorderBeam.pulseOutside('));
-
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('playground: segment chips and corner wrap reach the snippet', (
-    tester,
-  ) async {
-    await pumpGallery(tester);
-
-    await tapControl(tester, 'Bottom half');
-    expect(snippetText(tester), contains('BeamSegment.bottomHalf'));
-
-    await tapControl(tester, 'Top edge');
-    expect(snippetText(tester), contains('BeamSegment.topEdge'));
-
-    await tapFinder(
-      tester,
-      find
-          .descendant(
-            of: find.byType(ControlsPanel),
-            matching: find.text('Custom'),
-          )
-          .last,
-    );
-    expect(
-      snippetText(tester),
-      contains(
-        'BeamSegment(start: BeamAnchor.edge(BeamEdge.right), '
-        'end: BeamAnchor.edge(BeamEdge.left), feather: 48)',
-      ),
-    );
-    expect(find.text('Start edge'), findsOneWidget);
-    expect(find.text('End edge'), findsOneWidget);
-    expect(find.text('Feather'), findsOneWidget);
-
-    await tapControl(tester, 'Off');
-    await tapControl(tester, 'Line');
-    await tapControl(tester, 'Wrap corners');
-    expect(snippetText(tester), contains('wrapCorners: true'));
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('playground: controller mode swaps in a controller and its '
-      'transport', (tester) async {
-    tester.view.physicalSize = const Size(1200, 3600);
-    tester.view.devicePixelRatio = 2;
-    addTearDown(tester.view.reset);
-
-    await tester.pumpWidget(const BorderBeamDemoApp());
-    await tester.pump(const Duration(milliseconds: 300));
-
-    expect(find.text('Start'), findsNothing);
-
-    await tapLabel(tester, 'Controller');
-    expect(snippetText(tester), contains('final controller ='));
-    expect(snippetText(tester), contains('controller: controller'));
-    // The declarative scheduling fields are the controller's now.
-    expect(snippetText(tester), isNot(contains('playback:')));
-    expect(find.text('Start'), findsOneWidget);
-
-    for (final action in ['Pause', 'Resume', 'Stop', 'Start']) {
-      await tapLabel(tester, action);
+    for (final label in [
+      'Half phone',
+      'Half phone · line',
+      'Half phone · pulse',
+      'Bottom edge · spin',
+    ]) {
+      expect(find.text(label), findsOneWidget);
     }
 
-    await tapLabel(tester, 'Controller');
-    expect(snippetText(tester), isNot(contains('controller: controller')));
-    expect(find.text('Start'), findsNothing);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('playground: the theme toggle wraps the snippet in a '
-      'BorderBeamTheme', (tester) async {
-    tester.view.physicalSize = const Size(1200, 3600);
-    tester.view.devicePixelRatio = 2;
-    addTearDown(tester.view.reset);
-
-    await tester.pumpWidget(const BorderBeamDemoApp());
-    await tester.pump(const Duration(milliseconds: 300));
-
-    await tapLabel(tester, 'Theme');
-    await tapLabel(tester, 'BorderBeamTheme');
-    expect(snippetText(tester), startsWith('BorderBeamTheme('));
-    expect(snippetText(tester), contains('BeamColors.ocean'));
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('playground: Reset returns every control to its default', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(1200, 3600);
-    tester.view.devicePixelRatio = 2;
-    addTearDown(tester.view.reset);
-
-    await tester.pumpWidget(const BorderBeamDemoApp());
-    await tester.pump(const Duration(milliseconds: 300));
-
-    await tapLabel(tester, 'Line');
-    await tapLabel(tester, 'Stadium');
+    // Switch to the Pulse tab, where the halo replaces pulse-outside.
+    await tapTab(tester, 'Pulse');
+    expect(find.text('Working...'), findsOneWidget);
+    expect(find.text('Subscribe'), findsOneWidget);
     expect(
-      snippetText(tester),
-      isNot('BorderBeam.rotate(\n  child: child,\n)'),
+      tester
+          .widgetList<BorderBeam>(find.byType(BorderBeam))
+          .where((beam) => beam.effect is HaloEffect),
+      isNotEmpty,
     );
-
-    await tapLabel(tester, 'Reset');
-    expect(snippetText(tester), 'BorderBeam.rotate(\n  child: child,\n)');
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('gallery: the palette, surface, motion, progress, and sync '
-      'sections all render', (tester) async {
+  testWidgets('gallery: the new effects, every effect, and every preset '
+      'render', (tester) async {
     await pumpGallery(tester);
 
     for (final title in [
+      'Flow, spin, shimmer, charge',
+      'Every effect',
+      'Driven progress',
       'Palettes',
       'Surfaces',
       'Motion',
-      'Driven progress',
       'Sync',
-      'Partial contours',
     ]) {
       await tester.ensureVisible(find.text(title));
       await settle(tester);
       expect(find.text(title), findsOneWidget, reason: '$title section');
     }
 
-    for (final label in ['Half phone', 'Half phone · line', 'Corner wrap']) {
-      await tester.ensureVisible(find.text(label));
-      await settle(tester);
-      expect(find.text(label), findsOneWidget);
+    // The four newer effects on their own surfaces.
+    for (final label in [
+      'Listening…',
+      'Get started',
+      'Upgrade to Pro',
+      'Saving draft',
+      'flow · cosmic',
+      'shimmer · gold',
+      'charge · lagoon',
+    ]) {
+      expect(find.text(label), findsOneWidget, reason: label);
     }
 
-    // One card per palette preset, named by the constant it uses.
-    for (final preset in ['colorful', 'mono', 'gold', 'holographic']) {
-      expect(find.text(preset), findsOneWidget);
+    // One card per effect, named by BeamEffect.name.
+    for (final effect in BeamEffect.values) {
+      expect(find.text(effect.name), findsWidgets, reason: effect.name);
     }
+
+    // One card per preset, named by its key; the eight new ones are tagged.
+    for (final name in BeamColors.presets.keys) {
+      expect(find.text(name), findsOneWidget, reason: name);
+    }
+    expect(find.text('new'), findsNWidgets(8));
 
     // The four surface entry points.
     for (final label in [
@@ -270,10 +155,36 @@ void main() {
     }
 
     // The motion cards.
-    for (final label in ['reverse', 'bounce', 'beamCount 3', 'segments 8']) {
+    for (final label in [
+      'reverse',
+      'bounce',
+      'count 3',
+      'dashes 8',
+      'comet',
+      'glow 2',
+    ]) {
       expect(find.text(label), findsOneWidget);
     }
 
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('gallery: charge fills to a looping progress value', (
+    tester,
+  ) async {
+    await pumpGallery(tester);
+
+    BorderBeam charge() => tester
+        .widgetList<BorderBeam>(find.byType(BorderBeam))
+        .firstWhere(
+          (beam) => beam.effect is ChargeEffect && beam.progress != null,
+        );
+
+    final first = charge().progress!;
+    await tester.pump(const Duration(seconds: 1));
+    final later = charge().progress!;
+    expect(later, greaterThan(first));
+    expect(find.textContaining('Uploading…'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -313,10 +224,163 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('playground: a default configuration prints the effect and '
+      'the child', (tester) async {
+    await pumpGallery(tester);
+    expect(snippetText(tester), defaultSnippet);
+  });
+
+  testWidgets('playground: effect, palette, and shape changes reach the '
+      'snippet', (tester) async {
+    await pumpGallery(tester);
+
+    await tapControl(tester, 'Line');
+    expect(snippetText(tester), contains('effect: const BeamEffect.line()'));
+    await tapControl(tester, 'Top');
+    expect(
+      snippetText(tester),
+      contains('BeamEffect.line(edge: BeamEdge.top)'),
+    );
+
+    await tapControl(tester, 'Ocean');
+    expect(snippetText(tester), contains('colors: BeamColors.ocean'));
+    await tapControl(tester, 'Lagoon');
+    expect(snippetText(tester), contains('colors: BeamColors.lagoon'));
+
+    await tapControl(tester, 'Shape');
+    await tapControl(tester, 'Stadium');
+    expect(snippetText(tester), contains('BeamShape.stadium('));
+    await tapControl(tester, 'Squircle');
+    expect(snippetText(tester), contains('superellipse: true'));
+    await tapControl(tester, '8');
+    expect(snippetText(tester), contains('dashes: 8'));
+
+    await tapControl(tester, 'Halo');
+    expect(snippetText(tester), contains('effect: const BeamEffect.halo()'));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('playground: per-effect parameters appear with their effect', (
+    tester,
+  ) async {
+    await pumpGallery(tester);
+
+    // Rotate is the default, so its parameters show from the start.
+    await tapControl(tester, '3');
+    await tapControl(tester, 'Comet tail');
+    expect(
+      snippetText(tester),
+      contains('BeamEffect.rotate(count: 3, comet: true)'),
+    );
+
+    await tapControl(tester, 'Shimmer');
+    expect(find.text('Comet tail'), findsNothing);
+    expect(find.text('Angle'), findsOneWidget);
+    expect(snippetText(tester), contains('effect: const BeamEffect.shimmer()'));
+
+    await tapControl(tester, 'Charge');
+    expect(find.text('Angle'), findsNothing);
+    expect(snippetText(tester), contains('effect: const BeamEffect.charge()'));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('playground: segment chips reach the snippet', (tester) async {
+    await pumpGallery(tester);
+
+    await tapControl(tester, 'Shape');
+    await tapControl(tester, 'Bottom half');
+    expect(snippetText(tester), contains('BeamSegment.bottomHalf'));
+
+    await tapControl(tester, 'Right edge');
+    expect(snippetText(tester), contains('BeamSegment.rightEdge'));
+
+    // The palette's Custom chip comes first; the segment's is the last.
+    await tapFinder(
+      tester,
+      find
+          .descendant(
+            of: find.byType(ControlsPanel),
+            matching: find.text('Custom'),
+          )
+          .last,
+    );
+    expect(
+      snippetText(tester),
+      contains(
+        'BeamSegment(start: BeamAnchor.edge(BeamEdge.right), '
+        'end: BeamAnchor.edge(BeamEdge.left), feather: 48)',
+      ),
+    );
+    expect(find.text('Start edge'), findsOneWidget);
+    expect(find.text('End edge'), findsOneWidget);
+    expect(find.text('Feather'), findsOneWidget);
+
+    await tapControl(tester, 'Off');
+    expect(snippetText(tester), defaultSnippet);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('playground: controller mode swaps in a controller and its '
+      'transport', (tester) async {
+    await pumpGallery(tester);
+
+    expect(find.text('start()'), findsNothing);
+
+    await tapControl(tester, 'Controller');
+    expect(snippetText(tester), contains('final controller ='));
+    expect(snippetText(tester), contains('controller: controller'));
+    expect(snippetText(tester), contains('controller.pulse() / .flash()'));
+    // The declarative scheduling fields are the controller's now.
+    expect(snippetText(tester), isNot(contains('playback:')));
+
+    for (final action in [
+      'pause()',
+      'resume()',
+      'stop()',
+      'start()',
+      'pulse()',
+      'flash()',
+    ]) {
+      await tapControl(tester, action);
+    }
+
+    await tapControl(tester, 'Controller');
+    expect(snippetText(tester), isNot(contains('controller: controller')));
+    expect(find.text('start()'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('playground: the theme toggle wraps the snippet in a '
+      'BorderBeamTheme', (tester) async {
+    await pumpGallery(tester);
+
+    await tapControl(tester, 'Theme & sync');
+    await tapControl(tester, 'BorderBeamTheme');
+    expect(snippetText(tester), startsWith('BorderBeamTheme('));
+    expect(snippetText(tester), contains('BeamColors.ocean'));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('playground: Reset returns every control to its default', (
+    tester,
+  ) async {
+    await pumpGallery(tester);
+
+    await tapControl(tester, 'Flow');
+    await tapControl(tester, 'Cosmic');
+    expect(snippetText(tester), isNot(defaultSnippet));
+
+    // Reset sits in the toolbar above the panel.
+    await tapFinder(tester, find.text('Reset'));
+    expect(snippetText(tester), defaultSnippet);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('playground: the Drive section feeds progress, the pointer, '
       'and a signal', (tester) async {
     await pumpGallery(tester);
 
+    await tapControl(tester, 'Charge');
     await tapControl(tester, 'Drive');
     await tapControl(tester, 'Progress');
     expect(snippetText(tester), contains('progress: 0.35'));
@@ -331,6 +395,9 @@ void main() {
     await tapControl(tester, 'Progress');
     expect(snippetText(tester), contains('follow: pointer'));
 
+    // Ambient effects have no travel to drive or follow.
+    await tapControl(tester, 'Spin');
+    expect(snippetText(tester), isNot(contains('follow:')));
     expect(tester.takeException(), isNull);
   });
 
@@ -339,7 +406,7 @@ void main() {
   ) async {
     await pumpGallery(tester);
 
-    await tapControl(tester, 'Theme');
+    await tapControl(tester, 'Theme & sync');
     await tapControl(tester, 'BeamSync');
     expect(snippetText(tester), startsWith('BeamSync('));
     // The group's three beams are labelled with the phase each one runs at.
@@ -347,30 +414,13 @@ void main() {
     expect(find.text('phaseOffset 0.33'), findsWidgets);
 
     await tapControl(tester, 'BeamSync');
-    expect(snippetText(tester), startsWith('BorderBeam.rotate('));
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('playground: the controller transport carries pulse and '
-      'flash', (tester) async {
-    await pumpGallery(tester);
-
-    await tapControl(tester, 'Controller');
-    expect(snippetText(tester), contains('controller.pulse() / .flash()'));
-
-    for (final action in ['Pulse', 'Flash', 'Pause', 'Resume', 'Start']) {
-      await tapControl(tester, action);
-    }
+    expect(snippetText(tester), startsWith('BorderBeam('));
     expect(tester.takeException(), isNull);
   });
 
   testWidgets('playground: controllers start when previews attach or return '
       'from sync mode', (tester) async {
-    tester.view.physicalSize = const Size(519, 3600);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-    await tester.pumpWidget(const BorderBeamDemoApp());
-    await tester.pump(const Duration(milliseconds: 300));
+    await pumpGallery(tester, size: const Size(519, 3600), devicePixelRatio: 1);
 
     await tapControl(tester, 'Controller');
     var controlled = tester
@@ -389,7 +439,7 @@ void main() {
     expect(controlled, hasLength(2));
     expect(controlled.every((beam) => beam.controller!.isActive), isTrue);
 
-    await tapControl(tester, 'Theme');
+    await tapControl(tester, 'Theme & sync');
     await tapControl(tester, 'BeamSync');
     expect(
       tester
@@ -408,7 +458,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('playground: the new palette modes reach the snippet', (
+  testWidgets('playground: the palette factories reach the snippet', (
     tester,
   ) async {
     await pumpGallery(tester);
@@ -424,6 +474,22 @@ void main() {
     await tapControl(tester, 'Lerp');
     expect(snippetText(tester), contains('BeamColors.lerp('));
 
+    await tapControl(tester, 'Custom');
+    expect(snippetText(tester), contains('const BeamColors([Color('));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('playground: style fields reach a const BeamStyle', (
+    tester,
+  ) async {
+    await pumpGallery(tester);
+
+    await tapControl(tester, 'Style');
+    await tapControl(tester, 'None');
+    expect(snippetText(tester), contains('hueMode: BeamHueMode.none'));
+    await tapControl(tester, 'Light');
+    expect(snippetText(tester), contains('theme: BeamTheme.light'));
+    expect(snippetText(tester), contains('style: const BeamStyle('));
     expect(tester.takeException(), isNull);
   });
 
@@ -442,18 +508,6 @@ void main() {
     final before = snippetText(tester);
     await tapControl(tester, 'Simulate reduced motion');
     expect(snippetText(tester), before);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('playground: the star contour and ring offset reach the '
-      'shape', (tester) async {
-    await pumpGallery(tester);
-
-    await tapControl(tester, 'Star contour');
-    expect(
-      snippetText(tester),
-      contains("// contour: BeamPathContour(builder: yourPath, key: 'star')"),
-    );
     expect(tester.takeException(), isNull);
   });
 }

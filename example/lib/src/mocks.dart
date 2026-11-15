@@ -4,7 +4,9 @@ import 'demo_theme.dart';
 
 /// Mock UI surfaces mirroring the original border-beam demo (`mocks.tsx` +
 /// `styles.css`): a chat input, an agent working card, a subscribe pill, an
-/// icon button, and a search bar. Purely presentational.
+/// icon button, and a search bar — plus the surfaces the newer effects sit
+/// on: a listening assistant, a pill button, and an upload row. Purely
+/// presentational.
 
 BoxDecoration _mockBox(DemoTokens t, double radius) => BoxDecoration(
   color: t.mockBg,
@@ -230,6 +232,146 @@ class MockSearchBar extends StatelessWidget {
   }
 }
 
+/// A 264×64 voice-assistant row: a mic, "Listening…", and a level meter —
+/// the surface `BeamEffect.flow` is made for.
+class MockListeningCard extends StatelessWidget {
+  /// Const constructor.
+  const MockListeningCard({super.key});
+
+  static const List<double> _levels = [6, 12, 18, 10, 16, 8, 14, 6];
+
+  @override
+  Widget build(BuildContext context) {
+    final t = DemoTheme.of(context).tokens;
+    return Container(
+      width: 264,
+      height: 64,
+      decoration: _mockBox(t, 32),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: t.mockChipBg,
+              shape: BoxShape.circle,
+              border: Border.all(color: t.mockChipLine),
+            ),
+            child: Icon(Icons.mic_none, size: 18, color: t.mockText),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text('Listening…', style: _mockStyle(t.mockText, size: 14)),
+          ),
+          for (final level in _levels) ...[
+            Container(
+              width: 3,
+              height: level,
+              decoration: BoxDecoration(
+                color: t.mockIcon,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 3),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// A 44-tall pill button with an optional leading glyph — "Get started",
+/// "Upgrade to Pro".
+class MockPillButton extends StatelessWidget {
+  /// Creates the button.
+  const MockPillButton({super.key, required this.label, this.icon});
+
+  /// Button text.
+  final String label;
+
+  /// Optional glyph ahead of [label].
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = DemoTheme.of(context).tokens;
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.symmetric(horizontal: 22),
+      decoration: _mockBox(t, 22),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon case final IconData glyph) ...[
+            Icon(glyph, size: 16, color: t.mockTextStrong),
+            const SizedBox(width: 8),
+          ],
+          Text(
+            label,
+            style: _mockStyle(t.mockTextStrong, weight: FontWeight.w500),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A 280×72 upload row whose label reads out [progress] — the surface the
+/// gallery's progress-driven `BeamEffect.charge` fills.
+class MockUploadCard extends StatelessWidget {
+  /// Creates the row.
+  const MockUploadCard({super.key, required this.progress});
+
+  /// Upload progress, 0–1.
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = DemoTheme.of(context).tokens;
+    final percent = (progress * 100).clamp(0, 100).round();
+    return Container(
+      width: 280,
+      height: 72,
+      decoration: _mockBox(t, 18),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: t.mockChipBg,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: t.mockChipLine),
+            ),
+            child: Icon(
+              Icons.insert_drive_file_outlined,
+              size: 18,
+              color: t.mockIcon,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('brand-kit.zip', style: _mockStyle(t.mockTextStrong)),
+                const SizedBox(height: 4),
+                Text(
+                  percent >= 100 ? 'Uploaded' : 'Uploading… $percent%',
+                  style: _mockStyle(t.mockPlaceholder, size: 12),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// A focusable field with no Material ancestor: a [Focus] around a painted
 /// box, so the gallery can show `BeamFocusRing` lighting on focus without
 /// pulling in Material's own input decoration.
@@ -282,10 +424,17 @@ class _MockFocusFieldState extends State<MockFocusField> {
                   color: _node.hasFocus ? t.mockTextStrong : t.mockPlaceholder,
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  widget.label,
-                  style: _mockStyle(
-                    _node.hasFocus ? t.mockText : t.mockPlaceholder,
+                // Flexible, so a phone-width frame squeezing the field
+                // ellipsizes the label instead of overflowing.
+                Flexible(
+                  child: Text(
+                    widget.label,
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.ellipsis,
+                    style: _mockStyle(
+                      _node.hasFocus ? t.mockText : t.mockPlaceholder,
+                    ),
                   ),
                 ),
               ],

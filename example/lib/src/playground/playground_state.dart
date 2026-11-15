@@ -1,72 +1,83 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_border_beam/flutter_border_beam.dart';
 
-/// The palette choices the playground offers: the eleven presets, a
-/// user-assembled [BeamColors.custom] list, a [BeamColors.fromSeed] palette
-/// derived from one swatch, and a [BeamColors.lerp] blend of two presets.
-enum PalettePreset {
-  /// [BeamColors.colorful] — the package default.
-  colorful('Colorful', 'colorful', BeamColors.colorful),
+/// The eight effects the playground can preview, in gallery order.
+enum EffectKind {
+  /// [BeamEffect.rotate].
+  rotate('Rotate'),
 
-  /// [BeamColors.mono].
-  mono('Mono', 'mono', BeamColors.mono),
+  /// [BeamEffect.line].
+  line('Line'),
 
-  /// [BeamColors.ocean].
-  ocean('Ocean', 'ocean', BeamColors.ocean),
+  /// [BeamEffect.pulse].
+  pulse('Pulse'),
 
-  /// [BeamColors.sunset].
-  sunset('Sunset', 'sunset', BeamColors.sunset),
+  /// [BeamEffect.halo].
+  halo('Halo'),
 
-  /// [BeamColors.aurora].
-  aurora('Aurora', 'aurora', BeamColors.aurora),
+  /// [BeamEffect.flow].
+  flow('Flow'),
 
-  /// [BeamColors.neon].
-  neon('Neon', 'neon', BeamColors.neon),
+  /// [BeamEffect.spin].
+  spin('Spin'),
 
-  /// [BeamColors.candy].
-  candy('Candy', 'candy', BeamColors.candy),
+  /// [BeamEffect.shimmer].
+  shimmer('Shimmer'),
 
-  /// [BeamColors.ember].
-  ember('Ember', 'ember', BeamColors.ember),
+  /// [BeamEffect.charge].
+  charge('Charge');
 
-  /// [BeamColors.ice].
-  ice('Ice', 'ice', BeamColors.ice),
-
-  /// [BeamColors.gold].
-  gold('Gold', 'gold', BeamColors.gold),
-
-  /// [BeamColors.holographic].
-  holographic('Holographic', 'holographic', BeamColors.holographic),
-
-  /// Colors picked from [customSwatches]; [colors] is null because the list
-  /// is built from the playground state.
-  custom('Custom', 'custom', null),
-
-  /// A palette derived from one swatch through [BeamColors.fromSeed].
-  seed('Seed', 'seed', null),
-
-  /// Two presets blended through [BeamColors.lerp].
-  lerp('Lerp', 'lerp', null);
-
-  const PalettePreset(this.label, this.id, this.colors);
+  const EffectKind(this.label);
 
   /// Chip label.
   final String label;
 
-  /// Stable id used by the share codec and the generated snippet.
-  final String id;
+  /// Stable id used by the share codec and the generated snippet — the
+  /// effect's own `BeamEffect.name`.
+  String get id => name;
 
-  /// The preset this choice maps to, or null for the three assembled modes
-  /// ([custom], [seed], [lerp]).
-  final BeamColors? colors;
-
-  /// The choices that name a package preset — what the lerp endpoints and
-  /// the custom base are picked from.
-  static List<PalettePreset> get presets =>
-      values.where((preset) => preset.colors != null).toList();
+  /// This effect with its default parameters — the source of every
+  /// effect-dependent default the controls show.
+  BeamEffect get defaults => switch (this) {
+    EffectKind.rotate => const BeamEffect.rotate(),
+    EffectKind.line => const BeamEffect.line(),
+    EffectKind.pulse => const BeamEffect.pulse(),
+    EffectKind.halo => const BeamEffect.halo(),
+    EffectKind.flow => const BeamEffect.flow(),
+    EffectKind.spin => const BeamEffect.spin(),
+    EffectKind.shimmer => const BeamEffect.shimmer(),
+    EffectKind.charge => const BeamEffect.charge(),
+  };
 }
+
+/// How the playground assembles its palette: one of the package presets, or
+/// one of the three palette factories.
+enum PaletteMode {
+  /// A named entry of [BeamColors.presets].
+  preset('preset'),
+
+  /// A [BeamColors] ring built from [customSwatches].
+  custom('custom'),
+
+  /// A palette derived from one swatch through [BeamColors.fromSeed].
+  seed('seed'),
+
+  /// Two presets blended through [BeamColors.lerp].
+  lerp('lerp');
+
+  const PaletteMode(this.id);
+
+  /// Stable id used by the share codec, sharing the `p=` key with the
+  /// preset names.
+  final String id;
+}
+
+/// The package presets by name, in gallery order.
+List<String> get presetNames => BeamColors.presets.keys.toList();
+
+/// `ocean` → `Ocean`.
+String presetLabel(String name) =>
+    name.isEmpty ? name : '${name[0].toUpperCase()}${name.substring(1)}';
 
 /// One entry of the custom-color picker: a name for the control and the
 /// color the snippet emits.
@@ -86,15 +97,14 @@ const List<Swatch> customSwatches = [
   (name: 'Blue', color: Color(0xFF2979FF)),
 ];
 
-/// Smallest and largest number of colors [BeamColors.custom] may be given
-/// from the picker.
+/// Fewest colors the custom picker keeps selected.
 const int minCustomColors = 2;
 
-/// Largest number of colors the custom picker accepts.
-const int maxCustomColors = 4;
+/// Most colors the custom picker accepts.
+const int maxCustomColors = 6;
 
-/// The dash counts the ring-segments control offers, alongside `off`.
-const List<int> segmentChoices = [4, 6, 8, 12, 16];
+/// The dash counts the dashes control offers, alongside `off`.
+const List<int> dashChoices = [4, 6, 8, 12, 16, 24];
 
 /// Partial-contour choices exposed by the Shape controls.
 enum SegmentPreset {
@@ -119,6 +129,12 @@ enum SegmentPreset {
   /// [BeamSegment.topEdge].
   topEdge('Top edge', 'topEdge'),
 
+  /// [BeamSegment.leftEdge].
+  leftEdge('Left edge', 'leftEdge'),
+
+  /// [BeamSegment.rightEdge].
+  rightEdge('Right edge', 'rightEdge'),
+
   /// A segment assembled from the two edge-anchor controls.
   custom('Custom', 'custom');
 
@@ -131,65 +147,54 @@ enum SegmentPreset {
   final String id;
 }
 
-/// The five-pointed star the shape section's contour toggle installs, so the
-/// playground can show a beam travelling a path that is not a rounded
-/// rectangle.
-///
-/// The key is what [BeamPathContour] compares on: two contours drawing the
-/// same star are one value, which keeps the beam's resolved config out of
-/// the rebuild path.
-const BeamPathContour starContour = BeamPathContour(_starPath, key: 'star');
-
-/// Traces a five-pointed star inscribed in [rect].
-Path _starPath(Rect rect) {
-  const points = 5;
-  final center = rect.center;
-  final outer = rect.shortestSide / 2;
-  final inner = outer * 0.44;
-  final path = Path();
-  for (var i = 0; i < points * 2; i++) {
-    final radius = i.isEven ? outer : inner;
-    // Start at 12 o'clock so the star stands upright.
-    final angle = -math.pi / 2 + i * math.pi / points;
-    final point = Offset(
-      center.dx + radius * math.cos(angle),
-      center.dy + radius * math.sin(angle),
-    );
-    if (i == 0) {
-      path.moveTo(point.dx, point.dy);
-    } else {
-      path.lineTo(point.dx, point.dy);
-    }
-  }
-  return path..close();
-}
+// The effect parameters' own defaults, read off the package so the
+// playground tracks it.
+const RotateEffect _rotateDefaults = RotateEffect();
+const LineEffect _lineDefaults = LineEffect();
+const ShimmerEffect _shimmerDefaults = ShimmerEffect();
 
 /// Every knob the playground drives, in one mutable bag.
 ///
 /// A freshly constructed instance is the "all defaults" configuration: every
 /// field holds the value the package would resolve on its own, so the
 /// snippet generator and the live preview can both emit *only* what differs
-/// from it. Fields whose package default depends on the variant or on a
-/// theme preset are nullable, and null means "let the package decide".
+/// from it. Fields whose package default depends on the effect are nullable,
+/// and null means "let the package decide".
 class PlaygroundState {
   /// Creates the all-defaults state.
   PlaygroundState();
 
-  // ─── Variant & colors ───────────────────────────────────────────────────
+  // ─── Effect ─────────────────────────────────────────────────────────────
 
   /// Which effect the preview paints.
-  BeamVariant variant = BeamVariant.rotate;
+  EffectKind effect = EffectKind.rotate;
 
-  /// Selected palette.
-  PalettePreset palette = PalettePreset.colorful;
+  /// [RotateEffect.length]: the tail length multiplier.
+  double rotateLength = _rotateDefaults.length;
 
-  /// Indices into [customSwatches] used when [palette] is
-  /// [PalettePreset.custom].
+  /// [RotateEffect.count]: how many beams travel the border at once.
+  int rotateCount = _rotateDefaults.count;
+
+  /// [RotateEffect.comet]: whether a glow trails the head outside the
+  /// border.
+  bool rotateComet = _rotateDefaults.comet;
+
+  /// [LineEffect.edge]: the edge the line's streak rides.
+  BeamEdge lineEdge = _lineDefaults.edge;
+
+  /// [ShimmerEffect.angle]: the sweep's tilt in degrees from vertical.
+  double shimmerAngle = _shimmerDefaults.angle;
+
+  // ─── Colors ─────────────────────────────────────────────────────────────
+
+  /// How the palette is assembled.
+  PaletteMode paletteMode = PaletteMode.preset;
+
+  /// The [BeamColors.presets] entry used in [PaletteMode.preset].
+  String preset = 'colorful';
+
+  /// Indices into [customSwatches] used in [PaletteMode.custom].
   List<int> customColors = [0, 1];
-
-  /// The preset whose blob geometry and alpha structure the custom colors
-  /// are distributed over.
-  PalettePreset customBase = PalettePreset.colorful;
 
   /// Index into [customSwatches] of the [BeamColors.fromSeed] brand color.
   int seedColor = 7;
@@ -197,11 +202,11 @@ class PlaygroundState {
   /// How [BeamColors.fromSeed] spreads the seed hue.
   BeamSeedHarmony seedHarmony = BeamSeedHarmony.analogous;
 
-  /// First endpoint of a [BeamColors.lerp] palette.
-  PalettePreset lerpFrom = PalettePreset.ocean;
+  /// First endpoint of a [BeamColors.lerp] palette, a preset name.
+  String lerpFrom = 'ocean';
 
-  /// Second endpoint of a [BeamColors.lerp] palette.
-  PalettePreset lerpTo = PalettePreset.sunset;
+  /// Second endpoint of a [BeamColors.lerp] palette, a preset name.
+  String lerpTo = 'sunset';
 
   /// Where the [BeamColors.lerp] blend sits between its endpoints.
   double lerpT = 0.5;
@@ -209,6 +214,27 @@ class PlaygroundState {
   /// Multiplier applied to every palette entry's alpha through
   /// [BeamColors.scaleAlpha].
   double alphaScale = 1;
+
+  // ─── Style ──────────────────────────────────────────────────────────────
+
+  /// Background adaptation; null leaves [BeamTheme.auto], which follows the
+  /// preview's own brightness.
+  BeamTheme? beamTheme;
+
+  /// Overall opacity, 0–1.
+  double strength = 1;
+
+  /// Size and intensity of every glow around the border.
+  double glow = 1;
+
+  /// How far the hue swings either side under [BeamHueMode.pingPong].
+  double hueShift = 30;
+
+  /// How the colours drift; null keeps the effect's own choice.
+  BeamHueMode? hueMode;
+
+  /// Static hue rotation in degrees.
+  double hueBase = 0;
 
   // ─── Shape ──────────────────────────────────────────────────────────────
 
@@ -218,36 +244,30 @@ class PlaygroundState {
   /// Whether the four corners are set individually.
   bool perCorner = false;
 
-  /// Uniform corner radius override. Null keeps the variant preset.
-  double? radius;
+  /// Uniform corner radius.
+  double radius = BeamShape.defaultRadius;
 
   /// Top-left radius in per-corner mode.
-  double radiusTopLeft = 16;
+  double radiusTopLeft = BeamShape.defaultRadius;
 
   /// Top-right radius in per-corner mode.
-  double radiusTopRight = 16;
+  double radiusTopRight = BeamShape.defaultRadius;
 
   /// Bottom-right radius in per-corner mode.
-  double radiusBottomRight = 16;
+  double radiusBottomRight = BeamShape.defaultRadius;
 
   /// Bottom-left radius in per-corner mode.
-  double radiusBottomLeft = 16;
+  double radiusBottomLeft = BeamShape.defaultRadius;
 
   /// Whether the contour uses superellipse corners.
   bool superellipse = false;
 
-  /// Stroke ring thickness in logical px.
+  /// Stroke thickness in logical px.
   double borderWidth = 1;
 
-  /// Which edge the line variant's beam rides.
-  BeamEdge edge = BeamEdge.bottom;
-
-  /// How far the ring sits outside (positive) or inside (negative) the
+  /// How far the outline sits outside (positive) or inside (negative) the
   /// child's bounds, in logical px.
   double ringOffset = 0;
-
-  /// Whether the beam travels [starContour] instead of a rounded rectangle.
-  bool contour = false;
 
   /// Which part of the contour is visible.
   SegmentPreset segmentPreset = SegmentPreset.off;
@@ -267,114 +287,28 @@ class PlaygroundState {
   /// Fade length at each end of a custom segment, in logical px.
   double segmentFeather = 48;
 
-  /// Whether a segment-free line bends around its adjacent corners.
-  bool wrapCorners = false;
+  /// How many dashes the border is broken into; null keeps it solid.
+  int? dashes;
 
   // ─── Timing ─────────────────────────────────────────────────────────────
 
-  /// Cycle length in seconds; null keeps the variant preset.
+  /// Cycle length in seconds; null keeps the effect's default.
   double? cycleSeconds;
 
-  /// Rest between sweeps in seconds.
-  double cycleGapSeconds = 0;
+  /// Rest between sweeps in seconds; null keeps the effect's default.
+  double? cycleGapSeconds;
 
   /// Declarative playback rate. Ignored in [controllerMode].
   double speed = 1;
 
-  /// Which way the beam travels its contour.
+  /// Which way the beam moves.
   BeamDirection direction = BeamDirection.forward;
 
   /// Fraction of a cycle, 0–1, the timeline starts at.
   double phaseOffset = 0;
 
-  /// How many beams travel the contour at once.
-  int beamCount = 1;
-
-  /// Hue track period in seconds; null keeps the variant preset.
+  /// Hue drift period in seconds; null keeps the effect's default.
   double? huePeriodSeconds;
-
-  /// The line beam's breathe period, as a multiple of the cycle.
-  double breatheFactor = 1.3;
-
-  /// The line beam's first spike period, as a multiple of the cycle.
-  double spikeFactor = 1.33;
-
-  /// The line beam's second spike period, as a multiple of the cycle.
-  double spike2Factor = 1.7;
-
-  /// Whether the hue animation is disabled.
-  bool staticColors = false;
-
-  // ─── Style ──────────────────────────────────────────────────────────────
-
-  /// Effect opacity, 0–1.
-  double strength = 1;
-
-  /// Glow brightness multiplier; null keeps the theme preset.
-  double? brightness;
-
-  /// Glow saturation multiplier; null keeps the theme preset.
-  double? saturation;
-
-  /// Hue animation amplitude in degrees.
-  double hueRange = 30;
-
-  /// Whether the hue swings or revolves; null keeps the variant default.
-  BeamHueMode? hueMode;
-
-  /// Static hue offset in degrees.
-  double hueBase = 0;
-
-  /// Stroke ring opacity multiplier.
-  double strokeOpacityFactor = 1;
-
-  /// Inner glow opacity multiplier.
-  double innerOpacityFactor = 1;
-
-  /// Bloom opacity multiplier.
-  double bloomOpacityFactor = 1;
-
-  /// Angular width multiplier of the traveling window.
-  double tailLength = 1;
-
-  /// How far the bloom and halo layers reach past the stroke ring.
-  double glowSpread = 1;
-
-  /// Whether a soft halo trails the traveling head outside the ring.
-  bool comet = false;
-
-  /// Density of the twinkles scattered at the traveling head, 0–1.
-  double sparkle = 0;
-
-  /// Number of dashes the ring is broken into; null keeps it solid.
-  int? segments;
-
-  /// Multiplier on the size of the pulse-inside inner wash.
-  double innerSizeScale = 1;
-
-  /// The fraction of the box the beam is painted at before being magnified
-  /// back up to fill it.
-  double renderScale = 1;
-
-  /// Whether pulse-outside paints [BeamStyle.pulseOutsideStock] — the React
-  /// library's own look, before the demo page's tuning — under the fields
-  /// set here.
-  bool stockPulseOutside = false;
-
-  /// Pulse glow prominence multiplier.
-  double glowBoost = 1;
-
-  /// pulse-outside core blur override in px; null keeps the preset.
-  double? coreBlur;
-
-  /// pulse-outside halo blur override in px; null keeps the preset.
-  double? bloomBlur;
-
-  /// pulse-outside glow brightness override; null keeps the preset.
-  double? glowBrightness;
-
-  /// pulse-outside glow saturation override; null keeps the preset.
-  double? glowSaturation;
 
   // ─── Playback ───────────────────────────────────────────────────────────
 
@@ -416,7 +350,7 @@ class PlaygroundState {
 
   // ─── Drive ──────────────────────────────────────────────────────────────
 
-  /// Whether `BorderBeam.progress` parks the sweep instead of the clock.
+  /// Whether `BorderBeam.progress` places the sweep instead of the clock.
   bool driveProgress = false;
 
   /// Where the driven sweep sits, 0–1.
@@ -440,66 +374,75 @@ class PlaygroundState {
 
   // ─── Derived values ─────────────────────────────────────────────────────
 
+  /// The effect this state selects, parameters included.
+  BeamEffect buildEffect() => switch (effect) {
+    EffectKind.rotate => BeamEffect.rotate(
+      length: rotateLength,
+      count: rotateCount,
+      comet: rotateComet,
+    ),
+    EffectKind.line => BeamEffect.line(edge: lineEdge),
+    EffectKind.shimmer => BeamEffect.shimmer(angle: shimmerAngle),
+    _ => effect.defaults,
+  };
+
+  /// Whether the effect travels — the family that has a sweep to rest
+  /// between, a progress to drive, and a pointer to follow.
+  bool get travels => effect.defaults.travels;
+
+  /// Whether [direction] changes anything: the travelling effects run
+  /// either way, and flow and spin turn backwards on
+  /// [BeamDirection.reverse]. Pulse and halo have no motion to direct.
+  bool get directionApplies =>
+      travels || effect == EffectKind.flow || effect == EffectKind.spin;
+
+  /// The hue mode the beam resolves to: the one set here, else the effect's.
+  BeamHueMode get effectiveHueMode => hueMode ?? effect.defaults.defaultHueMode;
+
+  /// The palette named [name], falling back to the package default.
+  static BeamColors presetColors(String name) =>
+      BeamColors.presets[name] ?? BeamColors.colorful;
+
   /// The colors this state selects.
   BeamColors get beamColors {
-    final base = switch (palette) {
-      PalettePreset.custom => BeamColors.custom([
+    final base = switch (paletteMode) {
+      PaletteMode.preset => presetColors(preset),
+      PaletteMode.custom => BeamColors([
         for (final i in customColors) customSwatches[i].color,
-      ], base: customBase.colors ?? BeamColors.colorful),
-      PalettePreset.seed => BeamColors.fromSeed(
+      ]),
+      PaletteMode.seed => BeamColors.fromSeed(
         customSwatches[seedColor].color,
         harmony: seedHarmony,
       ),
-      PalettePreset.lerp => BeamColors.lerp(
-        lerpFrom.colors ?? BeamColors.colorful,
-        lerpTo.colors ?? BeamColors.colorful,
+      PaletteMode.lerp => BeamColors.lerp(
+        presetColors(lerpFrom),
+        presetColors(lerpTo),
         lerpT,
       ),
-      _ => palette.colors ?? BeamColors.colorful,
     };
     return alphaScale == 1 ? base : base.scaleAlpha(alphaScale);
   }
 
   /// Whether the palette differs from the package default.
-  bool get hasColors => palette != PalettePreset.colorful || alphaScale != 1;
-
-  /// Whether the variant's beam travels its contour — the family that has a
-  /// direction, a phase, a head, and a progress to drive.
-  bool get isTraveling => !variant.isPulse;
-
-  /// Whether the variant sweeps the whole ring, which is what a tail length
-  /// and a comet halo shape: rotate and small, but not the line beam.
-  bool get isRing =>
-      variant == BeamVariant.rotate || variant == BeamVariant.small;
-
-  /// The uniform radius the package would resolve on its own.
-  double get defaultRadius => variant.defaultBorderRadius;
+  bool get hasColors =>
+      paletteMode != PaletteMode.preset ||
+      preset != 'colorful' ||
+      alphaScale != 1;
 
   /// The cycle length in seconds the package would resolve on its own.
-  double get defaultCycleSeconds =>
-      variant.defaultCycleDuration.inMilliseconds / 1000;
+  double get defaultCycleSeconds => _secondsOf(effect.defaults.defaultCycle);
 
-  /// The hue period in seconds the package would resolve on its own — 12s
-  /// for the traveling variants, and the pulse presets' own periods.
-  double get defaultHuePeriodSeconds => switch (variant) {
-    BeamVariant.pulseInside => 16,
-    BeamVariant.pulseOutside => 14,
-    _ => 12,
-  };
+  /// The rest between sweeps the package would resolve on its own.
+  double get defaultCycleGapSeconds =>
+      _secondsOf(effect.defaults.defaultCycleGap);
 
-  /// The brightness multiplier the preset carries for [variant] at
-  /// [themeBrightness].
-  double defaultBrightness(Brightness themeBrightness) =>
-      BeamThemeConfig.presetFor(variant, themeBrightness).brightness ?? 1.3;
-
-  /// The saturation multiplier the preset carries for [variant] at
-  /// [themeBrightness].
-  double defaultSaturation(Brightness themeBrightness) =>
-      BeamThemeConfig.presetFor(variant, themeBrightness).saturation;
+  /// The hue period in seconds the package would resolve on its own.
+  double get defaultHuePeriodSeconds =>
+      _secondsOf(effect.defaults.defaultHuePeriod);
 
   /// The corner radii the beam contour uses, per-corner mode included.
-  /// Stadium corners are infinite and clamped per corner by the ring
-  /// geometry, which is what makes them track the box.
+  /// Stadium corners are infinite and clamped per corner by the outline,
+  /// which is what makes them track the box.
   BorderRadius get borderRadius => stadium
       ? const BorderRadius.all(Radius.circular(double.infinity))
       : perCorner
@@ -509,7 +452,7 @@ class PlaygroundState {
           bottomRight: Radius.circular(radiusBottomRight),
           bottomLeft: Radius.circular(radiusBottomLeft),
         )
-      : BorderRadius.circular(radius ?? defaultRadius);
+      : BorderRadius.circular(radius);
 
   /// The same contour, sized for a concrete [size] — the preview surface's
   /// own decoration needs finite stadium radii.
@@ -524,14 +467,23 @@ class PlaygroundState {
       stadium ||
       perCorner ||
       superellipse ||
-      contour ||
-      radius != null ||
+      radius != BeamShape.defaultRadius ||
       borderWidth != 1 ||
       ringOffset != 0 ||
       segmentPreset != SegmentPreset.off ||
-      (variant == BeamVariant.line &&
-          segmentPreset == SegmentPreset.off &&
-          (edge != BeamEdge.bottom || wrapCorners));
+      dashes != null;
+
+  /// Whether the only shape change is a uniform radius — what the
+  /// `borderRadius:` shorthand carries on its own.
+  bool get radiusOnly =>
+      hasShape &&
+      !stadium &&
+      !perCorner &&
+      !superellipse &&
+      borderWidth == 1 &&
+      ringOffset == 0 &&
+      segmentPreset == SegmentPreset.off &&
+      dashes == null;
 
   /// The selected partial contour, or null for the full contour.
   BeamSegment? get segment => switch (segmentPreset) {
@@ -542,6 +494,8 @@ class PlaygroundState {
     SegmentPreset.rightHalf => BeamSegment.rightHalf,
     SegmentPreset.bottomEdge => BeamSegment.bottomEdge,
     SegmentPreset.topEdge => BeamSegment.topEdge,
+    SegmentPreset.leftEdge => BeamSegment.leftEdge,
+    SegmentPreset.rightEdge => BeamSegment.rightEdge,
     SegmentPreset.custom => BeamSegment(
       start: BeamAnchor.edge(segmentStartEdge, segmentStartT),
       end: BeamAnchor.edge(segmentEndEdge, segmentEndT),
@@ -552,49 +506,29 @@ class PlaygroundState {
   // ─── Value objects ──────────────────────────────────────────────────────
 
   /// The [BeamShape] to hand the widget, or null when nothing differs from
-  /// the package default.
+  /// the package default. Whenever a shape is handed over it carries its
+  /// radius, so a shape set here never inherits a theme's corners.
   BeamShape? buildShape() {
     if (!hasShape) return null;
     final width = borderWidth == 1 ? null : borderWidth;
     final se = superellipse ? true : null;
-    final beamEdge =
-        variant == BeamVariant.line &&
-            segmentPreset == SegmentPreset.off &&
-            edge != BeamEdge.bottom
-        ? edge
-        : null;
     final offset = ringOffset == 0 ? null : ringOffset;
-    final path = contour ? starContour : null;
     if (stadium) {
       return BeamShape.stadium(
         borderWidth: width,
         superellipse: se,
-        edge: beamEdge,
         ringOffset: offset,
-        contour: path,
         segment: segment,
-        wrapCorners:
-            variant == BeamVariant.line &&
-                segmentPreset == SegmentPreset.off &&
-                wrapCorners
-            ? true
-            : null,
+        dashes: dashes,
       );
     }
     return BeamShape(
       radius: borderRadius,
       borderWidth: width,
       superellipse: se,
-      edge: beamEdge,
       ringOffset: offset,
-      contour: path,
       segment: segment,
-      wrapCorners:
-          variant == BeamVariant.line &&
-              segmentPreset == SegmentPreset.off &&
-              wrapCorners
-          ? true
-          : null,
+      dashes: dashes,
     );
   }
 
@@ -602,72 +536,41 @@ class PlaygroundState {
   BeamStyle? buildStyle() {
     final style = BeamStyle(
       colors: hasColors ? beamColors : null,
+      theme: beamTheme,
       strength: strength == 1 ? null : strength,
-      brightness: brightness,
-      saturation: saturation,
-      hueRange: hueRange == 30 ? null : hueRange,
+      glow: glow == 1 ? null : glow,
+      hueShift: hueShiftApplies && hueShift != 30 ? hueShift : null,
       hueMode: hueMode,
       hueBase: hueBase == 0 ? null : hueBase,
-      staticColors: staticColors ? true : null,
-      strokeOpacityFactor: strokeOpacityFactor == 1
-          ? null
-          : strokeOpacityFactor,
-      innerOpacityFactor: innerOpacityFactor == 1 ? null : innerOpacityFactor,
-      bloomOpacityFactor: bloomOpacityFactor == 1 ? null : bloomOpacityFactor,
-      tailLength: isRing && tailLength != 1 ? tailLength : null,
-      glowSpread: glowSpread == 1 ? null : glowSpread,
-      comet: isRing && comet ? true : null,
-      sparkle: isTraveling && sparkle != 0 ? sparkle : null,
-      segments: variant == BeamVariant.line ? null : segments,
-      innerSizeScale: variant == BeamVariant.pulseInside && innerSizeScale != 1
-          ? innerSizeScale
-          : null,
-      renderScale: renderScale == 1 ? null : renderScale,
-      glowBoost: variant.isPulse && glowBoost != 1 ? glowBoost : null,
-      coreBlur: variant == BeamVariant.pulseOutside ? coreBlur : null,
-      bloomBlur: variant == BeamVariant.pulseOutside ? bloomBlur : null,
-      glowBrightness: variant == BeamVariant.pulseOutside
-          ? glowBrightness
-          : null,
-      glowSaturation: variant == BeamVariant.pulseOutside
-          ? glowSaturation
-          : null,
     );
-    // The stock look is a whole style, not a field: it goes underneath, so
-    // anything set here still wins.
-    if (usesStockPulseOutside) {
-      return BeamStyle.pulseOutsideStock.merge(style);
-    }
     return style == const BeamStyle() ? null : style;
   }
 
-  /// Whether the stock pulse-outside style applies — it is that variant's
-  /// own recipe, and no other variant reads it.
-  bool get usesStockPulseOutside =>
-      stockPulseOutside && variant == BeamVariant.pulseOutside;
+  /// Whether [hueShift] reaches the beam: only a ping-pong drift swings.
+  bool get hueShiftApplies => effectiveHueMode == BeamHueMode.pingPong;
+
+  /// Whether the hue drifts at all, which is what a hue period times.
+  bool get hueDrifts => effectiveHueMode != BeamHueMode.none;
 
   /// The [BeamTiming] to hand the widget, or null when nothing differs.
   ///
-  /// The breathe/spike factors belong to the line variant, the travel fields
-  /// to the traveling ones, and a controller owns the playback rate, so each
-  /// is dropped where it does not apply.
+  /// The rest between sweeps belongs to the travelling effects, direction
+  /// only to the effects that move, and a controller owns the playback rate,
+  /// so each is dropped where it does not apply.
   BeamTiming? buildTiming() {
-    final isLine = variant == BeamVariant.line;
     final timing = BeamTiming(
       cycle: cycleSeconds == null ? null : _durationOf(cycleSeconds!),
-      cycleGap: cycleGapSeconds == 0 ? null : _durationOf(cycleGapSeconds),
+      cycleGap: travels && cycleGapSeconds != null
+          ? _durationOf(cycleGapSeconds!)
+          : null,
       speed: speed == 1 || controllerMode ? null : speed,
-      direction: isTraveling && direction != BeamDirection.forward
+      direction: directionApplies && direction != BeamDirection.forward
           ? direction
           : null,
-      phaseOffset: isTraveling && phaseOffset != 0 ? phaseOffset : null,
-      beamCount: isTraveling && beamCount != 1 ? beamCount : null,
-      huePeriod: huePeriodSeconds == null
-          ? null
-          : _durationOf(huePeriodSeconds!),
-      breatheFactor: isLine && breatheFactor != 1.3 ? breatheFactor : null,
-      spikeFactor: isLine && spikeFactor != 1.33 ? spikeFactor : null,
-      spike2Factor: isLine && spike2Factor != 1.7 ? spike2Factor : null,
+      phaseOffset: phaseOffset == 0 ? null : phaseOffset,
+      huePeriod: hueDrifts && huePeriodSeconds != null
+          ? _durationOf(huePeriodSeconds!)
+          : null,
     );
     return timing == const BeamTiming() ? null : timing;
   }
@@ -706,15 +609,19 @@ class PlaygroundState {
   bool? buildActive() => controllerMode || active ? null : false;
 
   /// The `progress:` value, or null while the clock owns the travel — which
-  /// the pulse variants always do.
-  double? buildProgress() => driveProgress && isTraveling ? progress : null;
+  /// the ambient effects always do.
+  double? buildProgress() => driveProgress && travels ? progress : null;
 
   /// Whether the preview feeds `follow:` a pointer position.
   ///
-  /// `progress` parks the sweep where it says, so a beam driven by one has no
-  /// travel left for the pointer to pull; the pulse variants never travel.
-  bool get followsPointer => followPointer && isTraveling && !driveProgress;
+  /// `progress` places the sweep where it says, so a beam driven by one has
+  /// no travel left for the pointer to pull; the ambient effects never
+  /// travel.
+  bool get followsPointer => followPointer && travels && !driveProgress;
 }
+
+double _secondsOf(Duration duration) =>
+    duration.inMicroseconds / Duration.microsecondsPerSecond;
 
 Duration _durationOf(double seconds) =>
     Duration(milliseconds: (seconds * 1000).round());
