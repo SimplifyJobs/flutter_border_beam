@@ -7,8 +7,10 @@ import 'package:flutter_test/flutter_test.dart';
 /// shorter than [BeamPress.minimumDuration] still shows a full pulse, and the
 /// child's own gestures keep working.
 void main() {
-  bool? pressActive(WidgetTester tester) =>
-      tester.widget<BorderBeam>(find.byType(BorderBeam)).active;
+  BorderBeam beamOf(WidgetTester tester) =>
+      tester.widget<BorderBeam>(find.byType(BorderBeam));
+
+  bool? pressActive(WidgetTester tester) => beamOf(tester).active;
 
   Widget scene(Widget child) => MaterialApp(
     debugShowCheckedModeBanner: false,
@@ -23,32 +25,51 @@ void main() {
     BeamPress(onTap: onTap, minimumDuration: minimumDuration, child: child),
   );
 
+  Future<TestGesture> pressDown(WidgetTester tester) async {
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(BeamPress)),
+    );
+    await tester.pump();
+    return gesture;
+  }
+
+  Widget pressableList(ScrollController controller) => scene(
+    SizedBox(
+      height: 300,
+      child: ListView(
+        controller: controller,
+        children: [
+          for (var i = 0; i < 12; i++)
+            const BeamPress(child: SizedBox(height: 80)),
+        ],
+      ),
+    ),
+  );
+
   group('press lifecycle', () {
     testWidgets('lights on pointer down', (tester) async {
       await tester.pumpWidget(press());
       expect(pressActive(tester), isFalse);
+      expect(tester.binding.transientCallbackCount, 0);
 
-      final gesture = await tester.startGesture(
-        tester.getCenter(find.byType(BeamPress)),
-      );
-      await tester.pump();
+      final gesture = await pressDown(tester);
       expect(pressActive(tester), isTrue);
 
       await gesture.up();
       await tester.pump(const Duration(seconds: 1));
     });
 
-    testWidgets('a quick tap still holds the minimum duration', (tester) async {
+    testWidgets('a quick tap stays lit until the minimum since the press', (
+      tester,
+    ) async {
       await tester.pumpWidget(press());
-      final gesture = await tester.startGesture(
-        tester.getCenter(find.byType(BeamPress)),
-      );
-      await tester.pump();
+      final gesture = await pressDown(tester);
       await tester.pump(const Duration(milliseconds: 50));
       await gesture.up();
       await tester.pump();
       expect(pressActive(tester), isTrue, reason: 'released before minimum');
 
+      // 50ms + 500ms: the minimum runs from the press, not the release.
       await tester.pump(const Duration(milliseconds: 500));
       expect(pressActive(tester), isTrue, reason: 'still inside minimum');
 
@@ -60,12 +81,9 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(press());
-      final gesture = await tester.startGesture(
-        tester.getCenter(find.byType(BeamPress)),
-      );
-      await tester.pump();
+      final gesture = await pressDown(tester);
       await tester.pump(const Duration(seconds: 2));
-      expect(pressActive(tester), isTrue);
+      expect(pressActive(tester), isTrue, reason: 'held past the minimum');
 
       await gesture.up();
       await tester.pump();
@@ -74,10 +92,7 @@ void main() {
 
     testWidgets('a zero minimum releases on pointer up', (tester) async {
       await tester.pumpWidget(press(minimumDuration: Duration.zero));
-      final gesture = await tester.startGesture(
-        tester.getCenter(find.byType(BeamPress)),
-      );
-      await tester.pump();
+      final gesture = await pressDown(tester);
       expect(pressActive(tester), isTrue);
 
       await gesture.up();
@@ -89,14 +104,15 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(press());
-      final gesture = await tester.startGesture(
-        tester.getCenter(find.byType(BeamPress)),
-      );
-      await tester.pump();
+      final gesture = await pressDown(tester);
       expect(pressActive(tester), isTrue);
 
       await gesture.cancel();
       await tester.pump();
+      expect(pressActive(tester), isFalse);
+
+      // And the cancelled hold's timer does not resurrect or re-drop it.
+      await tester.pump(const Duration(seconds: 1));
       expect(pressActive(tester), isFalse);
     });
 
@@ -119,20 +135,37 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
     });
 
+    testWidgets('the beam winds down to no ticker after release', (
+      tester,
+    ) async {
+      await tester.pumpWidget(press());
+      final gesture = await pressDown(tester);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(tester.binding.transientCallbackCount, greaterThan(0));
+
+      await gesture.up();
+      // Past the 600ms minimum, then past the beam's 0.5s fade-out.
+      for (var i = 0; i < 12; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(pressActive(tester), isFalse);
+      expect(tester.binding.transientCallbackCount, 0);
+    });
+
     testWidgets('disposal mid-hold leaves no ticker and no pending timer', (
       tester,
     ) async {
       await tester.pumpWidget(press());
-      final gesture = await tester.startGesture(
-        tester.getCenter(find.byType(BeamPress)),
-      );
-      await tester.pump();
+      final gesture = await pressDown(tester);
       await tester.pump(const Duration(milliseconds: 100));
-      expect(tester.binding.transientCallbackCount, greaterThan(0));
+      await gesture.up();
+      await tester.pump();
+      expect(pressActive(tester), isTrue, reason: 'held by the minimum timer');
 
       await tester.pumpWidget(const SizedBox());
-      await gesture.up();
       expect(tester.binding.transientCallbackCount, 0);
+      // Ending inside the minimum: a timer dispose failed to cancel fails
+      // the binding's no-pending-timers invariant.
     });
   });
 
@@ -142,8 +175,8 @@ void main() {
       await tester.pumpWidget(press(onTap: () => taps++));
 
       await tester.tap(find.byType(BeamPress));
-      await tester.pump(const Duration(seconds: 1));
       expect(taps, 1);
+      await tester.pump(const Duration(seconds: 1));
     });
 
     testWidgets('onTap does not fire when the pointer lifts outside', (
@@ -152,12 +185,20 @@ void main() {
       var taps = 0;
       await tester.pumpWidget(press(onTap: () => taps++));
 
-      final gesture = await tester.startGesture(
-        tester.getCenter(find.byType(BeamPress)),
-      );
-      await tester.pump();
+      final gesture = await pressDown(tester);
       await gesture.moveTo(const Offset(5, 5));
       await gesture.up();
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(taps, 0);
+    });
+
+    testWidgets('a cancelled press does not tap', (tester) async {
+      var taps = 0;
+      await tester.pumpWidget(press(onTap: () => taps++));
+
+      final gesture = await pressDown(tester);
+      await gesture.cancel();
       await tester.pump(const Duration(seconds: 1));
 
       expect(taps, 0);
@@ -192,21 +233,7 @@ void main() {
     ) async {
       final controller = ScrollController();
       addTearDown(controller.dispose);
-
-      await tester.pumpWidget(
-        scene(
-          SizedBox(
-            height: 300,
-            child: ListView(
-              controller: controller,
-              children: [
-                for (var i = 0; i < 12; i++)
-                  const BeamPress(child: SizedBox(height: 80)),
-              ],
-            ),
-          ),
-        ),
-      );
+      await tester.pumpWidget(pressableList(controller));
 
       await tester.drag(find.byType(BeamPress).first, const Offset(0, -200));
       await tester.pumpAndSettle();
@@ -214,40 +241,25 @@ void main() {
       expect(controller.offset, greaterThan(0));
     });
 
-    testWidgets('a stolen gesture cancels the press', (tester) async {
+    testWidgets('a scroll that steals the gesture cancels the press', (
+      tester,
+    ) async {
       final controller = ScrollController();
       addTearDown(controller.dispose);
+      await tester.pumpWidget(pressableList(controller));
 
-      await tester.pumpWidget(
-        scene(
-          SizedBox(
-            height: 300,
-            child: ListView(
-              controller: controller,
-              children: [
-                for (var i = 0; i < 12; i++)
-                  const BeamPress(child: SizedBox(height: 80)),
-              ],
-            ),
-          ),
-        ),
-      );
+      bool? firstActive() =>
+          tester.widget<BorderBeam>(find.byType(BorderBeam).first).active;
 
       final gesture = await tester.startGesture(
         tester.getCenter(find.byType(BeamPress).first),
       );
       await tester.pump();
-      expect(
-        tester.widget<BorderBeam>(find.byType(BorderBeam).first).active,
-        isTrue,
-      );
+      expect(firstActive(), isTrue);
 
       await gesture.moveBy(const Offset(0, -120));
       await tester.pump();
-      expect(
-        tester.widget<BorderBeam>(find.byType(BorderBeam).first).active,
-        isFalse,
-      );
+      expect(firstActive(), isFalse);
 
       await gesture.up();
       await tester.pumpAndSettle();
@@ -255,13 +267,18 @@ void main() {
   });
 
   group('pass-through', () {
-    testWidgets('hands its style, shape and timing to the beam', (
+    testWidgets('defaults to a pulse', (tester) async {
+      await tester.pumpWidget(press());
+      expect(beamOf(tester).effect, const BeamEffect.pulse());
+    });
+
+    testWidgets('hands its effect, style, shape and timing to the beam', (
       tester,
     ) async {
       await tester.pumpWidget(
         scene(
           const BeamPress(
-            variant: BeamVariant.rotate,
+            effect: BeamEffect.halo(),
             colors: BeamColors.sunset,
             borderRadius: 20,
             style: BeamStyle(strength: 0.4),
@@ -272,21 +289,13 @@ void main() {
         ),
       );
 
-      final beam = tester.widget<BorderBeam>(find.byType(BorderBeam));
-      expect(beam.variant, BeamVariant.rotate);
+      final beam = beamOf(tester);
+      expect(beam.effect, const BeamEffect.halo());
       expect(beam.colors, BeamColors.sunset);
       expect(beam.borderRadius, 20);
       expect(beam.style, const BeamStyle(strength: 0.4));
       expect(beam.shape, const BeamShape(borderWidth: 2));
       expect(beam.timing, const BeamTiming(speed: 2));
-    });
-
-    testWidgets('defaults to the contained breathing glow', (tester) async {
-      await tester.pumpWidget(press());
-      expect(
-        tester.widget<BorderBeam>(find.byType(BorderBeam)).variant,
-        BeamVariant.pulseInside,
-      );
     });
 
     testWidgets('is translucent to hit testing', (tester) async {
@@ -309,7 +318,7 @@ void main() {
           .toDiagnosticsNode()
           .toStringDeep();
       expect(description, contains('tappable'));
-      expect(description, contains('variant: pulseInside'));
+      expect(description, contains('effect: BeamEffect.pulse()'));
     });
   });
 }

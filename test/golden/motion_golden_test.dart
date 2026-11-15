@@ -5,107 +5,135 @@ import 'package:flutter/material.dart';
 import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Golden scenes for the motion options — travel direction, several beams on
-/// one contour, and a sweep driven from a value instead of the clock.
+import 'golden_scene.dart';
+
+/// The motion family: travel direction, several beams on one border, the
+/// rest between sweeps, phase offset, and a sweep driven from a value
+/// instead of the clock.
 ///
-/// They share the frozen-clock convention of `beam_golden_test.dart` (dark
-/// theme, colorful palette, t = 1.3s) so each image can be read against the
-/// plain `rotate_dark_colorful` / `line_dark_colorful` frame it varies.
-///
-/// Regenerate with:
-///   flutter test --update-goldens --tags golden
+/// Dark theme, colorful palette, t = 1.3s unless a scene says otherwise, so
+/// each image reads against the plain `<effect>_dark_colorful` frame it
+/// varies.
 void main() {
-  Widget scene({
-    required Widget beam,
-    double width = 350,
-    double height = 140,
-  }) => MaterialApp(
-    debugShowCheckedModeBanner: false,
-    theme: ThemeData(brightness: Brightness.dark),
-    home: ColoredBox(
-      // The demo backdrop of the source library.
-      color: const Color(0xFF070707),
-      child: Center(
-        child: SizedBox(width: width, height: height, child: beam),
-      ),
-    ),
-  );
+  setUpAll(BorderBeam.precache);
 
-  Widget mockSurface({double radius = 16}) => DecoratedBox(
-    decoration: BoxDecoration(
-      color: const Color(0xFF1D1D1D),
-      borderRadius: BorderRadius.circular(radius),
-      border: Border.all(color: const Color(0x14FFFFFF)),
-    ),
-  );
+  Widget beam(BeamEffect effect, {BeamTiming? timing, double? progress}) =>
+      goldenScene(
+        BorderBeam(
+          effect: effect,
+          borderRadius: 16,
+          style: const BeamStyle(theme: BeamTheme.dark),
+          timing: timing,
+          progress: progress,
+          child: mockSurface(Brightness.dark),
+        ),
+      );
 
-  Future<void> capture(
-    WidgetTester tester,
-    String name,
-    Widget beam, {
-    Duration freeze = const Duration(milliseconds: 1300),
-  }) async {
-    await tester.pumpWidget(scene(beam: beam));
-    await tester.pump();
-    await tester.pump(freeze);
-    await expectLater(
-      find.byType(MaterialApp),
-      matchesGoldenFile('goldens/$name.png'),
-    );
-  }
+  const reverse = BeamTiming(direction: BeamDirection.reverse);
 
-  // The mirror of `rotate_dark_colorful`: same instant, same hue, the head
-  // the same distance round the border — the other way.
+  // The mirror of `rotate_dark_colorful`: same instant, the head the same
+  // distance round the border, the other way.
   testWidgets('rotate reverse', (tester) async {
-    await capture(
+    await captureGolden(
       tester,
       'motion_rotate_reverse',
-      BorderBeam.rotate(
-        style: const BeamStyle(theme: BeamTheme.dark),
-        timing: const BeamTiming(direction: BeamDirection.reverse),
-        child: mockSurface(),
-      ),
+      beam(const BeamEffect.rotate(), timing: reverse),
     );
   });
 
-  // Two beams half a cycle apart: opposite sides of the border at every
-  // instant.
-  testWidgets('rotate with two beams', (tester) async {
-    await capture(
-      tester,
-      'motion_rotate_beamcount2',
-      BorderBeam.rotate(
-        style: const BeamStyle(theme: BeamTheme.dark),
-        timing: const BeamTiming(beamCount: 2),
-        child: mockSurface(),
-      ),
-    );
-  });
-
-  // A driven sweep: the beam sits at half its travel no matter how long the
-  // clock has run, which is what makes rotate readable as a progress ring.
-  testWidgets('rotate driven to half progress', (tester) async {
-    await capture(
-      tester,
-      'motion_progress_0_5',
-      BorderBeam.rotate(
-        style: const BeamStyle(theme: BeamTheme.dark),
-        progress: 0.5,
-        child: mockSurface(),
-      ),
-    );
-  });
-
-  // The line beam travelling right-to-left, against `line_dark_colorful`.
   testWidgets('line reverse', (tester) async {
-    await capture(
+    await captureGolden(
       tester,
       'motion_line_reverse',
-      BorderBeam.line(
-        style: const BeamStyle(theme: BeamTheme.dark),
-        timing: const BeamTiming(direction: BeamDirection.reverse),
-        child: mockSurface(),
+      beam(const BeamEffect.line(), timing: reverse),
+    );
+  });
+
+  // Ambient light has no travel, but the colours of a spin stream the other
+  // way.
+  testWidgets('spin reverse', (tester) async {
+    await captureGolden(
+      tester,
+      'motion_spin_reverse',
+      beam(const BeamEffect.spin(), timing: reverse),
+    );
+  });
+
+  // Bounce runs its second cycle backwards: 0.4s into it.
+  testWidgets('rotate bounce, second cycle', (tester) async {
+    await captureGolden(
+      tester,
+      'motion_rotate_bounce_second_cycle',
+      beam(
+        const BeamEffect.rotate(),
+        timing: const BeamTiming(
+          cycle: Duration(seconds: 1),
+          direction: BeamDirection.bounce,
+        ),
+      ),
+      freeze: const Duration(milliseconds: 1400),
+    );
+  });
+
+  for (final count in [2, 4]) {
+    testWidgets('rotate count $count', (tester) async {
+      await captureGolden(
+        tester,
+        'motion_rotate_count_$count',
+        beam(BeamEffect.rotate(count: count)),
+      );
+    });
+  }
+
+  testWidgets('rotate phase offset', (tester) async {
+    await captureGolden(
+      tester,
+      'motion_rotate_phase_offset_half',
+      beam(
+        const BeamEffect.rotate(),
+        timing: const BeamTiming(phaseOffset: 0.5),
       ),
     );
   });
+
+  // A 1s sweep and a 1s rest, caught 0.1s into the rest: parked at the end
+  // of its travel and fading out.
+  testWidgets('rotate cycle gap', (tester) async {
+    await captureGolden(
+      tester,
+      'motion_rotate_cycle_gap_fading',
+      beam(
+        const BeamEffect.rotate(),
+        timing: const BeamTiming(
+          cycle: Duration(seconds: 1),
+          cycleGap: Duration(seconds: 1),
+        ),
+      ),
+      freeze: const Duration(milliseconds: 1100),
+    );
+  });
+
+  for (final effect in const [
+    BeamEffect.rotate(),
+    BeamEffect.line(),
+    BeamEffect.shimmer(),
+  ]) {
+    testWidgets('${effect.name} progress 0.5', (tester) async {
+      await captureGolden(
+        tester,
+        'motion_progress_${effect.name}_0_5',
+        beam(effect, progress: 0.5),
+      );
+    });
+  }
+
+  for (final (label, progress) in [('0_25', 0.25), ('0_75', 0.75)]) {
+    testWidgets('charge at $progress', (tester) async {
+      await captureGolden(
+        tester,
+        'motion_charge_$label',
+        beam(const BeamEffect.charge(), progress: progress),
+      );
+    });
+  }
 }

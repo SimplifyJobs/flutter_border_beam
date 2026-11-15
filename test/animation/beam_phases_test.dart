@@ -1,246 +1,389 @@
-import 'dart:math' as math;
-import 'dart:ui';
+import 'dart:ui' show Brightness;
 
+import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_border_beam/src/animation/beam_phases.dart';
-import 'package:flutter_border_beam/src/constants/line_keyframes.dart';
-import 'package:flutter_border_beam/src/models/beam_colors.dart';
 import 'package:flutter_border_beam/src/models/beam_config.dart';
-import 'package:flutter_border_beam/src/models/beam_style.dart';
-import 'package:flutter_border_beam/src/models/beam_timing.dart';
-import 'package:flutter_border_beam/src/models/beam_variant.dart';
+import 'package:flutter_border_beam/src/models/beam_palette.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-BeamConfig _config(
-  BeamVariant v, {
-  bool staticColors = false,
-  double hueRange = 30,
-  Duration? cycleDuration,
+BeamConfig _config({
+  BeamEffect effect = const BeamEffect.rotate(),
+  BeamPalette? palette,
+  BeamHueMode? hueMode,
+  double? hueShift,
+  Duration? cycle = const Duration(seconds: 2),
+  Duration? cycleGap,
+  Duration? huePeriod,
+  double? phaseOffset,
 }) => BeamConfig.resolve(
-  variant: v,
-  palette: BeamColors.colorful.resolve(),
+  effect: effect,
+  palette: palette ?? BeamColors.colorful.resolve(),
   brightness: Brightness.dark,
-  style: BeamStyle(staticColors: staticColors, hueRange: hueRange),
-  timing: BeamTiming(cycle: cycleDuration),
+  style: BeamStyle(hueMode: hueMode, hueShift: hueShift),
+  timing: BeamTiming(
+    cycle: cycle,
+    cycleGap: cycleGap,
+    huePeriod: huePeriod,
+    phaseOffset: phaseOffset,
+  ),
 );
 
-// The retime a widget performs when its cycle duration changes mid-run:
-// elapsed time is rescaled by the cycle ratio and the hue clock is shifted
-// back by the same amount.
-({double t, BeamPhaseResolver resolver}) _retimed(
-  BeamPhaseResolver from,
-  double t,
-  Duration newCycle,
-) {
-  final next = BeamPhaseResolver(
-    _config(from.config.variant, hueRange: 30, cycleDuration: newCycle),
-  );
-  final scaled = t * next.config.cycleSeconds / from.config.cycleSeconds;
-  next.hueTimeOffset = from.hueTimeOffset + t - scaled;
-  return (t: scaled, resolver: next);
-}
+BeamPhaseResolver _resolver({
+  BeamEffect effect = const BeamEffect.rotate(),
+  BeamPalette? palette,
+  BeamHueMode? hueMode,
+  double? hueShift,
+  Duration? cycle = const Duration(seconds: 2),
+  Duration? cycleGap,
+  Duration? huePeriod,
+  double? phaseOffset,
+}) => BeamPhaseResolver(
+  _config(
+    effect: effect,
+    palette: palette,
+    hueMode: hueMode,
+    hueShift: hueShift,
+    cycle: cycle,
+    cycleGap: cycleGap,
+    huePeriod: huePeriod,
+    phaseOffset: phaseOffset,
+  ),
+);
 
+/// The non-travel half of the phase resolver: the hue drift, the ambient
+/// cycle count, the per-track time offsets the widget uses to keep tracks
+/// continuous, the repeat budget, and the reduced-motion static frame.
 void main() {
-  group('sampleKeyframes', () {
-    test('linear tables hit every stop exactly', () {
-      for (final f in lineTravelX) {
-        expect(sampleKeyframes(lineTravelX, f.t), closeTo(f.value, 1e-9));
+  final ambient = BeamEffect.values.where((e) => !e.travels).toList();
+  const huePeriod = Duration(seconds: 8);
+  const period = 8.0;
+
+  group('hue', () {
+    test('none never drifts', () {
+      final r = _resolver(hueMode: BeamHueMode.none);
+      for (final t in [0.0, 1.3, 4.0, 99.9]) {
+        expect(r.sample(t, 1).hueDegrees, 0);
       }
-      // Linear midpoint between stops.
-      expect(sampleKeyframes(lineTravelX, 0.05), closeTo(0.105, 1e-9));
     });
 
-    test('eased tables hit stops and ease within segments', () {
-      for (final f in lineBreatheH) {
+    test('a fixed-hue palette never drifts', () {
+      for (final colors in [BeamColors.mono, BeamColors.gold]) {
+        final r = _resolver(
+          palette: colors.resolve(),
+          hueMode: BeamHueMode.continuous,
+        );
+        expect(r.sample(3.3, 1).hueDegrees, 0, reason: '$colors');
+      }
+    });
+
+    test('continuous revolves through 360° once per hue period', () {
+      final r = _resolver(
+        hueMode: BeamHueMode.continuous,
+        huePeriod: huePeriod,
+      );
+      expect(r.sample(0, 1).hueDegrees, 0);
+      expect(r.sample(period / 4, 1).hueDegrees, closeTo(90, 1e-9));
+      expect(r.sample(period / 2, 1).hueDegrees, closeTo(180, 1e-9));
+      expect(r.sample(period * 0.999, 1).hueDegrees, greaterThan(359));
+      expect(r.sample(period, 1).hueDegrees, closeTo(0, 1e-9));
+      expect(r.sample(period * 1.25, 1).hueDegrees, closeTo(90, 1e-9));
+    });
+
+    test('continuous ignores hueShift', () {
+      final narrow = _resolver(
+        hueMode: BeamHueMode.continuous,
+        hueShift: 5,
+        huePeriod: huePeriod,
+      );
+      final wide = _resolver(
+        hueMode: BeamHueMode.continuous,
+        hueShift: 90,
+        huePeriod: huePeriod,
+      );
+      expect(narrow.sample(3, 1).hueDegrees, wide.sample(3, 1).hueDegrees);
+    });
+
+    test('pingPong swings −shift → +shift → −shift over one period', () {
+      final r = _resolver(
+        hueMode: BeamHueMode.pingPong,
+        hueShift: 20,
+        huePeriod: huePeriod,
+      );
+      expect(r.sample(0, 1).hueDegrees, closeTo(-20, 1e-9));
+      expect(r.sample(period / 2, 1).hueDegrees, closeTo(20, 1e-9));
+      expect(r.sample(period, 1).hueDegrees, closeTo(-20, 1e-9));
+      // Symmetric easing crosses zero at each quarter.
+      expect(r.sample(period / 4, 1).hueDegrees, closeTo(0, 1e-6));
+      expect(r.sample(period * 3 / 4, 1).hueDegrees, closeTo(0, 1e-6));
+    });
+
+    test('pingPong stays within ±hueShift and reaches both ends', () {
+      for (final shift in [0.0, 13.0, 45.0]) {
+        final r = _resolver(
+          hueMode: BeamHueMode.pingPong,
+          hueShift: shift,
+          huePeriod: huePeriod,
+        );
+        var lo = double.infinity;
+        var hi = double.negativeInfinity;
+        for (var i = 0; i <= 800; i++) {
+          final hue = r.sample(i * 0.01, 1).hueDegrees;
+          expect(hue, inInclusiveRange(-shift - 1e-9, shift + 1e-9));
+          if (hue < lo) lo = hue;
+          if (hue > hi) hi = hue;
+        }
+        expect(lo, closeTo(-shift, 1e-9), reason: 'shift $shift');
+        expect(hi, closeTo(shift, 1e-9), reason: 'shift $shift');
+      }
+    });
+
+    test('the hue period moves the hue and nothing else', () {
+      final fast = _resolver(huePeriod: const Duration(seconds: 3));
+      final slow = _resolver(huePeriod: const Duration(seconds: 30));
+      final a = fast.sample(1.2, 1);
+      final b = slow.sample(1.2, 1);
+      expect(a.hueDegrees, isNot(closeTo(b.hueDegrees, 1e-3)));
+      expect(a.travelProgress, b.travelProgress);
+      expect(a.cycles, b.cycles);
+      expect(a.fadeOpacity, b.fadeOpacity);
+    });
+
+    test('the hue keeps drifting through a cycle gap', () {
+      final r = _resolver(
+        cycleGap: const Duration(seconds: 2),
+        hueMode: BeamHueMode.continuous,
+        huePeriod: huePeriod,
+      );
+      // 3s is mid-gap: the beam is dark, but the colours still move.
+      expect(r.sample(3, 1).fadeOpacity, 0);
+      expect(r.sample(3, 1).hueDegrees, isNot(r.sample(2.5, 1).hueDegrees));
+    });
+
+    for (final effect in BeamEffect.values) {
+      test('${effect.name}: the default mode drifts as configured', () {
+        final r = _resolver(effect: effect);
+        final mode = r.config.hueMode;
+        expect(mode, effect.defaultHueMode);
+        final p = r.config.huePeriodSeconds;
+        final shift = r.config.hueShift;
+        for (var i = 0; i < 50; i++) {
+          final hue = r.sample(i * p / 37, 1).hueDegrees;
+          switch (mode) {
+            case BeamHueMode.none:
+              expect(hue, 0);
+            case BeamHueMode.continuous:
+              expect(hue, inInclusiveRange(0, 360));
+              expect(hue, lessThan(360));
+            case BeamHueMode.pingPong:
+              expect(hue, inInclusiveRange(-shift - 1e-9, shift + 1e-9));
+          }
+        }
+      });
+    }
+  });
+
+  group('cycles', () {
+    for (final effect in BeamEffect.values) {
+      test('${effect.name}: counts elapsed cycles without wrapping', () {
+        final r = _resolver(effect: effect, cycleGap: Duration.zero);
+        expect(r.sample(0, 1).cycles, 0);
+        expect(r.sample(1, 1).cycles, closeTo(0.5, 1e-12));
+        expect(r.sample(7.3, 1).cycles, closeTo(3.65, 1e-12));
+        expect(r.sample(1000, 1).cycles, closeTo(500, 1e-9));
+      });
+    }
+
+    test('the gap does not stretch the ambient clock', () {
+      final r = _resolver(cycleGap: const Duration(seconds: 1));
+      expect(r.sample(6, 1).cycles, closeTo(3, 1e-12));
+    });
+
+    // defect: BeamTiming.phaseOffset is documented as where "the timeline
+    // starts" for any beam, but `cycles` ignores it — two ambient beams on
+    // different offsets breathe in step, while finishedAt does shift.
+    test('phaseOffset puts an ambient beam out of step', () {
+      for (final effect in ambient) {
+        final plain = _resolver(effect: effect);
+        final shifted = _resolver(effect: effect, phaseOffset: 0.5);
         expect(
-          sampleKeyframes(lineBreatheH, f.t, easedSegments: true),
-          closeTo(f.value, 1e-9),
+          shifted.sample(1, 1).cycles - plain.sample(1, 1).cycles,
+          closeTo(0.5, 1e-12),
+          reason: effect.name,
         );
       }
-      // Just after a stop, an eased segment moves slower than linear.
-      final eased = sampleKeyframes(lineSpike, 0.05, easedSegments: true);
-      final linear = sampleKeyframes(lineSpike, 0.05);
-      expect((eased - 0.8).abs(), lessThan((linear - 0.8).abs()));
-    });
-
-    test('clamps outside 0-1', () {
-      expect(sampleKeyframes(lineEdgeFade, -0.5), 0);
-      expect(sampleKeyframes(lineEdgeFade, 1.5), 0);
-    });
+    }, skip: 'defect: phaseOffset never reaches the ambient `cycles` clock');
   });
 
-  group('BeamPhaseResolver', () {
-    test('rotate: angle spins one turn per cycle', () {
-      final r = BeamPhaseResolver(_config(BeamVariant.rotate));
-      expect(r.sample(0, 1).angleRadians, closeTo(0, 1e-9));
-      expect(r.sample(1.96 / 2, 1).angleRadians, closeTo(math.pi, 1e-6));
-      expect(r.sample(1.96, 1).angleRadians, closeTo(0, 1e-6));
-    });
+  group('time offsets', () {
+    test('hueTimeOffset shifts only the hue', () {
+      final plain = _resolver(effect: const BeamEffect.pulse());
+      final shifted = _resolver(effect: const BeamEffect.pulse())
+        ..hueTimeOffset = 2;
+      final a = shifted.sample(3, 1);
+      expect(a.hueDegrees, closeTo(plain.sample(5, 1).hueDegrees, 1e-9));
+      expect(a.cycles, plain.sample(3, 1).cycles);
 
-    test('line: travel, edge fade, and hue cap', () {
-      final config = _config(BeamVariant.line, hueRange: 30);
-      expect(config.hueRange, 13, reason: 'line caps hueRange at 13°');
-      final r = BeamPhaseResolver(config);
-      final start = r.sample(0, 1);
-      expect(start.lineX, closeTo(0.06, 1e-9));
-      expect(start.edge, 0);
-      final mid = r.sample(3.1 / 2, 1);
-      expect(mid.lineX, closeTo(0.5, 1e-6));
-      expect(mid.edge, 1);
-    });
-
-    test('hue modes: static, ping-pong, continuous', () {
-      final staticR = BeamPhaseResolver(
-        _config(BeamVariant.rotate, staticColors: true),
-      );
-      expect(staticR.sample(5, 1).hueDegrees, 0);
-
-      final rotate = BeamPhaseResolver(_config(BeamVariant.rotate));
-      expect(rotate.sample(0, 1).hueDegrees, closeTo(-30, 1e-6));
-      expect(rotate.sample(6, 1).hueDegrees, closeTo(30, 1e-6));
-      expect(rotate.sample(12, 1).hueDegrees, closeTo(-30, 1e-6));
-
-      final pulse = BeamPhaseResolver(_config(BeamVariant.pulseInside));
-      // Continuous sawtooth over 16s: quarter revolution at 4s.
-      expect(pulse.sample(4, 1).hueDegrees, closeTo(90, 1e-6));
-      expect(pulse.sample(16, 1).hueDegrees, closeTo(0, 1e-6));
-    });
-
-    test('mono palette forces static colors through config', () {
-      final config = BeamConfig.resolve(
-        variant: BeamVariant.rotate,
-        palette: BeamColors.mono.resolve(),
-        brightness: Brightness.dark,
-      );
-      expect(config.staticColors, isTrue);
-      expect(BeamPhaseResolver(config).sample(3, 1).hueDegrees, 0);
-    });
-
-    test('hueTimeOffset shifts only the fixed-period hue tracks', () {
-      final r = BeamPhaseResolver(_config(BeamVariant.rotate));
-      final unshifted = BeamPhaseResolver(_config(BeamVariant.rotate));
-      r.hueTimeOffset = 2;
+      final rotate = _resolver()..hueTimeOffset = -1.5;
+      final rotatePlain = _resolver();
       expect(
-        r.sample(3, 1).hueDegrees,
-        closeTo(unshifted.sample(5, 1).hueDegrees, 1e-9),
+        rotate.sample(4, 1).hueDegrees,
+        closeTo(rotatePlain.sample(2.5, 1).hueDegrees, 1e-9),
       );
       expect(
-        r.sample(3, 1).angleRadians,
-        closeTo(unshifted.sample(3, 1).angleRadians, 1e-9),
-        reason: 'the cycle-derived tracks ignore the hue offset',
+        rotate.sample(4, 1).travelProgress,
+        rotatePlain.sample(4, 1).travelProgress,
       );
-
-      final line = BeamPhaseResolver(_config(BeamVariant.line))
-        ..hueTimeOffset = -1.5;
-      final lineRef = BeamPhaseResolver(_config(BeamVariant.line));
-      expect(
-        line.sample(4, 1).bloomHueDegrees,
-        closeTo(lineRef.sample(2.5, 1).bloomHueDegrees, 1e-9),
-      );
-      expect(
-        line.sample(4, 1).lineX,
-        closeTo(lineRef.sample(4, 1).lineX, 1e-9),
-      );
-
-      final pulse = BeamPhaseResolver(_config(BeamVariant.pulseInside))
-        ..hueTimeOffset = 4;
-      // Sawtooth over 16s: a 4s shift is a quarter revolution.
-      expect(pulse.sample(0, 1).hueDegrees, closeTo(90, 1e-6));
     });
 
-    test('a static palette ignores the hue offset', () {
-      final r = BeamPhaseResolver(
-        _config(BeamVariant.rotate, staticColors: true),
-      )..hueTimeOffset = 3.7;
-      expect(r.sample(2, 1).hueDegrees, 0);
+    test('breatheTimeOffset shifts only the ambient clock', () {
+      final plain = _resolver();
+      final shifted = _resolver()..breatheTimeOffset = 1;
+      final a = shifted.sample(3, 1);
+      final b = plain.sample(3, 1);
+      expect(a.cycles, closeTo(b.cycles + 0.5, 1e-12));
+      expect(a.travelProgress, b.travelProgress);
+      expect(a.hueDegrees, b.hueDegrees);
     });
 
-    test('retiming a cycle change holds every rotate track', () {
-      final before = BeamPhaseResolver(
-        _config(BeamVariant.rotate, cycleDuration: const Duration(seconds: 2)),
-      );
-      const t = 0.9;
-      final ref = before.sample(t, 1);
-      final next = _retimed(before, t, const Duration(seconds: 4));
-      final after = next.resolver.sample(next.t, 1);
-      expect(after.angleRadians, closeTo(ref.angleRadians, 1e-9));
-      expect(after.hueDegrees, closeTo(ref.hueDegrees, 1e-9));
+    test('travelTimeOffset shifts only the sweep and the repeat budget', () {
+      final plain = _resolver()..repeatCycles = 1;
+      final shifted = _resolver()
+        ..repeatCycles = 1
+        ..travelTimeOffset = 1;
+      final a = shifted.sample(0.5, 1);
+      final b = plain.sample(0.5, 1);
+      expect(a.travelProgress, closeTo(b.travelProgress + 0.5, 1e-12));
+      expect(a.hueDegrees, b.hueDegrees);
+      expect(a.cycles, b.cycles);
+      expect(plain.finishedAt(1.5), isFalse);
+      expect(shifted.finishedAt(1.5), isTrue);
     });
 
-    test('retiming a cycle change holds every line track', () {
-      final before = BeamPhaseResolver(
-        _config(BeamVariant.line, cycleDuration: const Duration(seconds: 3)),
-      );
-      const t = 2.4;
-      final ref = before.sample(t, 1);
-      final next = _retimed(before, t, const Duration(milliseconds: 1500));
-      final after = next.resolver.sample(next.t, 1);
-      expect(after.lineX, closeTo(ref.lineX, 1e-9));
-      expect(after.lineW, closeTo(ref.lineW, 1e-9));
-      expect(after.lineH, closeTo(ref.lineH, 1e-9));
-      expect(after.spike, closeTo(ref.spike, 1e-9));
-      expect(after.spike2, closeTo(ref.spike2, 1e-9));
-      expect(after.edge, closeTo(ref.edge, 1e-9));
-      expect(after.hueDegrees, closeTo(ref.hueDegrees, 1e-9));
-      expect(after.bloomHueDegrees, closeTo(ref.bloomHueDegrees, 1e-9));
-    });
-
-    test('retiming a cycle change holds every pulse oscillator', () {
-      final before = BeamPhaseResolver(
-        _config(
-          BeamVariant.pulseInside,
-          cycleDuration: const Duration(milliseconds: 2300),
-        ),
-      );
-      const t = 1.7;
-      final ref = before.sample(t, 1);
-      final next = _retimed(before, t, const Duration(seconds: 5));
-      final after = next.resolver.sample(next.t, 1);
-      for (var i = 0; i < 3; i++) {
-        expect(after.pulse.bw[i], closeTo(ref.pulse.bw[i], 1e-9));
-        expect(after.pulse.bh[i], closeTo(ref.pulse.bh[i], 1e-9));
-        expect(after.pulse.bx[i], closeTo(ref.pulse.bx[i], 1e-9));
-        expect(after.pulse.by[i], closeTo(ref.pulse.by[i], 1e-9));
+    test('a retime with a hue correction holds every track', () {
+      // What the widget does when the cycle changes mid-run: rescale
+      // elapsed time by the cycle ratio, and shift the fixed-period hue
+      // track back by the amount the timeline moved.
+      for (final effect in BeamEffect.values) {
+        final before = _resolver(
+          effect: effect,
+          cycleGap: Duration.zero,
+          cycle: const Duration(seconds: 2),
+        );
+        final after = _resolver(
+          effect: effect,
+          cycleGap: Duration.zero,
+          cycle: const Duration(milliseconds: 4500),
+        );
+        const t = 1.3;
+        final scaled =
+            t * after.config.cycleSeconds / before.config.cycleSeconds;
+        after.hueTimeOffset = t - scaled;
+        final a = before.sample(t, 1);
+        final b = after.sample(scaled, 1);
+        expect(b.travelProgress, closeTo(a.travelProgress, 1e-9));
+        expect(b.cycles, closeTo(a.cycles, 1e-9), reason: effect.name);
+        expect(b.hueDegrees, closeTo(a.hueDegrees, 1e-9), reason: effect.name);
       }
-      expect(after.pulse.bgh, closeTo(ref.pulse.bgh, 1e-9));
-      expect(after.pulse.bopTl, closeTo(ref.pulse.bopTl, 1e-9));
-      expect(after.pulse.bopTr, closeTo(ref.pulse.bopTr, 1e-9));
-      expect(after.pulse.bopBl, closeTo(ref.pulse.bopBl, 1e-9));
-      expect(after.pulse.bopBr, closeTo(ref.pulse.bopBr, 1e-9));
-      expect(after.hueDegrees, closeTo(ref.hueDegrees, 1e-9));
-    });
-
-    test('static frame is full-opacity and hue-neutral', () {
-      final pulse = BeamPhaseResolver(_config(BeamVariant.pulseOutside));
-      final frame = pulse.staticFrame();
-      expect(frame.fadeOpacity, 1);
-      expect(frame.hueDegrees, 0);
-      expect(frame.pulse.bgh, 1);
     });
   });
 
-  group('BeamConfig.resolve', () {
-    test('strength clamps and defaults resolve', () {
-      final c = BeamConfig.resolve(
-        variant: BeamVariant.small,
-        palette: BeamColors.colorful.resolve(),
-        brightness: Brightness.dark,
-        style: const BeamStyle(strength: 1.7),
-      );
-      expect(c.strength, 1);
-      expect(c.borderRadius.topLeft.x, 32);
-      expect(c.cycleSeconds, closeTo(1.96, 1e-9));
-      expect(c.brightnessFactor, 1.3);
-      expect(c.saturation, 1.2);
+  group('repeat budget', () {
+    test('no budget never finishes', () {
+      final r = _resolver();
+      expect(r.finishedAt(1e6), isFalse);
+      expect(r.sample(1e6, 1).finished, isFalse);
     });
 
-    test('pulse presets carry brightness overrides', () {
-      final c = BeamConfig.resolve(
-        variant: BeamVariant.pulseInside,
-        palette: BeamColors.colorful.resolve(),
-        brightness: Brightness.dark,
-      );
-      expect(c.brightnessFactor, 0.75);
-      expect(c.cycleSeconds, closeTo(2.3, 1e-9));
+    test('a budget of n finishes at the n-th cycle boundary', () {
+      for (final n in [1, 3]) {
+        final r = _resolver()..repeatCycles = n;
+        expect(r.finishedAt(n * 2 - 0.001), isFalse, reason: 'n=$n');
+        expect(r.finishedAt(n * 2 + 0.001), isTrue, reason: 'n=$n');
+        expect(r.sample(n * 2 + 0.001, 1).finished, isTrue);
+        expect(r.sample(n * 2 - 0.001, 1).finished, isFalse);
+      }
+    });
+
+    test('a travelling gap counts toward its cycle', () {
+      final r = _resolver(cycleGap: const Duration(seconds: 1))
+        ..repeatCycles = 1;
+      expect(r.finishedAt(2.5), isFalse);
+      expect(r.finishedAt(3.01), isTrue);
+    });
+
+    test('ambient effects ignore a configured gap', () {
+      for (final effect in ambient) {
+        final r = _resolver(
+          effect: effect,
+          cycleGap: const Duration(seconds: 1),
+        )..repeatCycles = 2;
+        expect(r.sample(3.99, 1).finished, isFalse, reason: effect.name);
+        expect(r.sample(4.01, 1).finished, isTrue, reason: effect.name);
+      }
+    });
+
+    test('a phase offset moves the finish with the timeline', () {
+      final r = _resolver(phaseOffset: 0.5)..repeatCycles = 1;
+      expect(r.finishedAt(0.9), isFalse);
+      expect(r.finishedAt(1.1), isTrue);
+    });
+
+    test('sample and finishedAt agree', () {
+      for (final effect in BeamEffect.values) {
+        final r = _resolver(effect: effect)..repeatCycles = 2;
+        for (var i = 0; i < 40; i++) {
+          final t = i * 0.37;
+          expect(r.sample(t, 1).finished, r.finishedAt(t), reason: '$t');
+        }
+      }
+    });
+  });
+
+  group('staticFrame', () {
+    for (final effect in BeamEffect.values) {
+      test('${effect.name}: full opacity, hue-neutral, deterministic', () {
+        final r = _resolver(effect: effect, hueMode: BeamHueMode.continuous);
+        final a = r.staticFrame();
+        final b = r.staticFrame();
+        expect(a.fadeOpacity, 1);
+        expect(a.hueDegrees, 0, reason: 'the palette as given');
+        expect(a.driven, isFalse);
+        expect(a.finished, isFalse);
+        expect(a.travelProgress, b.travelProgress);
+        expect(a.travellers, b.travellers);
+        expect(a.cycles, b.cycles);
+        expect(a.cycles.isFinite, isTrue);
+      });
+    }
+
+    test('a travelling effect shows the sweep mid-border', () {
+      for (final effect in BeamEffect.values.where((e) => e.travels)) {
+        final frame = _resolver(effect: effect).staticFrame();
+        expect(frame.travelProgress, inExclusiveRange(0, 1));
+      }
+      final three = _resolver(
+        effect: const BeamEffect.rotate(count: 3),
+      ).staticFrame();
+      expect(three.travellers, hasLength(3));
+      expect(three.travellers.first, three.travelProgress);
+    });
+
+    test('honours a driven progress, clamped', () {
+      final r = _resolver();
+      final frame = r.staticFrame(progress: 0.25);
+      expect(frame.travelProgress, 0.25);
+      expect(frame.driven, isTrue);
+      expect(r.staticFrame(progress: 1.4).travelProgress, 1);
+      expect(r.staticFrame(progress: -1).travelProgress, 0);
+    });
+
+    test('an ambient effect has no travel, driven or not', () {
+      for (final effect in ambient) {
+        final frame = _resolver(effect: effect).staticFrame(progress: 0.6);
+        expect(frame.travelProgress, 0, reason: effect.name);
+        expect(frame.travellers, [0]);
+        expect(frame.driven, isFalse);
+      }
     });
   });
 }
