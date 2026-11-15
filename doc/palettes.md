@@ -2,11 +2,16 @@
 
 A palette is a **ring of colour stops around the border**. Each stop is a colour at a perimeter position in `[0, 1)`: 0 is top-centre, and positions increase clockwise by arc length. Between stops the colour blends, and past the last stop it blends back into the first across top-centre, so the ring has no seam.
 
-How a ring is shown depends on the effect:
+Effects draw a palette as soft blobs of colour placed around the border — the same blob tables the original design was tuned with:
 
-- `rotate`, `pulse`, `halo`, `shimmer`, and `charge` hold the ring still and reveal the colours wherever their light falls — a rotating beam changes colour as it laps the border.
-- `flow` and `spin` move the ring itself, so the colours stream round the border.
-- `line` spreads the whole palette across its streak, so every colour shows at once.
+- The four originals (`colorful`, `mono`, `ocean`, `sunset`) carry their own hand-tuned tables; the seven extras that follow them cycle their colours over `colorful`'s tables.
+- Every other palette — the presets new in 0.2 and everything you build with `BeamColors(...)`, `.solid`, `.fromSeed`, `.fromScheme`, `.lerp` — keeps `colorful`'s blob geometry and takes each blob's colour from the ring of stops at the point of the border the blob sits on. `scaleAlpha` keeps a preset's own tables, dimmed. The tables are worked out once per palette.
+
+How the colours are shown depends on the effect:
+
+- `rotate`, `pulse`, `halo`, `shimmer`, and `charge` hold the colours still and reveal them wherever their light falls — a rotating beam changes colour as it laps the border.
+- `flow` and `spin` move the colours themselves, so they stream round the border.
+- `line` spreads the palette across its streak, so every colour shows at once.
 
 ## Presets
 
@@ -32,9 +37,9 @@ How a ring is shown depends on the effect:
 | `sky` | cerulean, periwinkle, white-blue | |
 | `lavender` | lilac, lavender, soft pink | |
 
-`BeamColors.presets` is a `Map<String, BeamColors>` of all 19, in this order — handy for a picker. The presets live in `lib/src/models/beam_presets.dart` as plain colour and stop lists; every one is meant to read on both dark and light surfaces.
+`BeamColors.presets` is a `Map<String, BeamColors>` of all 19, in this order — handy for a picker. The presets' stops live in `lib/src/models/beam_presets.dart` and their blob tables in `lib/src/look/`; every one is meant to read on both dark and light surfaces.
 
-Two presets pin the hue: `mono` and `gold` set `BeamHueMode.none` whatever the style says, because a hue sweep over greys or a single-hue metal reads as the material changing. Palettes made of greys are also painted with dimmer layers than coloured ones, since white light reads brighter than coloured light at the same opacity.
+Two presets pin the hue: `mono` and `gold` set `BeamHueMode.none` whatever the style says, because a hue sweep over greys or a single-hue metal reads as the material changing. `mono` is also painted with its layers at half strength (the line softens its spikes instead), since white light reads brighter than coloured light at the same opacity.
 
 `holographic` is the opposite bet — low-contrast pastels that come alive under a fast continuous drift:
 

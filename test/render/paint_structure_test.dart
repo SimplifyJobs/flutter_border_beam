@@ -170,7 +170,6 @@ void main() {
     for (final (label, effect) in [
       ('halo', const BeamEffect.halo()),
       ('rotate comet', const BeamEffect.rotate(comet: true)),
-      ('spin', const BeamEffect.spin()),
     ]) {
       test('$label paints past the bounds', () async {
         final config = configFor(effect);
@@ -224,38 +223,45 @@ void main() {
   });
 
   group('direction', () {
-    test('reverse paints the mirror image of forward', () async {
-      // Colours are fixed to perimeter positions, so only the light's shape
-      // mirrors: compare coverage (alpha), on a light theme where all light
-      // is blended.
-      Future<RenderedFrame> at(BeamDirection direction) {
+    test('reverse sweeps the mirror image of forward', () async {
+      // The colour field is fixed to the box, so only where the light sits
+      // mirrors: compare the horizontal centre of its coverage.
+      Future<double> centre(BeamDirection direction) async {
         final config = configFor(
           const BeamEffect.rotate(),
           brightness: Brightness.light,
           timing: BeamTiming(direction: direction),
         );
-        return renderFrame(config, phasesAt(config, 1.3));
+        // A quarter of the way round: forward on the right edge, reverse on
+        // the left.
+        final frame = await renderFrame(
+          config,
+          phasesAt(config, config.cycleSeconds / 4),
+        );
+        var sum = 0.0;
+        var weight = 0.0;
+        for (var y = 0; y < frame.height; y++) {
+          for (var x = 0; x < frame.width; x++) {
+            final a = frame.rgba[(y * frame.width + x) * 4 + 3];
+            sum += a * x;
+            weight += a;
+          }
+        }
+        expect(weight, greaterThan(0));
+        return sum / weight;
       }
 
-      final forward = await at(BeamDirection.forward);
-      final reverse = await at(BeamDirection.reverse);
-      var compared = 0;
-      var mismatched = 0;
-      for (var y = 0; y < forward.height; y++) {
-        for (var x = 0; x < forward.width; x++) {
-          final a = forward.rgba[(y * forward.width + x) * 4 + 3];
-          final mx = forward.width - 1 - x;
-          final b = reverse.rgba[(y * reverse.width + mx) * 4 + 3];
-          if (a == 0 && b == 0) continue;
-          compared++;
-          if ((a - b).abs() > 3) mismatched++;
-        }
-      }
-      expect(compared, greaterThan(0));
+      final forward = await centre(BeamDirection.forward);
+      final reverse = await centre(BeamDirection.reverse);
+      final mid = (renderMargin * 2 + cardSize.width) / 2;
       expect(
-        mismatched,
-        lessThan(compared * 0.01),
-        reason: '$mismatched of $compared pixels are not mirrored',
+        (forward - mid) * (reverse - mid),
+        lessThan(0),
+        reason: 'the two sweeps sit on opposite sides',
+      );
+      expect(
+        (forward - mid).abs(),
+        closeTo((reverse - mid).abs(), cardSize.width * 0.15),
       );
     });
   });

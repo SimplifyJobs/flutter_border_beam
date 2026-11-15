@@ -256,10 +256,15 @@ float layerMask(vec4 h0, vec4 h1, vec4 h2, vec4 h3, vec2 pos, vec2 pathP, float 
     float sigma = max(h0.y, 1e-3);
     float c = (d + 0.5 * w) / sigma;
     m = w / sigma * INV_SQRT_TAU * exp(-0.5 * c * c) * inside;
-  } else {
+  } else if (kind < 4.5) {
     // Outside the outline only: a glow behind the child, which covers the
     // inside.
     m = 1.0 - inside;
+  } else {
+    // A glow outside the outline that fades out: the shape grown by
+    // [inflate] and blurred by [sigma].
+    float sigma = max(h0.y, 1e-3);
+    m = phi((h0.z - d) / sigma) * (1.0 - inside);
   }
   if (m <= 0.0) return 0.0;
 

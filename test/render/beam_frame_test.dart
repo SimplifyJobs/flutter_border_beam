@@ -1,0 +1,530 @@
+import 'dart:ui' show Brightness;
+
+import 'package:flutter/painting.dart';
+import 'package:flutter_border_beam/flutter_border_beam.dart';
+import 'package:flutter_border_beam/src/effects/effect_emitters.dart';
+import 'package:flutter_border_beam/src/look/beam_look.dart';
+import 'package:flutter_border_beam/src/look/palette_tables.dart';
+import 'package:flutter_border_beam/src/look/rotate_look.dart';
+import 'package:flutter_border_beam/src/render/beam_frame.dart';
+import 'package:flutter_border_beam/src/render/beam_outline.dart';
+import 'package:flutter_border_beam/src/render/beam_renderer.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'render_utils.dart';
+
+/// What each effect writes for the shader, frame by frame: finite and in
+/// range, its layers built the way the design builds them, its windows where
+/// the travel says, and its track inside the user's segment.
+void main() {
+  setUpAll(BorderBeam.precache);
+
+  // Evenly spread across two cycles of every effect, plus the golden
+  // instant.
+  final instants = [for (var i = 0; i < 24; i++) 0.05 + i * 0.29, 1.3];
+  final box = const Offset(renderMargin, renderMargin) & cardSize;
+
+  BeamRenderer renderer() {
+    final r = BeamRenderer();
+    addTearDown(r.dispose);
+    return r;
+  }
+
+  int litLayers(BeamFrameData d) => [
+    for (var k = 0; k < beamLayerCount; k++)
+      if (d.geometryOf(k) != BeamGeometry.none && d.opacityOf(k) > 0) k,
+  ].length;
+
+  group('every frame is sane', () {
+    for (final MapEntry(key: name, value: effect) in effectsByName.entries) {
+      test(name, () {
+        final r = renderer();
+        var painted = 0;
+        for (final brightness in Brightness.values) {
+          for (final MapEntry(key: shapeName, value: shape)
+              in shapeVariety.entries) {
+            final config = configFor(
+              effect,
+              brightness: brightness,
+              shape: shape,
+            );
+            for (final t in instants) {
+              final canvas = recordFrame(r, config, phasesAt(config, t));
+              // A frame the gap blacked out leaves the last one behind.
+              if (canvas.draws.isEmpty) continue;
+              painted++;
+              expectSaneFrame(
+                r.debugFrame,
+                '$name/${brightness.name}/$shapeName at ${t}s',
+                drawBounds: canvas.drawBounds.single,
+              );
+            }
+          }
+        }
+        expect(painted, greaterThan(0));
+      });
+    }
+
+    test('effect options, palettes, and glow extremes', () {
+      final options = <String, BeamEffect>{
+        'rotate comet': const BeamEffect.rotate(comet: true),
+        'rotate count 4': const BeamEffect.rotate(count: 4),
+        'rotate short tail': const BeamEffect.rotate(length: 0.25),
+        'rotate long tail': const BeamEffect.rotate(length: 2),
+        for (final edge in BeamEdge.values)
+          'line ${edge.name}': BeamEffect.line(edge: edge),
+        'shimmer 0°': const BeamEffect.shimmer(angle: 0),
+        'shimmer 90°': const BeamEffect.shimmer(angle: 90),
+        'shimmer -45°': const BeamEffect.shimmer(angle: -45),
+      };
+      final r = renderer();
+      for (final MapEntry(key: label, value: effect) in options.entries) {
+        for (final glow in [0.0, 1.0, 4.0]) {
+          for (final MapEntry(key: palette, value: colors)
+              in paletteSubset.entries) {
+            final config = configFor(
+              effect,
+              colors: colors,
+              style: BeamStyle(glow: glow),
+            );
+            for (final t in [0.4, 1.3, 2.9]) {
+              final canvas = recordFrame(r, config, phasesAt(config, t));
+              if (canvas.draws.isEmpty) continue;
+              expectSaneFrame(
+                r.debugFrame,
+                '$label, $palette, glow $glow at ${t}s',
+                drawBounds: canvas.drawBounds.single,
+              );
+            }
+          }
+        }
+      }
+    });
+
+    test('driven sweeps, from empty to full', () {
+      final r = renderer();
+      for (final effect in BeamEffect.values.where((e) => e.travels)) {
+        final config = configFor(effect);
+        for (var i = 0; i <= 20; i++) {
+          final progress = i / 20;
+          final canvas = recordFrame(
+            r,
+            config,
+            phasesAt(config, 1.3, progress: progress),
+          );
+          if (effect is ChargeEffect && progress == 0) {
+            expect(canvas.draws, isEmpty, reason: 'an empty charge');
+            continue;
+          }
+          expect(canvas.draws, hasLength(1));
+          expectSaneFrame(
+            r.debugFrame,
+            '${effect.name} at progress $progress',
+            drawBounds: canvas.drawBounds.single,
+          );
+        }
+      }
+    });
+  });
+
+  group('rotate', () {
+    test('paints an inner glow, a hairline, and a blurred bloom', () {
+      final r = renderer();
+      final config = configFor(const BeamEffect.rotate());
+      recordFrame(r, config, phasesAt(config, 1.3));
+      final d = r.debugFrame;
+      expect(d.geometryOf(0), BeamGeometry.fill);
+      expect(d.edgeFadeOf(0), innerEdgeFade);
+      expect(d.hasShadow(0), isTrue);
+      expect(d.windowOf(0), BeamWindow.conicA);
+      expect(d.blobCount(0), colorfulTables.border.length);
+      expect(d.geometryOf(1), BeamGeometry.ring);
+      expect(d.windowOf(1), BeamWindow.conicA);
+      expect(d.overlayOf(1), BeamTable.overlayA);
+      expect(d.blobCount(1), colorfulTables.border.length);
+      expect(d.geometryOf(2), BeamGeometry.blurredRing);
+      expect(d.sigmaOf(2), rotateBloomBlur);
+      expect(d.overlayOf(2), BeamTable.overlayB);
+      expect(d.blobCount(2), 0);
+    });
+
+    test('a compact chip takes the chip tables', () {
+      final r = renderer();
+      final config = configFor(
+        const BeamEffect.rotate(),
+        shape: const BeamShape.stadium(),
+      );
+      recordFrame(r, config, phasesAt(config, 1.3), size: const Size(120, 36));
+      final d = r.debugFrame;
+      expect(d.windowOf(0), BeamWindow.conicB, reason: 'the wider window');
+      expect(d.edgeFadeOf(0), 0, reason: 'no edge fade on a chip');
+      expect(d.blobCount(0), colorfulTables.smallInner.length);
+      expect(d.blobCount(1), colorfulTables.smallBorder.length);
+    });
+
+    test('the head rides the travel around the turn', () {
+      final r = renderer();
+      final config = configFor(const BeamEffect.rotate());
+      for (final p in [0.0, 0.2, 0.55, 0.9]) {
+        recordFrame(r, config, phasesAt(config, 1.3, progress: p));
+        final head = r.debugFrame.conicStart + rotateHeadStop;
+        expect(BeamOutline.wrapFraction(head - p), closeTo(0, 1e-6));
+      }
+    });
+
+    test('count beams repeat the tables around the turn', () {
+      final r = renderer();
+      for (final count in [1, 2, 3, 4]) {
+        final config = configFor(BeamEffect.rotate(count: count));
+        recordFrame(r, config, phasesAt(config, 1.3));
+        expect(r.debugFrame.conicRepeats, count);
+      }
+    });
+
+    test('length stretches the tail; reverse mirrors the tables', () {
+      final r = renderer();
+      double lit(BeamFrameData d) {
+        var n = 0;
+        for (var i = 0; i < 400; i++) {
+          if (d.tableAt(BeamTable.windowA, i / 400) > 0.05) n++;
+        }
+        return n / 400;
+      }
+
+      final short = configFor(const BeamEffect.rotate(length: 0.5));
+      recordFrame(r, short, phasesAt(short, 1.3));
+      final shortWidth = lit(r.debugFrame);
+      final long = configFor(const BeamEffect.rotate(length: 1.3));
+      recordFrame(r, long, phasesAt(long, 1.3));
+      expect(lit(r.debugFrame), greaterThan(shortWidth));
+
+      final forward = configFor(const BeamEffect.rotate());
+      recordFrame(r, forward, phasesAt(forward, 1.3));
+      final f = [
+        for (var i = 1; i < 20; i++)
+          r.debugFrame.tableAt(BeamTable.overlayA, i / 20),
+      ];
+      final reverse = configFor(
+        const BeamEffect.rotate(),
+        timing: const BeamTiming(direction: BeamDirection.reverse),
+      );
+      recordFrame(r, reverse, phasesAt(reverse, 1.3));
+      for (var i = 1; i < 20; i++) {
+        expect(
+          r.debugFrame.tableAt(BeamTable.overlayA, 1 - i / 20),
+          closeTo(f[i - 1], 1e-6),
+        );
+      }
+    });
+
+    test('a comet glows outside the border; a plain beam stays in', () {
+      final r = renderer();
+      final plain = configFor(const BeamEffect.rotate());
+      recordFrame(r, plain, phasesAt(plain, 1.3));
+      expect(r.debugFrame.geometryOf(2), BeamGeometry.blurredRing);
+      expect(r.debugFrame.reachOutside, 0);
+      final comet = configFor(const BeamEffect.rotate(comet: true));
+      recordFrame(r, comet, phasesAt(comet, 1.3));
+      expect(r.debugFrame.geometryOf(2), BeamGeometry.glow);
+      expect(r.debugFrame.reachOutside, greaterThan(cometReach));
+    });
+
+    test('mono paints its layers at half strength', () {
+      final r = renderer();
+      final colorful = configFor(const BeamEffect.rotate());
+      recordFrame(r, colorful, phasesAt(colorful, 1.3));
+      final full = [for (var k = 0; k < 3; k++) r.debugFrame.opacityOf(k)];
+      final mono = configFor(
+        const BeamEffect.rotate(),
+        colors: BeamColors.mono,
+      );
+      recordFrame(r, mono, phasesAt(mono, 1.3));
+      for (var k = 0; k < 3; k++) {
+        expect(r.debugFrame.opacityOf(k), closeTo(full[k] / 2, 1e-6));
+      }
+    });
+  });
+
+  group('line', () {
+    test('the windows ride the edge with the streak', () {
+      final r = renderer();
+      for (final edge in BeamEdge.values) {
+        final config = configFor(BeamEffect.line(edge: edge));
+        for (final p in [0.2, 0.5, 0.8]) {
+          recordFrame(r, config, phasesAt(config, 1.3, progress: p));
+          final d = r.debugFrame;
+          for (final k in [0, 1, 2]) {
+            expect(d.windowOf(k), BeamWindow.radial);
+            final w = d.windowParamsOf(k);
+            final at = Offset(w[0], w[1]);
+            final onEdge = switch (edge) {
+              BeamEdge.top => (at.dy - box.top).abs(),
+              BeamEdge.bottom => (at.dy - box.bottom).abs(),
+              BeamEdge.left => (at.dx - box.left).abs(),
+              BeamEdge.right => (at.dx - box.right).abs(),
+            };
+            expect(onEdge, lessThan(1e-3), reason: '${edge.name} $k');
+          }
+        }
+      }
+    });
+
+    test('a driven streak reads left to right and top to bottom', () {
+      final r = renderer();
+      for (final edge in BeamEdge.values) {
+        final config = configFor(BeamEffect.line(edge: edge));
+        Offset centre(double p) {
+          recordFrame(r, config, phasesAt(config, 1.3, progress: p));
+          final w = r.debugFrame.windowParamsOf(1);
+          return Offset(w[0], w[1]);
+        }
+
+        final start = centre(0.1);
+        final end = centre(0.9);
+        if (edge == BeamEdge.top || edge == BeamEdge.bottom) {
+          expect(end.dx, greaterThan(start.dx), reason: edge.name);
+        } else {
+          expect(end.dy, greaterThan(start.dy), reason: edge.name);
+        }
+      }
+    });
+
+    test('fades in and out at the ends of a timed sweep', () {
+      final r = renderer();
+      final config = configFor(const BeamEffect.line());
+      double strokeAt(double t) {
+        recordFrame(r, config, phasesAt(config, t));
+        return r.debugFrame.opacityOf(1);
+      }
+
+      final cycle = config.cycleSeconds;
+      expect(strokeAt(cycle * 0.5), greaterThan(0.9));
+      expect(strokeAt(cycle * 0.2), lessThan(strokeAt(cycle * 0.5)));
+    });
+
+    test('mono softens the spikes instead of halving the layers', () {
+      final r = renderer();
+      final colorful = configFor(const BeamEffect.line());
+      recordFrame(r, colorful, phasesAt(colorful, 1.5));
+      final full = [for (var k = 0; k < 3; k++) r.debugFrame.opacityOf(k)];
+      final mono = configFor(const BeamEffect.line(), colors: BeamColors.mono);
+      recordFrame(r, mono, phasesAt(mono, 1.5));
+      for (var k = 0; k < 3; k++) {
+        expect(r.debugFrame.opacityOf(k), closeTo(full[k], 1e-6));
+      }
+    });
+  });
+
+  group('charge', () {
+    test('the fill grows with progress from the top, clockwise', () {
+      final r = renderer();
+      final config = configFor(const BeamEffect.charge());
+      var previous = 0.0;
+      for (var i = 1; i <= 10; i++) {
+        recordFrame(r, config, phasesAt(config, 1.3, progress: i / 10));
+        final d = r.debugFrame;
+        expect(d.trackStart, closeTo(0, 1e-9), reason: 'starts top-centre');
+        expect(d.trackSpan, closeTo(i / 10, 1e-6));
+        expect(d.trackSpan, greaterThan(previous));
+        previous = d.trackSpan;
+      }
+    });
+
+    test('an empty charge draws nothing', () {
+      final r = renderer();
+      final config = configFor(const BeamEffect.charge());
+      final canvas = recordFrame(r, config, phasesAt(config, 1.3, progress: 0));
+      expect(canvas.draws, isEmpty);
+      expect(litLayers(r.debugFrame), 0);
+    });
+  });
+
+  group('shimmer', () {
+    test('the glint crosses the whole box over one sweep', () {
+      final r = renderer();
+      for (final angle in [0.0, 20.0, 75.0]) {
+        final config = configFor(BeamEffect.shimmer(angle: angle));
+        final positions = <double>[];
+        for (final p in [0.0, 0.5, 1.0]) {
+          recordFrame(r, config, phasesAt(config, 1.3, progress: p));
+          expect(r.debugFrame.windowOf(1), BeamWindow.linear);
+          positions.add(r.debugFrame.windowParamsOf(1)[2]);
+        }
+        final half = r.debugFrame.windowParamsOf(1)[3];
+        expect(positions.first + half, lessThanOrEqualTo(1e-6));
+        expect(positions.last - half, greaterThanOrEqualTo(1 - 1e-6));
+        expect(positions[1], closeTo(0.5, 1e-6));
+      }
+    });
+  });
+
+  group('ambient effects', () {
+    test('light the whole border, so a segment is the only mask', () {
+      final r = renderer();
+      for (final effect in BeamEffect.values.where((e) => !e.travels)) {
+        final config = configFor(effect);
+        recordFrame(r, config, phasesAt(config, 1.3));
+        expect(litLayers(r.debugFrame), 3, reason: effect.name);
+        expect(r.debugFrame.trackSpan, 0, reason: '${effect.name}: own mask');
+      }
+    });
+
+    test('flow and spin stream their colours the way they are told', () {
+      final r = renderer();
+      final outline = BeamOutline(
+        box,
+        const BorderRadius.all(Radius.circular(16)),
+      );
+      for (final effect in [const BeamEffect.flow(), const BeamEffect.spin()]) {
+        double at(BeamDirection direction, double t) {
+          final config = configFor(
+            effect,
+            timing: BeamTiming(direction: direction),
+          );
+          recordFrame(r, config, phasesAt(config, t));
+          final b = r.debugFrame.blob(1, 0);
+          return outline.nearestFraction(Offset(b.cx, b.cy));
+        }
+
+        double moved(BeamDirection d) {
+          final delta = at(d, 1.35) - at(d, 1.3);
+          return delta - delta.roundToDouble();
+        }
+
+        expect(moved(BeamDirection.forward), greaterThan(0), reason: '$effect');
+        expect(moved(BeamDirection.reverse), lessThan(0), reason: '$effect');
+      }
+    });
+
+    test('the halo glows outside the box only', () {
+      final r = renderer();
+      final config = configFor(const BeamEffect.halo());
+      final canvas = recordFrame(r, config, phasesAt(config, 1.3));
+      final d = r.debugFrame;
+      expect(d.geometryOf(0), BeamGeometry.halo);
+      expect(d.geometryOf(2), BeamGeometry.halo);
+      expect(d.reachOutside, greaterThan(20));
+      expect(
+        canvas.drawBounds.single.contains(box.topLeft - const Offset(20, 20)),
+        isTrue,
+      );
+    });
+  });
+
+  group('palettes', () {
+    test('the originals draw with their own tables', () {
+      for (final colors in [
+        BeamColors.colorful,
+        BeamColors.mono,
+        BeamColors.ocean,
+        BeamColors.sunset,
+      ]) {
+        final palette = colors.resolve();
+        expect(identical(BeamLook.tablesFor(palette), palette.tables), isTrue);
+      }
+    });
+
+    test("the extras cycle their colours over colorful's tables", () {
+      final tables = BeamLook.tablesFor(BeamColors.aurora.resolve());
+      for (final (i, b) in tables.border.indexed) {
+        expect(b.position, colorfulTables.border[i].position);
+        expect(b.size, colorfulTables.border[i].size);
+      }
+      expect(tables.border.first.color, isNot(colorfulTables.border[0].color));
+    });
+
+    test("custom palettes sample their stops into colorful's geometry", () {
+      const red = Color(0xFFFF0000);
+      final tables = BeamLook.tablesFor(const BeamColors.solid(red).resolve());
+      for (final (i, b) in tables.border.indexed) {
+        expect(b.position, colorfulTables.border[i].position);
+        expect(b.color.r, closeTo(1, 1e-6));
+        expect(b.color.g, closeTo(0, 1e-6));
+      }
+      for (final s in tables.lineBloomDark) {
+        expect(s.color1.r, closeTo(1, 1e-6));
+      }
+      // Resolved once per palette.
+      final palette = const BeamColors.solid(red).resolve();
+      expect(
+        identical(BeamLook.tablesFor(palette), BeamLook.tablesFor(palette)),
+        isTrue,
+      );
+    });
+
+    test('scaleAlpha keeps a preset tables, scaled', () {
+      final half = BeamLook.tablesFor(
+        BeamColors.ocean.scaleAlpha(0.5).resolve(),
+      );
+      for (final (i, b) in half.border.indexed) {
+        expect(b.position, oceanTables.border[i].position);
+        expect(b.color.a, closeTo(oceanTables.border[i].color.a * 0.5, 1e-6));
+      }
+    });
+  });
+
+  group('segments', () {
+    final segments = <String, BeamSegment>{
+      'bottomHalf': BeamSegment.bottomHalf,
+      'topEdge': BeamSegment.topEdge,
+      'wrapping': const BeamSegment(
+        start: BeamAnchor.fraction(0.85),
+        end: BeamAnchor.fraction(0.2),
+      ),
+    };
+
+    for (final MapEntry(key: name, value: effect) in effectsByName.entries) {
+      test('$name keeps its track inside the segment', () {
+        final r = renderer();
+        for (final MapEntry(key: label, value: segment) in segments.entries) {
+          final config = configFor(effect, shape: BeamShape(segment: segment));
+          final outline = BeamOutline(box, config.borderRadius);
+          final range = segment.resolve(outline);
+          final userStart = range.from;
+          final userSpan = BeamOutline.wrapFraction(range.to - range.from);
+          for (final t in instants) {
+            final canvas = recordFrame(r, config, phasesAt(config, t));
+            if (canvas.draws.isEmpty) continue;
+            final d = r.debugFrame;
+            expect(d.trackSpan, greaterThan(0), reason: '$name/$label');
+            var from = BeamOutline.wrapFraction(d.trackStart - userStart);
+            if (from > 1 - 1e-6) from = 0;
+            expect(
+              from + d.trackSpan,
+              lessThanOrEqualTo(userSpan + 1e-6),
+              reason: '$name/$label at ${t}s',
+            );
+          }
+        }
+      });
+    }
+  });
+
+  test('applyTrack writes the user segment, or the whole border', () {
+    final outline = BeamOutline(
+      box,
+      const BorderRadius.all(Radius.circular(16)),
+    );
+    final d = BeamFrameData()..reset();
+    applyTrack(d, null, outline, 0);
+    expect(d.trackSpan, 0);
+    applyTrack(d, BeamSegment.bottomHalf, outline, 6);
+    expect(d.trackSpan, closeTo(0.5, 1e-6));
+    expect(d.trackFeather, greaterThan(0));
+    expect(segmentTrack(d).span, closeTo(0.5, 1e-6));
+  });
+
+  test('a lit frame is written for the box it paints', () {
+    final r = renderer();
+    for (final effect in BeamEffect.values) {
+      final config = configFor(effect);
+      final canvas = recordFrame(
+        r,
+        config,
+        phasesAt(config, litSeconds(effect)),
+      );
+      expect(canvas.draws, hasLength(1), reason: effect.name);
+      expect(r.debugFrame.outlineRect, box, reason: effect.name);
+    }
+  });
+}

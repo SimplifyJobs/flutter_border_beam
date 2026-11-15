@@ -166,4 +166,4 @@ Dashes combine with segments and with every effect; `spin` with dashes reads as 
 
 ## Light outside the bounds
 
-Most light stays on the border and inside it. Four things paint outside the child's box: `BeamEffect.halo()`, `BeamEffect.rotate(comet: true)`, `spin`'s outer glow, and a positive `ringOffset`. Give those room — padding in the parent — and check for a `ClipRRect`, `ClipPath`, or a scroll view's clip above the beam.
+Most light stays on the border and inside it. Three things paint outside the child's box: `BeamEffect.halo()`, `BeamEffect.rotate(comet: true)`, and a positive `ringOffset`. Give those room — padding in the parent — and check for a `ClipRRect`, `ClipPath`, or a scroll view's clip above the beam.

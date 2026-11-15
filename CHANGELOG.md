@@ -23,8 +23,13 @@ the pulse variants ran at a capped ~30fps, as the original's pulse driver does.
 
 - one `drawRect` / `drawDRRect` per frame — no `saveLayer`, no clip, no
   `ImageFilter` or `MaskFilter`, no offscreen target;
-- glows (the bloom around the stroke, the outer halo, light reaching inward)
-  evaluated analytically per pixel instead of blurred;
+- the same look, layer for layer: the shader evaluates the original design's
+  layers per pixel — the hairline stroke and its head highlight, the
+  edge-faded inner glow with its inset shadow, the bloom, the line's spikes,
+  the pulse's breathing blobs, the halo's glow — from the original palettes'
+  blob tables, matching 0.1 frame for frame;
+- every blur evaluated analytically instead (a blurred hairline is a gaussian
+  across the ring, a blurred colour blob an energy-preserving gaussian);
 - fragment work limited to the band where light can land;
 - per frame, the CPU fills a fixed block of uniforms in a `FragmentShader`
   reused for the beam's lifetime — no path or gradient construction;

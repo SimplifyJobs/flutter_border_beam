@@ -12,9 +12,6 @@ import 'beam_program.dart';
 
 export 'beam_frame.dart' show beamUniformFloats;
 
-/// TEMP debug: which layers paint.
-int debugLayerMask = 7;
-
 /// Paints beam frames with the shared shader.
 ///
 /// One renderer per beam: it owns a `FragmentShader` (reused every frame, its
@@ -71,9 +68,6 @@ class BeamRenderer {
       ),
     );
     d.finish();
-    for (var k = 0; k < beamLayerCount; k++) {
-      if (debugLayerMask & (1 << k) == 0) d.scaleOpacity(k, 0);
-    }
     _measure(d, config.borderWidth);
     var lit = false;
     for (var k = 0; k < beamLayerCount; k++) {
@@ -124,7 +118,7 @@ class BeamRenderer {
           inside = math.max(inside, edge > 0 ? edge + 1 : double.infinity);
         case BeamGeometry.blurredRing:
           inside = math.max(inside, 3 * sigma + borderWidth);
-        case BeamGeometry.halo:
+        case BeamGeometry.halo || BeamGeometry.glow:
           outside = math.max(outside, d.inflateOf(k) + 3 * sigma);
       }
     }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_border_beam/src/animation/beam_phases.dart';
-import 'package:flutter_border_beam/src/render/beam_emission.dart';
+import 'package:flutter_border_beam/src/render/beam_frame.dart';
 import 'package:flutter_border_beam/src/render/beam_painter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -37,8 +37,8 @@ BeamFramePhases _now(WidgetTester tester) {
   );
 }
 
-BeamEmission _emission(WidgetTester tester) =>
-    _painter(tester).renderer.debugEmission;
+BeamFrameData _frame(WidgetTester tester) =>
+    _painter(tester).renderer.debugFrame;
 
 Future<void> _settle(WidgetTester tester) async {
   await tester.pump();
@@ -177,7 +177,7 @@ void main() {
     await tester.pumpWidget(build(0.2));
     await tester.pump();
     final before = _painter(tester);
-    final low = _emission(tester).segmentSpan;
+    final low = _frame(tester).trackSpan;
     expect(low, greaterThan(0));
 
     await tester.pumpWidget(build(0.8));
@@ -187,7 +187,7 @@ void main() {
     expect(after.shouldRepaint(before), isFalse);
     expect(after.progress?.value, 0.8);
     expect(
-      _emission(tester).segmentSpan,
+      _frame(tester).trackSpan,
       greaterThan(low),
       reason: 'the new value reached the painted frame',
     );
@@ -254,7 +254,7 @@ void main() {
       for (final progress in [0.25, 0.5, 0.9]) {
         await tester.pumpWidget(build(progress));
         await _settle(tester);
-        final span = _emission(tester).segmentSpan;
+        final span = _frame(tester).trackSpan;
         expect(span, closeTo(progress, 0.05), reason: 'progress $progress');
         spans.add(span);
       }
@@ -285,7 +285,7 @@ void main() {
       );
       expect(phases.travelProgress, 0.6);
       expect(phases.driven, isTrue);
-      expect(_emission(tester).segmentSpan, closeTo(0.6, 0.05));
+      expect(_frame(tester).trackSpan, closeTo(0.6, 0.05));
     });
   });
 

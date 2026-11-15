@@ -605,7 +605,7 @@ shorthand  >  value object on the widget  >  BorderBeamTheme (inner over outer) 
 
 - **One shader, one draw.** Every frame of every effect is a single `drawRect` or `drawDRRect` with the beam's fragment shader. There is no `saveLayer`, no clip, no `ImageFilter` or `MaskFilter` blur, and no offscreen render target. Glows are evaluated analytically per pixel instead of blurred. A test asserts this for every effect, theme, and shape.
 - **Fragment work only where light can land.** The draw covers the box grown by the furthest outward glow, minus the interior beyond the furthest inward one.
-- **Little CPU per frame.** The effect computes a few bumps of light along the border and up to eight point lights, then writes a fixed block of uniform floats into a `FragmentShader` it reuses for the beam's lifetime. There is no path building and no gradient construction per frame.
+- **Little CPU per frame.** The effect samples its keyframes or oscillators and writes its layers — a few dozen colour blobs, windows, and filters — into a fixed block of uniform floats for a `FragmentShader` it reuses for the beam's lifetime. There is no path building and no gradient construction per frame.
 - **Display-rate animation.** Every effect ticks on every frame the engine produces, with no frame-rate cap. To get 120Hz on ProMotion iPhones, your app's `ios/Runner/Info.plist` needs:
 
   ```xml
@@ -629,7 +629,7 @@ Keep the beam out from under widgets that force an offscreen pass, which costs m
 Pass the same radius your child uses — `borderRadius:` or `shape.radius` — and `superellipse: true` if the child uses `RoundedSuperellipseBorder`. The beam does not read the child's decoration.
 
 **My beam is clipped.**
-`halo`, `rotate(comet: true)`, `spin`'s outer glow, and a positive `ringOffset` paint outside the child's bounds. Give the beam room — padding in the parent — and remove any tight `ClipRRect` / `ClipPath` above it.
+`halo`, `rotate(comet: true)`, and a positive `ringOffset` paint outside the child's bounds. Give the beam room — padding in the parent — and remove any tight `ClipRRect` / `ClipPath` above it.
 
 **Nothing shows up at all.**
 Check reduced motion: with `reducedMotion: BeamReducedMotion.hide`, a platform request for reduced motion paints nothing. In a widget test, `await BorderBeam.precache()` in `setUpAll` before checking pixels — the shader loads asynchronously.

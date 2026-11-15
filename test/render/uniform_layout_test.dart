@@ -1,7 +1,6 @@
 import 'dart:io';
 
-import 'package:flutter_border_beam/src/render/beam_emission.dart';
-import 'package:flutter_border_beam/src/render/beam_renderer.dart';
+import 'package:flutter_border_beam/src/render/beam_frame.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// The Dart packer writes uniforms by float index, so the shader's declared
@@ -65,13 +64,33 @@ void main() {
     expect(floats, beamUniformFloats);
   });
 
-  test('every uniform array holds exactly one slot per beamSlots', () {
-    // Bumps, stops, colours, and lights are all bounded by beamSlots on the
-    // Dart side; an array of another length would desynchronise the packer.
-    final arrays = uniforms.where((u) => u.count > 1);
-    expect(arrays, isNotEmpty);
-    for (final u in arrays) {
-      expect(u.count, beamSlots, reason: u.name);
-    }
+  test('the arrays hold what the frame data packs into them', () {
+    // Layers, tables, and blob stacks are sized on the Dart side by these
+    // constants; an array of another length would desynchronise the packer.
+    final arrays = {
+      for (final u in uniforms.where((u) => u.count > 1)) u.name: u.count,
+    };
+    expect(arrays, {
+      'uLayer': beamLayerCount * 9,
+      'uWinA': tableStops ~/ 2,
+      'uWinB': tableStops ~/ 2,
+      'uOverA': tableStops ~/ 2,
+      'uOverB': tableStops ~/ 2,
+      'uBlobA': blobSlotsA * 3,
+      'uBlobB': blobSlotsB * 3,
+      'uBlobC': blobSlotsC * 3,
+    });
+  });
+
+  test('the uniforms stay inside the GLES budget', () {
+    // A fragment shader may count on 224 vec4s of uniforms on the weakest
+    // GLES devices; stay well inside that.
+    expect(beamUniformFloats, lessThanOrEqualTo(900));
+  });
+
+  test("the shader's loop bounds match the slot counts", () {
+    expect(source, contains('BLOB_STACK(uBlobA, $blobSlotsA,'));
+    expect(source, contains('BLOB_STACK(uBlobB, $blobSlotsB,'));
+    expect(source, contains('BLOB_STACK(uBlobC, $blobSlotsC,'));
   });
 }

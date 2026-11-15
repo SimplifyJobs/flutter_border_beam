@@ -53,8 +53,8 @@ void main() {
           );
           expect(canvas.draws.length, lessThanOrEqualTo(1));
           if (canvas.draws.isEmpty) continue;
-          expectSaneEmission(
-            renderer.debugEmission,
+          expectSaneFrame(
+            renderer.debugFrame,
             '${effect.name}: $label, $size at ${t}s',
             drawBounds: canvas.drawBounds.single,
           );

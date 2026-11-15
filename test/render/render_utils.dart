@@ -5,7 +5,7 @@ import 'package:flutter/painting.dart';
 import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_border_beam/src/animation/beam_phases.dart';
 import 'package:flutter_border_beam/src/models/beam_config.dart';
-import 'package:flutter_border_beam/src/render/beam_emission.dart';
+import 'package:flutter_border_beam/src/render/beam_frame.dart';
 import 'package:flutter_border_beam/src/render/beam_renderer.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -340,102 +340,59 @@ String _symbolName(Symbol symbol) {
   return start >= 0 && end > start ? text.substring(start + 1, end) : text;
 }
 
-/// Checks the invariants every emitted frame must hold, whatever the effect:
-/// slot counts within the shader's budget, every value the packer writes
-/// finite, and every quantity in its meaningful range. [drawBounds], when
-/// given, is the region the frame's draw covered — every point light must be
-/// anchored inside it, or its light would be cut off.
-void expectSaneEmission(BeamEmission e, String label, {Rect? drawBounds}) {
-  void finite(double v, String what) =>
-      expect(v.isFinite, isTrue, reason: '$label: $what is $v');
-
-  expect(e.bumpCount, inInclusiveRange(0, beamSlots), reason: label);
-  expect(e.lightCount, inInclusiveRange(0, beamSlots), reason: label);
-
-  for (final (name, value) in [
-    ('base', e.base),
-    ('colorOrigin', e.colorOrigin),
-    ('colorScale', e.colorScale),
-    ('noiseAmplitude', e.noiseAmplitude),
-    ('noiseFrequency', e.noiseFrequency),
-    ('noisePhase', e.noisePhase),
-    ('stroke', e.stroke),
-    ('bloom', e.bloom),
-    ('bloomSigma', e.bloomSigma),
-    ('outer', e.outer),
-    ('outerReach', e.outerReach),
-    ('outerPlateau', e.outerPlateau),
-    ('outerWiden', e.outerWiden),
-    ('lights', e.lights),
-    ('highlight', e.highlight),
-    ('additive', e.additive),
-    ('sweepAmplitude', e.sweepAmplitude),
-    ('sweepDirection.dx', e.sweepDirection.dx),
-    ('sweepDirection.dy', e.sweepDirection.dy),
-    ('sweepPosition', e.sweepPosition),
-    ('sweepHalfWidth', e.sweepHalfWidth),
-    ('segmentStart', e.segmentStart),
-    ('segmentSpan', e.segmentSpan),
-    ('segmentFeather', e.segmentFeather),
-    ('lightReachInside', e.lightReachInside),
-    ('lightReachOutside', e.lightReachOutside),
-  ]) {
-    finite(value, name);
+/// Checks the invariants every written frame must hold, whatever the
+/// effect: every uniform finite, blob counts within their slots, opacities
+/// and table alphas in range, table stops ascending, blob radii positive,
+/// and — when [drawBounds] is given — the outline inside the draw.
+void expectSaneFrame(BeamFrameData d, String label, {Rect? drawBounds}) {
+  for (var i = 0; i < beamUniformFloats; i++) {
+    expect(d.data[i].isFinite, isTrue, reason: '$label: uniform $i');
   }
-
-  // Layer alphas, reaches, and amplitudes are magnitudes.
-  for (final (name, value) in [
-    ('base', e.base),
-    ('stroke', e.stroke),
-    ('bloom', e.bloom),
-    ('outer', e.outer),
-    ('outerReach', e.outerReach),
-    ('outerPlateau', e.outerPlateau),
-    ('outerWiden', e.outerWiden),
-    ('lights', e.lights),
-    ('highlight', e.highlight),
-    ('noiseAmplitude', e.noiseAmplitude),
-    ('sweepAmplitude', e.sweepAmplitude),
-    ('segmentFeather', e.segmentFeather),
-  ]) {
-    expect(value, greaterThanOrEqualTo(0), reason: '$label: $name');
+  const slots = [blobSlotsA, blobSlotsB, blobSlotsC];
+  var lit = 0;
+  for (var k = 0; k < beamLayerCount; k++) {
+    expect(d.blobCount(k), inInclusiveRange(0, slots[k]), reason: label);
+    expect(d.opacityOf(k), inInclusiveRange(0, 1), reason: '$label: $k');
+    expect(d.sigmaOf(k), greaterThanOrEqualTo(0), reason: '$label: $k');
+    expect(d.edgeFadeOf(k), greaterThanOrEqualTo(0), reason: '$label: $k');
+    if (d.geometryOf(k) != BeamGeometry.none && d.opacityOf(k) > 0) lit++;
+    if (d.geometryOf(k) == BeamGeometry.blurredRing) {
+      expect(d.sigmaOf(k), greaterThan(0), reason: '$label: $k sigma');
+    }
   }
-  expect(e.bloomSigma, greaterThan(0), reason: '$label: bloomSigma');
-  expect(e.additive, inInclusiveRange(0, 1), reason: '$label: additive');
-  expect(e.segmentSpan, inInclusiveRange(0, 1), reason: '$label: span');
-  expect(e.colorScale, greaterThan(0), reason: '$label: colorScale');
-
-  for (var i = 0; i < e.bumpCount; i++) {
-    for (var k = 0; k < 4; k++) {
-      finite(e.bumps[i * 4 + k], 'bump $i[$k]');
+  expect(lit, greaterThan(0), reason: '$label: some layer is lit');
+  for (final t in BeamTable.values) {
+    var previous = -1.0;
+    for (var i = 0; i <= 64; i++) {
+      final a = d.tableAt(t, i / 64);
+      expect(a, inInclusiveRange(0, 1), reason: '$label: $t at ${i / 64}');
     }
-    expect(e.bumps[i * 4 + 1], greaterThanOrEqualTo(0), reason: '$label lead');
-    expect(e.bumps[i * 4 + 2], greaterThanOrEqualTo(0), reason: '$label tail');
-    expect(e.bumps[i * 4 + 3], greaterThan(0), reason: '$label amplitude');
+    for (var i = 0; i < tableStops; i++) {
+      final stop = d.tableStop(t, i);
+      expect(stop, greaterThanOrEqualTo(previous), reason: '$label: $t');
+      previous = stop;
+    }
   }
-
-  for (var i = 0; i < e.lightCount; i++) {
-    for (var k = 0; k < 4; k++) {
-      finite(e.lightPos[i * 4 + k], 'light $i pos[$k]');
-      finite(e.lightShape[i * 4 + k], 'light $i shape[$k]');
-      finite(e.lightColor[i * 4 + k], 'light $i colour[$k]');
+  for (var k = 0; k < beamLayerCount; k++) {
+    for (var i = 0; i < d.blobCount(k); i++) {
+      final b = d.blob(k, i);
+      expect(b.rx, greaterThan(0), reason: '$label: layer $k blob $i');
+      expect(b.ry, greaterThan(0), reason: '$label: layer $k blob $i');
+      expect(b.alpha, inInclusiveRange(0, 1), reason: '$label: blob alpha');
+      for (final c in [b.r, b.g, b.b]) {
+        expect(c, inInclusiveRange(0, 1), reason: '$label: blob colour');
+      }
     }
-    final normal = Offset(e.lightPos[i * 4 + 2], e.lightPos[i * 4 + 3]);
-    expect(normal.distance, closeTo(1, 1e-3), reason: '$label: light $i');
-    expect(e.lightShape[i * 4], greaterThanOrEqualTo(0.5), reason: label);
-    expect(e.lightShape[i * 4 + 1], greaterThanOrEqualTo(0.5), reason: label);
-    expect(e.lightShape[i * 4 + 2], greaterThan(0), reason: label);
-    expect(e.lightShape[i * 4 + 3], anyOf(-1, 0, 1), reason: label);
-    for (var k = 0; k < 3; k++) {
-      expect(e.lightColor[i * 4 + k], inInclusiveRange(0, 1), reason: label);
-    }
-    if (drawBounds != null) {
-      final at = Offset(e.lightPos[i * 4], e.lightPos[i * 4 + 1]);
-      expect(
-        drawBounds.inflate(0.5).contains(at),
-        isTrue,
-        reason: '$label: light $i at $at lies outside the draw $drawBounds',
-      );
-    }
+  }
+  expect(d.trackSpan, inInclusiveRange(0, 1), reason: '$label: span');
+  expect(d.trackFeather, greaterThanOrEqualTo(0), reason: '$label: feather');
+  if (drawBounds != null) {
+    final box = d.outlineRect;
+    expect(
+      drawBounds.inflate(0.5).contains(box.topLeft) &&
+          drawBounds.inflate(0.5).contains(box.bottomRight),
+      isTrue,
+      reason: '$label: $drawBounds must contain the outline $box',
+    );
   }
 }

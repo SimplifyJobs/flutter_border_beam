@@ -3,7 +3,7 @@ import 'dart:ui' show Brightness;
 
 import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_border_beam/src/models/beam_config.dart';
-import 'package:flutter_border_beam/src/render/beam_emission.dart';
+import 'package:flutter_border_beam/src/render/beam_frame.dart';
 import 'package:flutter_border_beam/src/render/beam_program.dart';
 import 'package:flutter_border_beam/src/render/beam_renderer.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -31,12 +31,26 @@ void main() {
   // cycles in.
   const instants = [0.3, 1.3, 2.05, 7.9];
 
+  // Whether the frame had light to draw: the fade and strength let some
+  // through, and the effect lit a layer (an empty charge lights none).
+  bool litFrame(BeamRenderer renderer, BeamConfig config, double fade) {
+    if (fade * config.strength <= 0) return false;
+    final d = renderer.debugFrame;
+    for (var k = 0; k < beamLayerCount; k++) {
+      if (d.geometryOf(k) != BeamGeometry.none && d.opacityOf(k) > 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   void expectBudget(
     RecordingCanvas canvas,
     BeamConfig config,
     double fade,
-    String label,
-  ) {
+    String label, {
+    required bool lit,
+  }) {
     expect(
       canvas.unforwarded,
       isEmpty,
@@ -48,7 +62,6 @@ void main() {
     expect(canvas.saveLayers, 0, reason: '$label: saveLayer');
     expect(canvas.clips, 0, reason: '$label: clip');
     expect(canvas.saves, canvas.restores, reason: '$label: save/restore');
-    final lit = fade * config.strength > 0;
     expect(
       canvas.draws,
       lit ? hasLength(1) : isEmpty,
@@ -84,6 +97,7 @@ void main() {
               config,
               phases.fadeOpacity,
               '$name/${brightness.name}/$palette at ${t}s',
+              lit: litFrame(renderer, config, phases.fadeOpacity),
             );
           }
         }
@@ -102,6 +116,7 @@ void main() {
             config,
             phases.fadeOpacity,
             '$name/$label at ${t}s',
+            lit: litFrame(renderer, config, phases.fadeOpacity),
           );
         }
       }
@@ -129,6 +144,7 @@ void main() {
             config,
             phases.fadeOpacity,
             '$label, glow $glow at ${t}s',
+            lit: litFrame(renderer, config, phases.fadeOpacity),
           );
         }
       }
@@ -147,6 +163,7 @@ void main() {
           config,
           phases.fadeOpacity,
           '${effect.name} at progress $progress',
+          lit: litFrame(renderer, config, phases.fadeOpacity),
         );
       }
     }
@@ -197,11 +214,7 @@ void main() {
         isTrue,
         reason: '${effect.name}: $bounds must contain $box',
       );
-      final e = renderer.debugEmission;
-      final reachesOut =
-          e.outer > 0 ||
-          (e.bloom > 0 && e.bloomSide != BeamSide.inside) ||
-          (e.lights > 0 && e.lightReachOutside > 0);
+      final reachesOut = renderer.debugFrame.reachOutside > 0;
       if (!reachesOut) {
         expect(
           box.inflate(4).contains(bounds.topLeft) &&

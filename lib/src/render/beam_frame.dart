@@ -58,6 +58,10 @@ enum BeamGeometry {
   /// Outside the outline only: a glow behind the child. Its inflate and
   /// sigma say how far it reaches (its blobs carry the blur).
   halo,
+
+  /// Outside the outline, fading out: the shape grown by the layer's
+  /// inflate and blurred by its sigma.
+  glow,
 }
 
 /// How a layer's blobs are placed and shaded.
@@ -203,6 +207,23 @@ final class BeamFrameData {
   /// Switches off the dither on the soft tails.
   void disableDither() => data[_perim + 2] = 0;
 
+  /// The outline box.
+  Rect get outlineRect => Rect.fromLTWH(
+    data[_rect],
+    data[_rect + 1],
+    data[_rect + 2],
+    data[_rect + 3],
+  );
+
+  /// The conic coordinate's centre.
+  Offset get conicCentre => Offset(data[_conic], data[_conic + 1]);
+
+  /// The angle the conic tables start at, in turns.
+  double get conicStart => data[_conic + 2];
+
+  /// How many times the conic tables repeat around the turn.
+  int get conicRepeats => data[_conic + 3].round();
+
   // ─── Tables ──────────────────────────────────────────────────────────────
 
   /// Marks [table] unused (it costs the shader one comparison).
@@ -228,9 +249,17 @@ final class BeamFrameData {
     for (var i = 0; i < tableStops; i++) {
       final j = i < n ? i : n - 1;
       data[base + 2 * i] = i < n ? stops[j] : math.max(stops[j], 1);
-      data[base + 2 * i + 1] = alphas[j];
+      data[base + 2 * i + 1] = alphas[j].clamp(0.0, 1.0);
     }
   }
+
+  /// The [i]th stop position of [table] (unused tables report 2).
+  double tableStop(BeamTable table, int i) =>
+      data[_tables + table.index * _tableFloats + 2 * i];
+
+  /// Whether [table] is in use.
+  bool tableUsed(BeamTable table) =>
+      data[_tables + table.index * _tableFloats] <= 1;
 
   /// The alpha of [table] at [t], as the shader reads it.
   double tableAt(BeamTable table, double t) {
@@ -480,6 +509,45 @@ final class BeamFrameData {
 
   /// Blobs in layer [k].
   int blobCount(int k) => _counts[k];
+
+  /// Layer [k]'s [i]th blob as the shader reads it: centre, radii (sigmas
+  /// for a blurred blob), straight colour, and peak alpha.
+  ({
+    double cx,
+    double cy,
+    double rx,
+    double ry,
+    double r,
+    double g,
+    double b,
+    double alpha,
+  })
+  blob(int k, int i) {
+    final o = _blobBase[k] + i * 12;
+    return (
+      cx: data[o],
+      cy: data[o + 1],
+      rx: data[o + 2],
+      ry: data[o + 3],
+      r: data[o + 4],
+      g: data[o + 5],
+      b: data[o + 6],
+      alpha: data[o + 7],
+    );
+  }
+
+  /// Layer [k]'s overlay table, or null for none.
+  BeamTable? overlayOf(int k) => switch (data[_h(k, 1) + 2].round()) {
+    1 => BeamTable.overlayA,
+    2 => BeamTable.overlayB,
+    _ => null,
+  };
+
+  /// Whether layer [k]'s shadow is set.
+  bool hasShadow(int k) => data[_h(k, 4) + 3] > 0;
+
+  /// Whether layer [k] is cut into dashes.
+  bool isDashed(int k) => data[_h(k, 5) + 2] > 0;
 
   /// Adds a blob to layer [k], in painting order: each blob is drawn over
   /// the ones added before it.

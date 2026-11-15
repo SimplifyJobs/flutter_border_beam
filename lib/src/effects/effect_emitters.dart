@@ -410,7 +410,7 @@ void _rotate(BeamFrame f, RotateEffect e) {
   d
     ..setLayer(
       2,
-      e.comet ? BeamGeometry.halo : BeamGeometry.blurredRing,
+      e.comet ? BeamGeometry.glow : BeamGeometry.blurredRing,
       opacity: base * preset.bloomOpacity * f.glowOpacity,
       sigma: sigma,
       inflate: e.comet ? cometReach * f.glowSize : 0,
@@ -718,7 +718,8 @@ void _lineSpikes(
 
 /// The frame the line is authored in — the streak riding the bottom edge of
 /// a [width] × [height] box, x along the edge and y the depth in from it —
-/// mapped onto the real edge, or onto the user's segment in path space.
+/// mapped onto the real edge so the streak runs in reading order (left to
+/// right, top to bottom), or onto the user's segment in path space.
 class _LineFrame {
   _LineFrame(this.f, this.edge) {
     final r = f.rect;
@@ -751,9 +752,9 @@ class _LineFrame {
     final r = f.rect;
     return switch (edge) {
       BeamEdge.bottom => Offset(r.left + x, r.bottom - depth),
-      BeamEdge.top => Offset(r.right - x, r.top + depth),
+      BeamEdge.top => Offset(r.left + x, r.top + depth),
       BeamEdge.left => Offset(r.left + depth, r.top + x),
-      BeamEdge.right => Offset(r.right - depth, r.bottom - x),
+      BeamEdge.right => Offset(r.right - depth, r.top + x),
     };
   }
 

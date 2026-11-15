@@ -56,9 +56,9 @@ BorderBeam(
 | `count` | 1 | How many beams lap the border at once, evenly spaced. 1–4. |
 | `comet` | false | Adds an outer glow that trails the head *outside* the border. Leave room around the widget. |
 
-Its inner glow scales with the box, so the same effect reads on a chip and on a full-screen surface. On a small, round control, pair it with `BeamShape.stadium()`.
+The beam sweeps around the box's centre, so it rounds the corners quickly and slows along the middle of the long edges. A box 56px or shorter (a chip, a pill button) gets the compact tuning — a wider window and a glow that fills the control; pair it with `BeamShape.stadium()`.
 
-With `progress`, the head sits at that fraction of the border — a glowing progress ring. With a [segment](shape.md#segments), the beam appears at the segment's start and travels to its end.
+With `progress`, the head sits at that fraction of the turn, clockwise from 12 o'clock — a glowing progress ring; `follow` points the head at the pointer. With a [segment](shape.md#segments), the beam appears at the segment's start and travels to its end.
 
 ## `line` — inputs
 
@@ -82,7 +82,7 @@ The palette is spread across the streak rather than around the ring, so every co
 
 ## `pulse` — a contained "thinking" state
 
-A dim ring all the way round, with patches of colour swelling and ebbing at the four corners and the centres of the top and bottom edges, washing a little way inward. Each patch breathes on its own beat, so neighbours never pulse in lockstep.
+Patches of colour on the hairline and washing inward from the edges, each swelling, drifting, and ebbing on its own beat — three groups of blobs breathing in size and position and four corners breathing in strength, so neighbours never pulse in lockstep.
 
 ```dart
 BorderBeam(effect: const BeamEffect.pulse(), active: isThinking, child: card);
@@ -92,7 +92,7 @@ Its colours rotate continuously by default (a full turn every 16s). With a segme
 
 ## `halo` — light around the widget
 
-A thin coloured rim with large, soft clouds of light standing off the border outside it, breathing in turn. The light is painted **outside the widget's bounds**, so give it room — padding in the parent and no tight `ClipRRect` above the beam. The clouds scale with the widget's size, capped so a full-screen surface does not throw light across the whole screen.
+A thin coloured rim with a breathing core of light hugging the border outside it and a wide, soft wash beyond. The light is painted **outside the widget's bounds**, so give it room — padding in the parent and no tight `ClipRRect` above the beam. The clouds scale with the widget's size, capped so a full-screen surface does not throw light across the whole screen.
 
 ```dart
 Padding(
@@ -101,11 +101,11 @@ Padding(
 );
 ```
 
-`halo` paints in the same single pass over the child as every other effect, so the child does not need to be opaque.
+`halo` paints in the same single pass over the child as every other effect, and only outside the widget, so the child does not need to be opaque.
 
 ## `flow` — listening
 
-The palette streams continuously around the whole border — half a turn per cycle — with an inner glow that drifts more slowly, so the colour flows through it, and each patch of it swells and ebbs on its own beat. The look of an assistant that is listening.
+`pulse`'s breathing colour field — patches of colour on the hairline and washing inward, each swelling and ebbing on its own beat — streaming around the whole border, half a turn per cycle. The look of an assistant that is listening.
 
 ```dart
 BorderBeam(effect: const BeamEffect.flow(), colors: BeamColors.aurora, child: composer);
@@ -115,7 +115,7 @@ Because the colours already move, the hue drift is off by default.
 
 ## `spin` — the animated gradient border
 
-A full gradient ring of the palette spinning around the border, once per cycle, with a narrow glow on both sides of the stroke. The classic animated gradient border, for buttons, badges, and focus — `BeamFocusRing` uses it by default.
+A full gradient ring of the palette on the hairline, turning around the border once per cycle with a bright head and a soft inner glow behind it. The classic animated gradient border, for buttons, badges, and focus — `BeamFocusRing` uses it by default.
 
 ```dart
 BorderBeam(
@@ -129,7 +129,7 @@ It pairs well with `BeamShape.dashes` for a "marching" ring.
 
 ## `shimmer` — a glint
 
-A band of light sweeps across the box at an angle, lighting the border where it crosses it and catching each crossing with a soft inner light, then rests for the cycle gap (1.6s by default). For calls to action and new items.
+A narrow band sweeps across the box at an angle, lighting the hairline in the palette's colours where it crosses the border, with a bright glint and a soft inner glow at each crossing, then rests for the cycle gap (1.6s by default). For calls to action and new items.
 
 ```dart
 BorderBeam(effect: const BeamEffect.shimmer(angle: 30), child: cta);
@@ -143,7 +143,7 @@ BorderBeam(effect: const BeamEffect.shimmer(angle: 30), child: cta);
 
 ## `charge` — progress
 
-The border fills clockwise from top-centre, with a hot leading edge. Without a driven value it fills once per cycle and rests for the cycle gap (0.6s by default) before starting again.
+The hairline fills with the palette's colours clockwise from top-centre, with a hot head — a bright highlight and a glow just behind it. Without a driven value it fills once per cycle and rests for the cycle gap (0.6s by default) before starting again.
 
 ```dart
 BorderBeam(effect: const BeamEffect.charge(), progress: uploaded / total, child: card);
