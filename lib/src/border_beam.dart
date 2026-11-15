@@ -950,9 +950,12 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     final resolver = _resolver;
     if (target == null || resolver == null) return;
     final from = _followValue ?? _timedProgress(resolver);
-    // Shortest way round the contour: the beam never takes the long way to a
-    // point just behind it.
-    final delta = ((target - from) + 0.5) % 1.0 - 0.5;
+    // A full-ring rotate loops, so it takes the shortest way round and never
+    // the long way to a point just behind it. Every other sweep runs from one
+    // end to the other and must not wrap through its ends.
+    final config = _config;
+    final loops = config?.effect is RotateEffect && config?.segment == null;
+    final delta = loops ? ((target - from) + 0.5) % 1.0 - 0.5 : target - from;
     final step = _smoothDamp(
       current: from,
       target: from + delta,
@@ -961,7 +964,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
       response: _followResponseSeconds,
     );
     _followVelocity = step.velocity;
-    _followValue = step.value % 1.0;
+    _followValue = loops ? step.value % 1.0 : step.value.clamp(0.0, 1.0);
     if (widget.progress == null) _driven.value = _followValue;
   }
 

@@ -198,9 +198,6 @@ void main() {
       expect(r.sample(6, 1).cycles, closeTo(3, 1e-12));
     });
 
-    // defect: BeamTiming.phaseOffset is documented as where "the timeline
-    // starts" for any beam, but `cycles` ignores it — two ambient beams on
-    // different offsets breathe in step, while finishedAt does shift.
     test('phaseOffset puts an ambient beam out of step', () {
       for (final effect in ambient) {
         final plain = _resolver(effect: effect);
@@ -211,7 +208,7 @@ void main() {
           reason: effect.name,
         );
       }
-    }, skip: 'defect: phaseOffset never reaches the ambient `cycles` clock');
+    });
   });
 
   group('time offsets', () {

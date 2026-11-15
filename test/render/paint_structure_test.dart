@@ -277,22 +277,17 @@ void main() {
     });
 
     // BeamStyle.glow documents "0 leaves only the stroke".
-    test(
-      '0 leaves only the stroke',
-      () async {
-        final config = configFor(
-          const BeamEffect.rotate(),
-          style: const BeamStyle(glow: 0),
-          shape: const BeamShape(borderWidth: 1),
-        );
-        final frame = await renderFrame(config, phasesAt(config, 1.3));
-        // The stroke is 1px wide; allow anti-aliasing either side of it.
-        expect(frame.litIn(box.deflate(3), threshold: 2), 0);
-        expect(frame.lit(threshold: 2), greaterThan(0));
-      },
-      skip:
-          'defect: glow 0 still paints the bloom (bloomSigma is 3 + k·glow '
-          'and its alpha ignores glow), so more than the stroke shows',
-    );
+    test('0 leaves only the stroke', () async {
+      final config = configFor(
+        const BeamEffect.rotate(),
+        style: const BeamStyle(glow: 0),
+        shape: const BeamShape(borderWidth: 1),
+      );
+      final frame = await renderFrame(config, phasesAt(config, 1.3));
+      // The stroke is 1px wide, but a 16px corner bows it up to 4.7px in from
+      // each edge; 6px clears it with room for anti-aliasing.
+      expect(frame.litIn(box.deflate(6), threshold: 2), 0);
+      expect(frame.lit(threshold: 2), greaterThan(0));
+    });
   });
 }

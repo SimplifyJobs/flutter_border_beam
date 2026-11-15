@@ -104,7 +104,10 @@ class BeamPhaseResolver {
   /// of running with the clock, while the fade and hue keep running.
   BeamFramePhases sample(double t, double fadeOpacity, {double? progress}) {
     final hue = _hue(t);
-    final cycles = (t + breatheTimeOffset) / config.cycleSeconds;
+    // The phase offset moves the breathing along with the sweep, so two beams
+    // on different offsets are out of step whichever family they belong to.
+    final cycles =
+        (t + breatheTimeOffset) / config.cycleSeconds + config.phaseOffset;
     if (!_travels) {
       return BeamFramePhases(
         fadeOpacity: fadeOpacity,

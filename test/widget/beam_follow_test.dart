@@ -231,9 +231,6 @@ void main() {
             previous = now;
           }
         },
-        // defect: _advanceFollow takes the shortest way round the loop for
-        // every travelling effect, so a linear sweep wraps through its ends.
-        skip: true,
       );
     }
   });

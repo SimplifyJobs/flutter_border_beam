@@ -77,6 +77,16 @@ class BeamRenderer {
       ),
     );
 
+    // Effects grow their glows with `glow`; below 1 it also fades them, so 0
+    // leaves only the crisp stroke.
+    final g = config.glow;
+    if (g < 1) {
+      e
+        ..bloom *= g
+        ..outer *= g
+        ..lights *= g;
+    }
+
     final shader = _shader ??= program.fragmentShader();
     final px = 1 / math.max(devicePixelRatio * _canvasScale(canvas), 0.25);
     _pack(shader, outline, config, e, _colors, alpha, px);
