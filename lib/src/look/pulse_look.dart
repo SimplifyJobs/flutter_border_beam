@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 
-// The pulse and halo breathing: tuned parameters per surface, the 17
+import 'package:flutter/animation.dart' show Curves;
+
+// The pulse's breathing: tuned parameters per surface, the 17
 // oscillators they drive, and the geometry constants of both glows.
 
 /// Breathing parameters for one effect and surface, scaled to a cycle.
@@ -77,6 +79,18 @@ class PulseParams {
 /// The cosine ping-pong: 0 at whole phases, 1 at half phases.
 double pingPong(double phase) => (1 - math.cos(2 * math.pi * phase)) / 2;
 
+/// The share of a breath spent swelling; the rest is the slower fade back.
+const double breathRise = 0.4;
+
+/// A breath at [phase] (in cycles): 0 at the start of each cycle, swelling to
+/// 1 over the first [breathRise] of it and fading back over the rest, both on
+/// Apple's ease-in-out — so light arrives with intent and leaves gently.
+double breath(double phase) {
+  final p = phase - phase.floorToDouble();
+  if (p < breathRise) return Curves.easeInOut.transform(p / breathRise);
+  return 1 - Curves.easeInOut.transform((p - breathRise) / (1 - breathRise));
+}
+
 /// One oscillator: ping-pongs from [a] to [b] and back over [period]
 /// seconds, delayed by [delay].
 class PulseOscillator {
@@ -86,12 +100,14 @@ class PulseOscillator {
     required this.b,
     required this.period,
     this.delay = 0,
+    this.breathes = false,
   });
 
   /// Value at phase 0.
   final double a;
 
-  /// Value at half period.
+  /// Value at the swing's far end: half a period in, or [breathRise] of one
+  /// when it [breathes].
   final double b;
 
   /// Full period, seconds.
@@ -100,8 +116,15 @@ class PulseOscillator {
   /// Phase delay, seconds.
   final double delay;
 
+  /// Whether it swings on a [breath] — a quicker swell and a slower fade —
+  /// rather than the even [pingPong].
+  final bool breathes;
+
   /// The value at [t] seconds.
-  double sample(double t) => a + (b - a) * pingPong((t - delay) / period);
+  double sample(double t) {
+    final phase = (t - delay) / period;
+    return a + (b - a) * (breathes ? breath(phase) : pingPong(phase));
+  }
 }
 
 /// One frame of breathing: the three blob size/drift groups, the global
@@ -167,24 +190,27 @@ class PulseOscillatorBank {
       ],
       _bgh = PulseOscillator(a: 1 - p.gh, b: 1 + p.gh, period: p.ghs),
       _bop = [
-        PulseOscillator(a: 1 - p.op, b: 1, period: p.bs),
+        PulseOscillator(a: 1 - p.op, b: 1, period: p.bs, breathes: true),
         PulseOscillator(
           a: 1 - p.op,
           b: 1,
           period: p.bs * 1.32,
           delay: p.bs * 0.28,
+          breathes: true,
         ),
         PulseOscillator(
           a: 1 - p.op,
           b: 1,
           period: p.bs * 0.84,
           delay: p.bs * 0.55,
+          breathes: true,
         ),
         PulseOscillator(
           a: 1 - p.op,
           b: 1,
           period: p.bs * 1.58,
           delay: p.bs * 0.83,
+          breathes: true,
         ),
       ];
 
