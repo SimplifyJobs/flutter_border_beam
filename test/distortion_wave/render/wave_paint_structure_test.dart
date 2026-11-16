@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/rendering.dart';
@@ -161,6 +162,101 @@ void main() {
       greaterThan(40),
       reason: 'the rim lights the left edge somewhere',
     );
+  });
+
+  testWidgets('the colour on the edges has no seam across a sharp corner', (
+    tester,
+  ) async {
+    // Inside a corner the nearest point of the outline flips from one edge
+    // to the other across the corner's diagonal; with a sharp corner that
+    // flip runs through the lit rim. Walk across the diagonal inside the
+    // rim and check the colour changes smoothly.
+    // A wide, very uneven rim, so it is lit deep into the corner where the
+    // flip would jump furthest.
+    const style = WaveStyle(
+      glow: WaveGlow(cornerRadius: 8, rimWidth: 40, rimUnevenness: 2),
+    );
+    final spec = WaveSpec.resolve(style);
+    final p = [
+      for (var p = 0.3; p < 1; p += 0.01)
+        if (WaveFrame.at(
+              progress: p,
+              source: button,
+              size: waveTestSize,
+              spec: spec,
+            ).contentAtRest &&
+            WaveFrame.at(
+                  progress: p,
+                  source: button,
+                  size: waveTestSize,
+                  spec: spec,
+                ).rim >
+                0.5)
+          p,
+    ].first;
+    useWaveView(tester);
+    final key = GlobalKey();
+    await tester.pumpWidget(
+      waveHost(
+        RepaintBoundary(
+          key: key,
+          child: DistortionWave(
+            progress: p,
+            style: style,
+            source: const WaveSource.rect(button),
+            revealedChild: flatSide(incomingColor, 'in'),
+            child: flatSide(outgoingColor, 'out'),
+          ),
+        ),
+      ),
+    );
+    final bytes = await tester.runAsync(() async {
+      final boundary =
+          key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+      final image = await boundary.toImage(pixelRatio: 2);
+      final data = await image.toByteData();
+      image.dispose();
+      return data!;
+    });
+    final frame = _Frame(bytes!, (waveTestSize.width * 2).round());
+    // Walk across each corner's diagonal at several depths, in half points:
+    // wherever the walk crosses lit rim, the colour must change smoothly.
+    final w = waveTestSize.width;
+    final h = waveTestSize.height;
+    var litWalks = 0;
+    var worst = 0;
+    for (final depth in [12.0, 24.0, 36.0, 48.0]) {
+      for (final (cx, cy) in [(0.0, 0.0), (w, 0.0), (0.0, h), (w, h)]) {
+        final sx = cx == 0 ? 1.0 : -1.0;
+        final sy = cy == 0 ? 1.0 : -1.0;
+        var lit = 0;
+        var steepest = 0;
+        Color? last;
+        // Inside the view only: from 1 pt in, across the diagonal at t = depth.
+        for (var t = math.max(1.0, depth - 20); t <= depth + 20; t += 0.5) {
+          final x = cx + sx * t;
+          final y = cy + sy * depth;
+          final c = frame.at(x, y);
+          if (frame.difference(x, y, incomingColor) > 24) lit++;
+          if (last != null) {
+            int ch(double v) => (v * 255).round();
+            final step = [
+              (ch(c.r) - ch(last.r)).abs(),
+              (ch(c.g) - ch(last.g)).abs(),
+              (ch(c.b) - ch(last.b)).abs(),
+            ].reduce((a, b) => a > b ? a : b);
+            if (step > steepest) steepest = step;
+          }
+          last = c;
+        }
+        if (lit > 10) {
+          litWalks++;
+          if (steepest > worst) worst = steepest;
+        }
+      }
+    }
+    expect(litWalks, greaterThan(1), reason: 'the walks cross lit rim');
+    expect(worst, lessThan(10), reason: 'no seam on the diagonals');
   });
 
   testWidgets('the center wave leaves its source untouched', (tester) async {

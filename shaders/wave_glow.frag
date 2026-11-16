@@ -37,7 +37,11 @@ void main() {
     return;
   }
   float thickness = 1.0;
-  if (nearEdge) thickness = waveRimThicknessAt(o.y);
+  float edge = 0.0;
+  if (nearEdge) {
+    edge = waveEdgeAt(p);
+    thickness = waveRimThicknessAt(edge * uView.z);
+  }
   if (waveRimFaded(inset, thickness)) {
     fragColor = vec4(0.0);
     return;
@@ -45,5 +49,5 @@ void main() {
   vec2 q;
   float g;
   vec3 w = waveField(p, q, g);
-  fragColor = waveDithered(waveGlowCore(p, o, thickness, w.x, q, g), pos);
+  fragColor = waveDithered(waveGlowCore(p, o, edge, thickness, w.x, q, g), pos);
 }

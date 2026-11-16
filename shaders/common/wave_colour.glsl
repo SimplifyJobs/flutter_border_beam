@@ -103,6 +103,46 @@ bool waveColourReaches(vec2 p, float d) {
 // The premultiplied colour of the band, the rim and the hairline at p, given
 // the field there (d, q, g) and the view's outline there (o).
 // How thick the rim is at arc length s, as a share of its width.
+// Where p is along the view's edge, as a fraction of the way round,
+// clockwise from the top centre — continuous everywhere the rim can reach.
+//
+// The arc length of the nearest point of the outline is not: inside a corner
+// the nearest point flips from one edge to the other across the corner's
+// diagonal, and with a sharp corner that flip runs right through the lit
+// rim as a line. So the rim is placed on a box whose corners are circular
+// with a radius at least as deep as the rim reaches: inside a corner a point
+// goes by its angle round that arc, and the flip between two edges happens
+// only deeper than any colour.
+float waveEdgeAt(vec2 p) {
+  vec2 hs = uRect.zw * 0.5;
+  vec2 a = abs(p - hs);
+  float reach = uRim.x * 2.2 * (1.0 + 1.9 * uRim.z);
+  float rho = min(max(reach, uBand.w), min(hs.x, hs.y));
+  float ex = hs.x - rho;
+  float ey = hs.y - rho;
+  float arc = OUTLINE_HALF_PI * rho;
+  float quarter = ex + arc + ey;
+  // Within the quarter: along the horizontal edge from its centre, round
+  // the corner, then along the vertical edge to its centre.
+  float s;
+  if (a.x > ex && a.y > ey) {
+    vec2 v = a - vec2(ex, ey);
+    s = ex + rho * (OUTLINE_HALF_PI - atan(v.y, max(v.x, 1e-4)));
+  } else if (a.x - ex > a.y - ey) {
+    s = ex + arc + (ey - a.y);
+  } else {
+    s = a.x;
+  }
+  vec2 c = p - hs;
+  // Clockwise from the top centre: TR, BR, BL, TL.
+  if (c.x >= 0.0) {
+    s = c.y < 0.0 ? s : 2.0 * quarter - s;
+  } else {
+    s = c.y >= 0.0 ? 2.0 * quarter + s : 4.0 * quarter - s;
+  }
+  return s / (4.0 * quarter);
+}
+
 float waveRimThicknessAt(float s) {
   if (uRim.z <= 0.0) return 1.0;
   // Past 1 the lumps are pushed further still, and the thinnest stretches
@@ -117,7 +157,7 @@ bool waveRimFaded(float inset, float thickness) {
       inset >= uHair.x * 0.5 + 0.75;
 }
 
-vec4 waveGlowCore(vec2 p, vec4 o, float thickness, float d, vec2 q, float g) {
+vec4 waveGlowCore(vec2 p, vec4 o, float edge, float thickness, float d, vec2 q, float g) {
   float glow = uFront2.z;
   float rim = uFront2.w;
   float time = uFront1.y;
@@ -152,12 +192,11 @@ vec4 waveGlowCore(vec2 p, vec4 o, float thickness, float d, vec2 q, float g) {
   float shimmer = 0.5;
   float pulse = uRim.w;
   if (nearEdge) {
-    float perimeter = uView.z;
     float hug = exp(-waveSq(inset / (uRim.x * thickness)));
     float reached = 1.0 - smoothstep(-lead * 0.7, lead * 0.5, d);
     float kept = smoothstep(-uRim.y, uRim.y, d + (uFront0.w - uFront3.x) / g);
     // Two soft swells of brightness running round the edge.
-    shimmer = 0.5 + 0.5 * sin(time * 3.4 - o.y / perimeter * 2.0 * WAVE_TAU);
+    shimmer = 0.5 + 0.5 * sin(time * 3.4 - edge * 2.0 * WAVE_TAU);
     rimA = hug * reached * kept * rim * mix(1.0, 0.7 + 0.3 * shimmer, pulse);
 
     // A hairline right on the glass, all the way round, brightest where the
@@ -212,8 +251,12 @@ vec4 waveGlowCore(vec2 p, vec4 o, float thickness, float d, vec2 q, float g) {
 
 vec4 waveGlowWith(vec2 p, vec4 o, float d, vec2 q, float g) {
   float thickness = 1.0;
-  if (waveNearEdge(max(-o.x, 0.0))) thickness = waveRimThicknessAt(o.y);
-  return waveGlowCore(p, o, thickness, d, q, g);
+  float edge = 0.0;
+  if (waveNearEdge(max(-o.x, 0.0))) {
+    edge = waveEdgeAt(p);
+    thickness = waveRimThicknessAt(edge * uView.z);
+  }
+  return waveGlowCore(p, o, edge, thickness, d, q, g);
 }
 
 // Interleaved gradient noise, ±0.5: enough to hide banding, not enough to see.
