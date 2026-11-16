@@ -369,9 +369,8 @@ void main() {
     });
 
     test('spreads several beams around the driven position', () {
-      final phases = _resolver(
-        effect: const BeamEffect.rotate(count: 2),
-      ).sample(0, 1, progress: 0.25);
+      final phases = _resolver(effect: const BeamEffect.rotate(count: 2))
+          .sample(0, 1, progress: 0.25);
       expect(phases.travellers, hasLength(2));
       expect(phases.travellers[1], closeTo(0.75, 1e-12));
     });

@@ -1,10 +1,10 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_border_beam/src/animation/beam_clock.dart';
 import 'package:flutter_border_beam/src/animation/spring_curve.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'test_utils.dart';
 
@@ -899,14 +899,12 @@ void main() {
   });
 
   group('pauseWhenOffscreen', () {
-    // cacheExtent keeps rows built well past the 256px margin, so there is
-    // something offscreen left to pause. The double form is the one every
-    // supported Flutter accepts (ScrollCacheExtent arrives after 3.35).
+    // The cache extent keeps rows built well past the 256px margin, so there
+    // is something offscreen left to pause.
     Widget list({bool? pause, Widget Function(int index)? row}) => beamHost(
       size: const Size(400, 600),
       ListView.builder(
-        // ignore: deprecated_member_use
-        cacheExtent: 4000,
+        scrollCacheExtent: const ScrollCacheExtent.pixels(4000),
         itemCount: 12,
         itemBuilder: (context, index) => SizedBox(
           height: 200,

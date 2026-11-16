@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_border_beam/src/animation/beam_clock.dart';
 import 'package:flutter_border_beam/src/animation/beam_phases.dart';
 import 'package:flutter_border_beam/src/render/beam_painter.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 Widget _host(Widget child) => MaterialApp(
   theme: ThemeData(brightness: Brightness.dark),

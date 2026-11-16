@@ -199,9 +199,8 @@ void main() {
       expect(c.huePeriodSeconds, greaterThan(1e-6));
       // The floor is a floor, not a replacement: an ordinary cycle is kept.
       expect(
-        _resolve(
-          timing: const BeamTiming(cycle: Duration(milliseconds: 250)),
-        ).cycleSeconds,
+        _resolve(timing: const BeamTiming(cycle: Duration(milliseconds: 250)))
+            .cycleSeconds,
         closeTo(0.25, 1e-12),
       );
     });

@@ -382,9 +382,8 @@ void main() {
         final frame = _resolver(effect: effect).staticFrame();
         expect(frame.travelProgress, inExclusiveRange(0, 1));
       }
-      final three = _resolver(
-        effect: const BeamEffect.rotate(count: 3),
-      ).staticFrame();
+      final three = _resolver(effect: const BeamEffect.rotate(count: 3))
+          .staticFrame();
       expect(three.travellers, hasLength(3));
       expect(three.travellers.first, three.travelProgress);
     });
@@ -413,9 +412,8 @@ void main() {
           }
         }
       }
-      final reversed = _resolver(
-        direction: BeamDirection.reverse,
-      ).staticFrame();
+      final reversed = _resolver(direction: BeamDirection.reverse)
+          .staticFrame();
       expect(reversed.reversedNow, isTrue);
       expect(reversed.travelProgress, closeTo(0.65, 1e-12));
     });

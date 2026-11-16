@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The example's colours, after the original border-beam demo's design
 /// tokens. A [ThemeExtension], so `MaterialApp` cross-fades between the dark

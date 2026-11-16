@@ -30,15 +30,11 @@ enum BeamFadeStage {
 /// on the animation timeline: [speed], [seek], and [retime] move the
 /// animation without stretching, skipping, or replaying a fade.
 class BeamClock extends ChangeNotifier {
-  /// Creates a clock. [createTicker] is typically
+  /// Creates a clock. `createTicker` is typically
   /// `TickerProviderStateMixin.createTicker`. [onFadeComplete] fires
   /// with `true` when a fade-in finishes and `false` when a fade-out
   /// finishes. [fadeCurve] replaces the spring easing of both fades.
-  BeamClock({
-    required Ticker Function(TickerCallback) createTicker,
-    this.onFadeComplete,
-    this.fadeCurve,
-  }) : _createTicker = createTicker;
+  BeamClock({required this._createTicker, this.onFadeComplete, this.fadeCurve});
 
   /// Fade-in duration in seconds: [BeamSpringCurve.fadeIn]'s settling time,
   /// so the spring plays in real time, whatever the [speed].

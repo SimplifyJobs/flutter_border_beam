@@ -1,8 +1,8 @@
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_border_beam/src/render/beam_painter.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// [BeamHover] turns a [MouseRegion] into two values on the [BorderBeam] it
 /// wraps: `active` (lit while hovered, held for `holdAfterExit` after) and

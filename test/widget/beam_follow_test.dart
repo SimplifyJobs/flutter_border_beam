@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_border_beam/src/render/beam_painter.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 // A 350x140 box with equal corners: the right-edge centre is a quarter of
 // the way round from top-centre, the left-edge centre three quarters.

@@ -1,12 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-// Material supplies the ambient `Theme` brightness a beam's surface tuning
-// follows. Flutter 3.50 deprecates this import in favour of `material_ui`,
-// which earlier supported SDKs lack; move when the floor allows it.
-// ignore: deprecated_member_use
-import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+// Material supplies the ambient `Theme` brightness a beam's surface tuning
+// follows (`BeamTheme.auto`).
+import 'package:material_ui/material_ui.dart';
 
 import 'animation/beam_clock.dart';
 import 'animation/beam_phases.dart';

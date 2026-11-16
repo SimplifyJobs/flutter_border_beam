@@ -9,8 +9,10 @@
 #     release into a spurious golden diff. Regenerate the goldens (macOS,
 #     `flutter test --update-goldens --tags golden`) in the same commit that
 #     bumps this pin, and move release.yaml's and pages.yaml's pins with it.
-#  2. The `min-sdk` job builds and tests on Flutter 3.35.0 — the exact lower
-#     bound declared by `environment: flutter: ">=3.35.0"` in pubspec.yaml.
+#  2. The `min-sdk` job builds and tests on Flutter 3.47.0 — the exact lower
+#     bound declared by `environment: flutter: ">=3.47.0"` in pubspec.yaml
+#     (the floor `material_ui` sets). Its job name carries no version, so a
+#     floor bump does not rename the required status check.
 #     Without it that bound is an untested claim and consumers on the oldest
 #     supported SDK find the breakage for us. It is a hard gate, not an
 #     advisory one: no `continue-on-error`.
@@ -45,7 +47,7 @@ env:
   # The pinned SDK. Keep in sync with the goldens and with release.yaml.
   FLUTTER_VERSION: 3.47.4
   # The declared lower bound from pubspec.yaml's `environment:` block.
-  FLUTTER_MIN_VERSION: 3.35.0
+  FLUTTER_MIN_VERSION: 3.47.0
 
 jobs:
   quality:
@@ -129,7 +131,7 @@ jobs:
           if-no-files-found: ignore
 
   min-sdk:
-    name: Minimum supported Flutter (3.35.0)
+    name: Minimum supported Flutter
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

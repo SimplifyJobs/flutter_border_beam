@@ -17,7 +17,7 @@ BorderBeam(
 );
 ```
 
-`BeamTheme.auto` — the default — follows `Theme.of(context).brightness`. Force `dark` or `light` when a surface's brightness differs from the app's: a dark card inside a light app wants `BeamTheme.dark`.
+`BeamTheme.auto` — the default — follows `Theme.of(context).brightness`, read from [`material_ui`](https://pub.dev/packages/material_ui). Under an app still on `package:flutter/material.dart` there is no `material_ui` theme to read, so `auto` tunes for a light surface until the app migrates or sets the theme explicitly. Force `dark` or `light` when a surface's brightness differs from the app's: a dark card inside a light app wants `BeamTheme.dark`.
 
 ## Defaults for a subtree — `BorderBeamTheme`
 

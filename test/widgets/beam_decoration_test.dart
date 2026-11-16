@@ -1,10 +1,10 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// [BeamDecoration] runs the beam engine from a [BoxPainter] instead of a
 /// widget: it owns a raw `Ticker`, repaints its box through `onChanged`, and

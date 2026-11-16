@@ -114,6 +114,15 @@ design data rather than transcriptions.
 
 ### Changed
 
+- **Material comes from `material_ui`, and the floor is Flutter 3.47 (Dart
+  3.13).** Flutter 3.47 deprecated `package:flutter/material.dart` in favour
+  of the standalone `material_ui` package, and the package now depends on
+  `material_ui` alone. Its `Theme` and `ColorScheme` are separate types from
+  the framework's, so `BeamTheme.auto` reads a `material_ui` theme and
+  `BeamColors.fromScheme` takes a `material_ui` `ColorScheme`. An app still on
+  `package:flutter/material.dart` should migrate (`dart fix --apply
+  --code=migrate_design_widgets`) or set `BeamStyle.theme`; until then `auto`
+  tunes for a light surface.
 - **Every golden was regenerated.** Each effect is rebuilt from 0.1's
   layers and checked against it side by side, but blurs evaluated
   analytically are not pixel-identical to blur filters, and the pulse
@@ -207,6 +216,7 @@ design data rather than transcriptions.
 | Before | 0.2.0 |
 | --- | --- |
 | `import 'package:flutter_border_beam/flutter_border_beam.dart'` | unchanged |
+| `import 'package:flutter/material.dart'` in your app | `import 'package:material_ui/material_ui.dart'` (`dart fix --apply --code=migrate_design_widgets`), so `BeamTheme.auto` sees your theme — or set `BeamStyle(theme: …)` |
 | `BorderBeam.rotate(…)` | `BorderBeam(…)` — `rotate` is the default — or `BorderBeam(effect: const BeamEffect.rotate(), …)` |
 | `BorderBeam.small(…)` | `BorderBeam(effect: const BeamEffect.rotate(), borderRadius: 32, …)` — set the radius you relied on; the default is 16 |
 | `BorderBeam.line(…)` | `BorderBeam(effect: const BeamEffect.line(), …)` |
@@ -246,7 +256,7 @@ design data rather than transcriptions.
 ### Tooling & CI
 
 - CI pins Flutter 3.47.4, the SDK the goldens are generated on; the `min-sdk`
-  job still builds and tests the declared 3.35.0 lower bound.
+  job builds and tests the declared 3.47.0 lower bound.
 - `test/render/` holds the renderer's contracts: the frame budget (one draw,
   no `saveLayer`, clip, or image / mask filter), the uniform layout (parsed
   from `shaders/beam.frag` against `beamUniformFloats`), the Dart outline

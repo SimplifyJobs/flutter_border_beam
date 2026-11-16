@@ -9,8 +9,8 @@ explains how a frame is built.
 
 ## Setup
 
-You need **Flutter ≥ 3.35** (the lower bound declared in `pubspec.yaml`; CI
-tests that exact version in its `min-sdk` job) and, for goldens, **Flutter
+You need **Flutter ≥ 3.47** (the lower bound declared in `pubspec.yaml`, set
+by `material_ui`; CI tests that exact version in its `min-sdk` job) and, for goldens, **Flutter
 3.47.4 on macOS**.
 
 ```bash

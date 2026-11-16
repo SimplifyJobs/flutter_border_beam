@@ -210,9 +210,8 @@ void main() {
         reason: 'an explicit radius replaces the uniform one',
       );
       expect(
-        const BeamShape(
-          radius: BorderRadius.zero,
-        ).merge(const BeamShape.all(8)),
+        const BeamShape(radius: BorderRadius.zero)
+            .merge(const BeamShape.all(8)),
         const BeamShape.all(8),
       );
     });

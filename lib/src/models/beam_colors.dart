@@ -2,12 +2,9 @@ import 'dart:collection';
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
-// `BeamColors.fromScheme` takes a Material `ColorScheme`. Flutter 3.50
-// deprecates this import in favour of `material_ui`, which earlier supported
-// SDKs lack; move when the floor allows it.
-// ignore: deprecated_member_use
-import 'package:flutter/material.dart' show ColorScheme;
 import 'package:flutter/painting.dart' show HSLColor;
+// `BeamColors.fromScheme` takes a Material `ColorScheme`.
+import 'package:material_ui/material_ui.dart' show ColorScheme;
 
 import '../look/beam_look.dart';
 import '../render/color_math.dart';

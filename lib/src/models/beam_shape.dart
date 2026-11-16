@@ -24,17 +24,16 @@ import 'beam_segment.dart';
 /// ```
 @immutable
 class BeamShape {
-  /// Creates a shape with per-corner [radius]. Every omitted field is
+  /// Creates a shape with per-corner `radius`. Every omitted field is
   /// inherited.
   const BeamShape({
-    BorderRadiusGeometry? radius,
+    this._radius,
     this.superellipse,
     this.borderWidth,
     this.ringOffset,
     this.segment,
     this.dashes,
   }) : assert(dashes == null || dashes >= 0, 'dashes must not be negative'),
-       _radius = radius,
        _uniformRadius = null;
 
   /// A shape whose four corners share one radius — the const path.

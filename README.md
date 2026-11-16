@@ -8,7 +8,7 @@
 <p align="center">
   <a href="https://pub.dev/packages/flutter_border_beam"><img src="https://img.shields.io/pub/v/flutter_border_beam?logo=dart&logoColor=white&color=0175C2" alt="pub package"></a>
   <a href="https://pub.dev/packages/flutter_border_beam/score"><img src="https://img.shields.io/pub/points/flutter_border_beam?logo=dart&logoColor=white&color=0175C2" alt="pub points"></a>
-  <a href="https://docs.flutter.dev"><img src="https://img.shields.io/badge/Flutter-3.35+-02569B?logo=flutter&logoColor=white" alt="Flutter 3.35+"></a>
+  <a href="https://docs.flutter.dev"><img src="https://img.shields.io/badge/Flutter-3.47+-02569B?logo=flutter&logoColor=white" alt="Flutter 3.47+"></a>
   <a href="https://dart.dev"><img src="https://img.shields.io/badge/Dart-3.9+-0175C2?logo=dart&logoColor=white" alt="Dart 3.9+"></a>
   <a href="https://github.com/SimplifyJobs/flutter_border_beam/actions/workflows/ci.yaml"><img src="https://github.com/SimplifyJobs/flutter_border_beam/actions/workflows/ci.yaml/badge.svg" alt="CI"></a>
   <a href="https://codecov.io/gh/SimplifyJobs/flutter_border_beam"><img src="https://codecov.io/gh/SimplifyJobs/flutter_border_beam/branch/main/graph/badge.svg" alt="codecov"></a>
@@ -84,11 +84,13 @@ import 'package:flutter_border_beam/flutter_border_beam.dart';
 
 | Requirement | Version |
 | --- | --- |
-| Flutter | ≥ 3.35 |
-| Dart | ≥ 3.9 |
-| Dependencies | none beyond the Flutter SDK |
+| Flutter | ≥ 3.47 |
+| Dart | ≥ 3.13 |
+| Dependencies | [`material_ui`](https://pub.dev/packages/material_ui) |
 
 The shader is declared in the package's own `pubspec.yaml`, so Flutter compiles and bundles it into your app. There is nothing to add to your app's pubspec.
+
+The package reads Material through [`material_ui`](https://pub.dev/packages/material_ui), not the `package:flutter/material.dart` that Flutter 3.47 deprecated. The two libraries' `Theme` and `ColorScheme` are separate types, so an app still on `package:flutter/material.dart` should migrate (`dart fix --apply --code=migrate_design_widgets`) or set `BeamStyle.theme` explicitly: until then, `BeamTheme.auto` finds no `material_ui` theme and tunes for a light surface, and `BeamColors.fromScheme` takes `material_ui`'s `ColorScheme`.
 
 
 ## Usage
@@ -316,7 +318,7 @@ BorderBeam(
 | Field | Meaning |
 | --- | --- |
 | `colors` | The palette. |
-| `theme` | `dark`, `light`, or `auto` (follows `Theme.of(context).brightness`). Each effect is tuned separately for dark and light surfaces. |
+| `theme` | `dark`, `light`, or `auto` (follows `material_ui`'s `Theme.of(context).brightness`). Each effect is tuned separately for dark and light surfaces. |
 | `strength` | Overall opacity, 0–1. |
 | `glow` | Scales every glow around the stroke: how far it reaches and, below 1, how bright it is; 0 leaves only the stroke, which `glow` never changes. |
 | `hueMode` | How the colours drift: `pingPong` (swing ±`hueShift`), `continuous` (a full turn per `huePeriod`), or `none`. Defaults per effect. |

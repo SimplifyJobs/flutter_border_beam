@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_border_beam/src/animation/beam_phases.dart';
 import 'package:flutter_border_beam/src/look/rotate_look.dart';
 import 'package:flutter_border_beam/src/render/beam_frame.dart';
 import 'package:flutter_border_beam/src/render/beam_painter.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 Widget _host(Widget child, {bool disableAnimations = false}) => MaterialApp(
   theme: ThemeData(brightness: Brightness.dark),
