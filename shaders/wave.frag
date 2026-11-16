@@ -40,6 +40,11 @@ out vec4 fragColor;
 
 // How much of the blurred copy covers the sharp side at a blur radius r, for
 // a copy that takes over from radius `from` to radius `to`.
+// Below this much of the near copy a pixel shows the sharp side alone: a blur
+// of under a fifth of a point, which moves no colour by more than a level, and
+// saves the near fetch over most of the stage.
+const float NEAR_THRESHOLD = 0.002;
+
 float waveCoverage(float r, float from, float to) {
   float t = clamp((r - from) / max(to - from, 1e-3), 0.0, 1.0);
   return t * t * (3.0 - 2.0 * t);
@@ -47,9 +52,15 @@ float waveCoverage(float r, float from, float to) {
 
 // One side at UV, with its blur level mixed in.
 #define WAVE_SIDE(SHARP, NEAR, FAR, UV, TN, TF, OUT)                         \
-  OUT = texture(SHARP, UV);                                                \
-  if (TN > 0.0) OUT = mix(OUT, texture(NEAR, UV), TN);                     \
-  if (TF > 0.0) OUT = mix(OUT, texture(FAR, UV), TF);
+  if (TN < 1.0) {                                                          \
+    OUT = texture(SHARP, UV);                                              \
+    if (TN > NEAR_THRESHOLD) OUT = mix(OUT, texture(NEAR, UV), TN);        \
+  } else if (TF < 1.0) {                                                   \
+    OUT = texture(NEAR, UV);                                               \
+    if (TF > 0.0) OUT = mix(OUT, texture(FAR, UV), TF);                    \
+  } else {                                                                 \
+    OUT = texture(FAR, UV);                                                \
+  }
 
 // Both sides at UV, crossfaded.
 #define WAVE_CONTENT(UV, OUT)                                                \
@@ -97,27 +108,37 @@ void main() {
   // Content rises once as the swell passes and settles back: one smooth
   // pulse per pixel, never a reversal. Steeper ahead, where it compresses
   // what it is about to reach; long behind.
-  float u = d / (uLens.y * (d > 0.0 ? 0.85 : 1.5));
-  float lift = exp(-u * u);
-  vec2 raw = p - uFront0.xy;
-  float r = max(length(raw), 1.0);
   float held = waveHeldAt(p);
 
   // How far the content shown here has been moved. Gravity moves the whole
   // stage, but far from the source it only slides content along: it bends
   // it near the source, so only there does it count toward the fringing.
-  vec2 swollen = n * energy * uLens.x * lift * held;
-  vec2 inward = raw / r;
-  vec2 s = p - swollen + inward * gravity * exp(-r / 900.0) * held;
-  vec2 split = (swollen - inward * gravity * exp(-r / 240.0) * held) * uLens.z;
+  vec2 swollen = vec2(0.0);
+  if (energy > 0.0) {
+    float u = d / (uLens.y * (d > 0.0 ? 0.85 : 1.5));
+    swollen = n * energy * uLens.x * exp(-u * u) * held;
+  }
+  vec2 s = p - swollen;
+  vec2 split = swollen * uLens.z;
+  if (gravity != 0.0) {
+    vec2 raw = p - uFront0.xy;
+    float r = max(length(raw), 1.0);
+    vec2 inward = raw / r;
+    s = p - swollen + inward * gravity * exp(-r / 900.0) * held;
+    split = (swollen - inward * gravity * exp(-r / 240.0) * held) * uLens.z;
+  }
 
   // The blur the content shown here has: the field moved with the content
   // (to first order), so the blur stays on what the swell carries.
-  float ds = d + dot(n, s - p);
-  float bu = ds / (ds > 0.0 ? uBlur.x : uBlur.y);
-  float radius = energy * uLens.w * exp(-bu * bu) * held;
-  float tn = waveCoverage(radius, 0.0, uBlur.z);
-  float tf = waveCoverage(radius, uBlur.z, uBlur.w);
+  float tn = 0.0;
+  float tf = 0.0;
+  if (energy > 0.0 && uLens.w > 0.0) {
+    float ds = d + dot(n, s - p);
+    float bu = ds / (ds > 0.0 ? uBlur.x : uBlur.y);
+    float radius = energy * uLens.w * exp(-bu * bu) * held;
+    tn = waveCoverage(radius, 0.0, uBlur.z);
+    tf = waveCoverage(radius, uBlur.z, uBlur.w);
+  }
 
   vec2 lo = vec2(0.5);
   vec2 hi = size - 0.5;
@@ -134,6 +155,9 @@ void main() {
     WAVE_TAP(1.0, vec3(0.000, 0.000, 0.571))
   }
 
-  vec4 glow = waveDithered(waveGlowWith(p, waveOutline(p), d, q, g), pos);
+  vec4 glow = vec4(0.0);
+  if (waveColourReaches(p, d)) {
+    glow = waveDithered(waveGlowWith(p, waveOutline(p), d, q, g), pos);
+  }
   fragColor = glow + col * (1.0 - glow.a);
 }

@@ -24,6 +24,7 @@ Code shared by both lives in `lib/src/core/` (`ShaderProgram`, OKLab) and
 - `flutter analyze` — must stay at zero issues (lints include `public_member_api_docs`).
 - `flutter test` — full suite (unit + widget + render + goldens).
 - `flutter test --exclude-tags golden` — everything except goldens (use on non-macOS).
+- **After editing only `shaders/common/*.glsl`**, `rm -rf build && touch shaders/*.frag` before testing: `flutter test` can reuse shaders compiled before an include changed, and run stale.
 - `flutter test --update-goldens --tags golden` — regenerate goldens (macOS only, on the Flutter version `ci.yaml` pins — 3.50.0). Regenerate only the scenes you touched (`--plain-name`).
 - `dart format .` — formatting.
 - `cd example && flutter run` — one-screen showcase app: swipe between the three effects, each on its own mock surface with continuous (superellipse) corners; palette swatches and a theme toggle (tokens in `example/lib/src/tokens.dart`); `--dart-define`s `START`, `PALETTE`, `THEME` set the opening state for captures. No tests — CI gates it on `flutter analyze --fatal-infos` and a web build.

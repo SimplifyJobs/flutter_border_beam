@@ -85,9 +85,39 @@ bool waveNearEdge(float inset) {
       inset < max(uRim.x * 2.2 * (1.0 + 1.9 * uRim.z), uHair.x * 0.5 + 0.75);
 }
 
+// Whether any colour can reach p, from the field alone and a lower bound on
+// the inset: the outline contains the box with its corners cut off where the
+// straight edges end, so the inset is at least the distance to that octagon.
+// False only where waveGlowWith would return nothing.
+bool waveColourReaches(vec2 p, float d) {
+  if (uFront2.z > 0.0 && d < uBand.x && d > -1.3 * uBand.y - 0.01) return true;
+  if (uFront2.w <= 0.0) return false;
+  vec2 hs = uRect.zw * 0.5;
+  vec2 e = hs - abs(p - hs);
+  vec2 cut = min(vec2(SQUIRCLE_REACH * uBand.w), hs);
+  float chamfer = (e.x * cut.y + e.y * cut.x - cut.x * cut.y) * inversesqrt(max(dot(cut, cut), 1e-6));
+  float lower = min(min(e.x, e.y), chamfer);
+  return lower < max(uRim.x * 2.2 * (1.0 + 1.9 * uRim.z), uHair.x * 0.5 + 0.75);
+}
+
 // The premultiplied colour of the band, the rim and the hairline at p, given
 // the field there (d, q, g) and the view's outline there (o).
-vec4 waveGlowWith(vec2 p, vec4 o, float d, vec2 q, float g) {
+// How thick the rim is at arc length s, as a share of its width.
+float waveRimThicknessAt(float s) {
+  if (uRim.z <= 0.0) return 1.0;
+  // Past 1 the lumps are pushed further still, and the thinnest stretches
+  // break off altogether.
+  return max(1.0 + (waveRimThickness(s, uView.z) - 1.0) * uRim.z, 0.04);
+}
+
+// Whether, with the band gone, the rim has faded to nothing this far in and
+// the hairline is behind: exp(-2.76^2) is under the 0.0005 that is dropped.
+bool waveRimFaded(float inset, float thickness) {
+  return uFront2.z <= 0.0 && inset >= uRim.x * thickness * 2.76 &&
+      inset >= uHair.x * 0.5 + 0.75;
+}
+
+vec4 waveGlowCore(vec2 p, vec4 o, float thickness, float d, vec2 q, float g) {
   float glow = uFront2.z;
   float rim = uFront2.w;
   float time = uFront1.y;
@@ -99,37 +129,30 @@ vec4 waveGlowWith(vec2 p, vec4 o, float d, vec2 q, float g) {
   // The tail swells and thins along the front, like a voice glow's lobes,
   // and is lighter in the middle of the view, which it clears first.
   bool ring = waveIsRing();
-  float turn = atan(q.y, q.x);
+  float turn = 0.0;
+  if (ring && abs(q.x) + abs(q.y) > 0.0) turn = atan(q.y, q.x);
   float along = q.x * 0.0068;
-  float lobes = ring
-      ? 0.5 + 0.5 * sin(2.0 * turn + time * 1.4) * cos(turn - time * 0.7 + 1.2)
-      : 0.5 + 0.5 * sin(along * 1.3 + time * 1.4) * cos(along * 0.6 - time * 0.7 + 1.2);
   float bandA = 0.0;
   if (glow > 0.0 && d < lead) {
     if (d >= 0.0) {
       float k = 1.0 - d / lead;
       bandA = k * k * k * (k * (k * 6.0 - 15.0) + 10.0);
     } else {
+      float lobes = ring
+          ? 0.5 + 0.5 * sin(2.0 * turn + time * 1.4) * cos(turn - time * 0.7 + 1.2)
+          : 0.5 + 0.5 * sin(along * 1.3 + time * 1.4) * cos(along * 0.6 - time * 0.7 + 1.2);
       bandA = pow(1.0 - clamp(-d / (uBand.y * mix(0.6, 1.3, lobes)), 0.0, 1.0), 2.3);
     }
     bandA *= glow * uBand.z * mix(0.6, 1.0, exp(-inset / 140.0)) * waveHeldAt(p);
   }
 
   // Around the view: normalised, so the long sides get their share of colour.
-  vec2 c = p - uRect.zw * 0.5;
-  float around = atan(c.y / uRect.w, c.x / uRect.z);
   float rimA = 0.0;
   float hairA = 0.0;
   float shimmer = 0.5;
   float pulse = uRim.w;
   if (nearEdge) {
     float perimeter = uView.z;
-    float thickness = 1.0;
-    if (uRim.z > 0.0) {
-      // Past 1 the lumps are pushed further still, and the thinnest
-      // stretches break off altogether.
-      thickness = max(1.0 + (waveRimThickness(o.y, perimeter) - 1.0) * uRim.z, 0.04);
-    }
     float hug = exp(-waveSq(inset / (uRim.x * thickness)));
     float reached = 1.0 - smoothstep(-lead * 0.7, lead * 0.5, d);
     float kept = smoothstep(-uRim.y, uRim.y, d + (uFront0.w - uFront3.x) / g);
@@ -164,9 +187,14 @@ vec4 waveGlowWith(vec2 p, vec4 o, float d, vec2 q, float g) {
   lab = mix(lab, vec3(0.99, 0.0, 0.0), 0.7 * exp(-waveSq((d + 8.0) / 26.0)));
 
   // Once around the rim: `around` jumps by a whole turn, which fract hides.
-  vec3 rimLab = wavePaletteAt(around / WAVE_TAU + time * (0.12 + 0.25 * pulse) + inset * 0.0012);
-  rimLab.yz *= 1.1;
-  lab = mix(lab, rimLab, rimA / (rimA + bandA + 1e-4));
+  vec3 rimLab = vec3(0.0);
+  if (rimA > 0.0 || hairA > 0.0) {
+    vec2 c = p - uRect.zw * 0.5;
+    float around = atan(c.y / uRect.w, c.x / uRect.z);
+    rimLab = wavePaletteAt(around / WAVE_TAU + time * (0.12 + 0.25 * pulse) + inset * 0.0012);
+    rimLab.yz *= 1.1;
+    lab = mix(lab, rimLab, rimA / (rimA + bandA + 1e-4));
+  }
 
   // The hairline over the glow: the edge's own colour, whitening where the
   // pulse's light passes.
@@ -176,6 +204,12 @@ vec4 waveGlowWith(vec2 p, vec4 o, float d, vec2 q, float g) {
     rgb = (rgb * a * (1.0 - hairA) + hair * hairA) / total;
   }
   return vec4(clamp(rgb, 0.0, 1.0) * total, total);
+}
+
+vec4 waveGlowWith(vec2 p, vec4 o, float d, vec2 q, float g) {
+  float thickness = 1.0;
+  if (waveNearEdge(max(-o.x, 0.0))) thickness = waveRimThicknessAt(o.y);
+  return waveGlowCore(p, o, thickness, d, q, g);
 }
 
 // Interleaved gradient noise, ±0.5: enough to hide banding, not enough to see.

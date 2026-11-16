@@ -48,15 +48,19 @@ vec3 waveField(vec2 p, out vec2 q, out float g) {
   // would otherwise cross a phone screen as a nearly flat line.
   float mx = q.x * squash;
   vec2 v = vec2(max(abs(mx) - spine, 0.0), q.y);
-  float l = max(length(v), 1e-3);
-  vec2 grad = vec2(v.x * sign(q.x) * squash, v.y) / l;
+  float len = length(v);
+  float l = max(len, 1e-3);
+  // On the spine itself the gradient has no direction: take the frame's
+  // vertical, so the distance there stays -radius rather than blowing up.
+  vec2 grad = len > 1e-3 ? vec2(v.x * sign(q.x) * squash, v.y) / l : vec2(0.0, 1.0);
   g = max(length(grad), 1e-3);
 
   // A slow bend along the front, so the wave never looks drawn with a
   // compass. Low frequencies only: anything quicker reads as a wobble.
   float bend;
   if (waveIsRing()) {
-    float a = atan(q.y, q.x);
+    // atan(0, 0) is undefined (NaN on some drivers): the ring's centre.
+    float a = abs(q.x) + abs(q.y) > 0.0 ? atan(q.y, q.x) : 0.0;
     bend = 0.62 * sin(2.0 * a + time * 1.1) + 0.38 * sin(3.0 * a - time * 1.5 + 1.7);
   } else {
     float s = mx * 0.0058;

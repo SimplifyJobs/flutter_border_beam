@@ -23,13 +23,27 @@ void main() {
 
   // Away from the edges, with the band gone, there is nothing to draw: the
   // field need not be worked out at all.
+  // The band gone, the octagon inside the outline already rules most of the
+  // view out before the outline is worked out.
+  if (uFront2.z <= 0.0 && !waveColourReaches(p, 0.0)) {
+    fragColor = vec4(0.0);
+    return;
+  }
   vec4 o = waveOutline(p);
-  if (uFront2.z <= 0.0 && !waveNearEdge(max(-o.x, 0.0))) {
+  float inset = max(-o.x, 0.0);
+  bool nearEdge = waveNearEdge(inset);
+  if (uFront2.z <= 0.0 && !nearEdge) {
+    fragColor = vec4(0.0);
+    return;
+  }
+  float thickness = 1.0;
+  if (nearEdge) thickness = waveRimThicknessAt(o.y);
+  if (waveRimFaded(inset, thickness)) {
     fragColor = vec4(0.0);
     return;
   }
   vec2 q;
   float g;
   vec3 w = waveField(p, q, g);
-  fragColor = waveDithered(waveGlowWith(p, o, w.x, q, g), pos);
+  fragColor = waveDithered(waveGlowCore(p, o, thickness, w.x, q, g), pos);
 }
