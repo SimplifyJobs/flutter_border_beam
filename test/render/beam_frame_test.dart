@@ -2,6 +2,7 @@ import 'dart:ui' show Brightness;
 
 import 'package:flutter/painting.dart';
 import 'package:flutter_border_beam/flutter_border_beam.dart';
+import 'package:flutter_border_beam/src/animation/beam_phases.dart';
 import 'package:flutter_border_beam/src/effects/effect_emitters.dart';
 import 'package:flutter_border_beam/src/look/beam_look.dart';
 import 'package:flutter_border_beam/src/look/palette_tables.dart';
@@ -268,6 +269,24 @@ void main() {
       expect(drifting, greaterThan(0));
       expect(bloomBlur(BeamColors.gold), drifting);
       expect(bloomBlur(BeamColors.ember, hueMode: BeamHueMode.none), drifting);
+    });
+
+    // The line runs two hue tracks of its own beside the beam's; a static
+    // frame promises the palette's own colours, so neither may swing.
+    test('a static frame paints the palette as given, whatever the drift', () {
+      final r = renderer();
+      List<double> still(BeamHueMode hueMode) {
+        final config = configFor(
+          const BeamEffect.line(),
+          style: BeamStyle(hueMode: hueMode),
+        );
+        recordFrame(r, config, BeamPhaseResolver(config).staticFrame());
+        return List.of(r.debugFrame.data);
+      }
+
+      // Continuous drift has no track of the line's own: its static frame
+      // is the palette at hue 0, which ping-pong's must match.
+      expect(still(BeamHueMode.pingPong), still(BeamHueMode.continuous));
     });
 
     test('the windows ride the edge with the streak', () {

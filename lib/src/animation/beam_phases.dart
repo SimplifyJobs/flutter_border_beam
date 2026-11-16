@@ -20,7 +20,7 @@ class BeamFramePhases {
     this.finished = false,
     this.cycles = 0,
     this.driven = false,
-    this.hueTime = 0,
+    this.hueTime,
   });
 
   /// Fade envelope (0–1), multiplied into the whole beam. Carries the rest
@@ -33,7 +33,10 @@ class BeamFramePhases {
 
   /// The time the hue track reads, in seconds — for effects that run a
   /// second hue track of their own.
-  final double hueTime;
+  ///
+  /// Null when the hue holds still (a static frame): an effect's own tracks
+  /// then hold the palette's colours too, as [hueDegrees] does at 0.
+  final double? hueTime;
 
   /// Sweep progress (0–1) of the leading beam through the current cycle.
   ///

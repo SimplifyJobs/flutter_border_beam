@@ -359,6 +359,8 @@ void main() {
         final b = r.staticFrame();
         expect(a.fadeOpacity, 1);
         expect(a.hueDegrees, 0, reason: 'the palette as given');
+        expect(a.hueTime, isNull, reason: "no time for an effect's own drift");
+        expect(r.sample(2, 1).hueTime, 2, reason: 'a running frame has one');
         expect(a.driven, isFalse);
         expect(a.finished, isFalse);
         expect(a.travelProgress, b.travelProgress);

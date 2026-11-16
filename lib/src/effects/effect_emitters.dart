@@ -457,14 +457,13 @@ void _line(BeamFrame f, LineEffect e) {
   if (base <= 0) return;
 
   // Two hue tracks: the stroke and glow swing gently, the bloom wider and
-  // faster.
+  // faster. A static frame has no hue time, and holds both at the palette.
   final range = math.min(f.config.hueShift, lineHueCap);
-  final ht = f.phases.hueTime;
   final period = f.config.huePeriodSeconds;
-  final (strokeHue, bloomHue) = switch (f.config.hueMode) {
-    BeamHueMode.none => (0.0, 0.0),
-    BeamHueMode.continuous => (f.phases.hueDegrees, f.phases.hueDegrees),
-    BeamHueMode.pingPong => (
+  final (strokeHue, bloomHue) = switch ((f.config.hueMode, f.phases.hueTime)) {
+    (BeamHueMode.none, _) || (BeamHueMode.pingPong, null) => (0.0, 0.0),
+    (BeamHueMode.continuous, _) => (f.phases.hueDegrees, f.phases.hueDegrees),
+    (BeamHueMode.pingPong, final double ht) => (
       _ping(ht, period * 1.5, range),
       _ping(ht, period, range + lineBloomHueBonus),
     ),
