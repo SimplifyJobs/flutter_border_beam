@@ -113,8 +113,6 @@ design data rather than transcriptions.
 
 ### Changed
 
-- **Package name.** The package is `flutter_border_beam`; import
-  `package:flutter_border_beam/flutter_border_beam.dart`.
 - **Every golden was regenerated.** Each effect is rebuilt from 0.1's
   layers and checked against it side by side, but blurs evaluated
   analytically are not pixel-identical to blur filters, and the pulse
@@ -192,7 +190,7 @@ design data rather than transcriptions.
 
 | Before | 0.2.0 |
 | --- | --- |
-| `import 'package:border_beam/border_beam.dart'` | `import 'package:flutter_border_beam/flutter_border_beam.dart'` |
+| `import 'package:flutter_border_beam/flutter_border_beam.dart'` | unchanged |
 | `BorderBeam.rotate(…)` | `BorderBeam(…)` — `rotate` is the default — or `BorderBeam(effect: const BeamEffect.rotate(), …)` |
 | `BorderBeam.small(…)` | `BorderBeam(effect: const BeamEffect.rotate(), borderRadius: 32, …)` — set the radius you relied on; the default is 16 |
 | `BorderBeam.line(…)` | `BorderBeam(effect: const BeamEffect.line(), …)` |
