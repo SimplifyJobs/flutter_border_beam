@@ -263,6 +263,56 @@ void main() {
       expect(litPixels(await capture(tester)), 0);
     });
 
+    testWidgets('repeat runs out even while there is nothing to paint', (
+      tester,
+    ) async {
+      // The same decoration throughout, so the box keeps one painter: it
+      // ticks at zero size, then is given room once its cycle is spent.
+      const beam = BeamDecoration(
+        brightness: Brightness.dark,
+        timing: BeamTiming(cycle: Duration(seconds: 1)),
+        playback: BeamPlayback(repeat: BeamRepeat.once()),
+      );
+      Widget sized(double width, double height) => MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: Center(
+          child: RepaintBoundary(
+            key: boundaryKey,
+            child: SizedBox(
+              width: 240,
+              height: 120,
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: Container(
+                  width: width,
+                  height: height,
+                  foregroundDecoration: beam,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(sized(0, 0));
+      await tester.pump();
+      expect(tester.binding.transientCallbackCount, greaterThan(0));
+      // Past the one cycle, and past the fade-out it starts.
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(
+        tester.binding.transientCallbackCount,
+        0,
+        reason: 'the budget ran out with no frame painted',
+      );
+
+      await tester.pumpWidget(sized(240, 120));
+      await tester.pump();
+      expect(litPixels(await capture(tester)), 0, reason: 'no spent beam');
+      expect(tester.binding.transientCallbackCount, 0);
+    });
+
     testWidgets('removal cancels a pending startAfter timer', (tester) async {
       await tester.pumpWidget(
         scene(

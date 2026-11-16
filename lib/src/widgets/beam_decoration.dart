@@ -234,6 +234,13 @@ class _BeamBoxPainter extends BoxPainter {
   _BeamBoxPainter(this._decoration, super.onChanged)
     : _repeatCycles = validateRepeat(_decoration._playback.repeat) {
     validateBeamTiming(_decoration._timing);
+    // The repeat budget is counted on the resolver from the first tick, so
+    // it exists before anything is painted: a box that ticks through its
+    // cycles with nothing to paint (an empty size) still runs out of them,
+    // rather than showing a spent beam the first time it gets a size. Text
+    // direction moves only the corners, never the count; the first paint
+    // re-resolves for its own.
+    _configFor(TextDirection.ltr);
     _clock = BeamClock(
       createTicker: Ticker.new,
       fadeCurve: _decoration._playback.fadeCurve,
