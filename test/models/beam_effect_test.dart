@@ -140,8 +140,8 @@ void main() {
         BeamEffect.rotate(count: 2),
         BeamEffect.rotate(comet: true),
       ]) {
+        // Only equality: unequal values may share a hash code.
         expect(other, isNot(base), reason: '$other');
-        expect(other.hashCode, isNot(base.hashCode), reason: '$other');
       }
       expect(
         const BeamEffect.line(edge: BeamEdge.top),
