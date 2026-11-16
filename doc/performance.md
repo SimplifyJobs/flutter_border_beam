@@ -51,7 +51,7 @@ In widget tests that read pixels, `await BorderBeam.precache()` in `setUpAll`.
 
 **An offscreen pause.** With `playback.pauseWhenOffscreen` (the default), a beam watches its nearest enclosing `Scrollable` and stops its clock once it is more than 256px outside the viewport, resuming exactly where it left off — play state, fade, and callbacks untouched. A long list of beamed cards costs the beams you can see. With no enclosing `Scrollable` it does nothing.
 
-**Repaints without rebuilds.** The clock, `progress`, `strengthListenable`, and `speedListenable` drive the painter directly; none of them rebuilds a widget per frame.
+**Repaints without rebuilds.** The clock, `strengthListenable`, and `speedListenable` drive the painter directly; none of them rebuilds a widget per frame. `progress` is a plain value, so a new one arrives with a rebuild of the beam, but it reaches the painter through a listenable and repaints without re-resolving the configuration.
 
 ## Impeller: keep the beam off offscreen ancestors
 
