@@ -36,7 +36,7 @@ uniform vec4 uRadii;  // corner radii: top-left, top-right, bottom-right, bottom
 uniform vec4 uShape;  // x corners (0 circular, 1 rounded superellipse), y unused, z stroke width, w px per device px
 uniform vec4 uPerim;  // x perimeter length, y unused, z dither on/off, w unused
 uniform vec4 uQuads;  // arc length where each quadrant starts: TR, BR, BL, TL
-uniform vec4 uMask;   // x segment start u, y segment span (0 = all), z feather (u), w dashes
+uniform vec4 uMask;   // x segment start u, y segment span (0 or 1 = all), z feather (u), w dashes
 uniform vec4 uConic;  // xy conic centre, z conic start (turns), w repeats around the turn
 // Per layer, 9 vec4s:
 //   0: x geometry kind, y blur sigma, z reach (glow), w opacity
@@ -303,8 +303,9 @@ vec2 blobOffset(vec2 p, vec2 c, bool path) {
 
 // The visible track. Its ends soften with [spread] (px from the stroke), so a
 // glow fades out toward the end of the track instead of stopping at a line.
+// A track of a whole turn (a segment whose ends meet) has no ends to soften.
 float segmentMask(float u, float spread) {
-  if (uMask.y > 0.0) {
+  if (uMask.y > 0.0 && uMask.y < 1.0) {
     float x = fract(u - uMask.x);
     if (x > uMask.y) return 0.0;
     float fe = max(uMask.z + spread / uPerim.x, 1e-5);

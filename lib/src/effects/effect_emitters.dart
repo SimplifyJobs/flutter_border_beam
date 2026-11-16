@@ -115,6 +115,8 @@ void applyTrack(
   }
   final range = segment.resolve(outline);
   var span = BeamOutline.wrapFraction(range.to - range.from);
+  // Ends that meet run the whole way round from the start. The shader
+  // leaves a whole-turn track unmasked, so the join is never faded.
   if (span <= 0) span = 1;
   // Negative (or NaN) is a hard cut, as zero is.
   final feather = segment.feather > 0 ? segment.feather : 0.0;

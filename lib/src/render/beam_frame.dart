@@ -172,8 +172,9 @@ final class BeamFrameData {
     );
   }
 
-  /// The visible track: start and span in `u` (span 0 = all of it), the
-  /// feather at its ends, and the dash count.
+  /// The visible track: start and span in `u` (span 0 = all of it; a span
+  /// of 1, a whole turn from [start], has no ends to feather), the feather
+  /// at its ends, and the dash count.
   void setTrack(double start, double span, double feather, int dashes) =>
       _v4(_mask, start, span, feather, dashes.toDouble());
 

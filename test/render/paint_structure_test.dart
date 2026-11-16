@@ -70,6 +70,47 @@ void main() {
         );
       });
     }
+
+    // Ends that meet run the whole way round: there is no end to fade, so
+    // the join is lit like the rest of the border. (The line rides a
+    // segment instead of its edge, so it has no unsegmented twin here.)
+    for (final effect in [
+      const BeamEffect.rotate(),
+      const BeamEffect.pulse(),
+    ]) {
+      test('${effect.name}: ends that meet leave no gap at the join', () async {
+        const closed = BeamShape(
+          segment: BeamSegment(
+            start: BeamAnchor.topCenter,
+            end: BeamAnchor.topCenter,
+          ),
+        );
+        // The stroke, the bloom, and the inner glow around top-centre.
+        final join = Rect.fromLTRB(
+          box.center.dx - 48,
+          box.top - 8,
+          box.center.dx + 48,
+          box.top + 24,
+        );
+        var looped = 0;
+        var whole = 0;
+        for (final t in sweep) {
+          final masked = configFor(effect, shape: closed);
+          looped += (await renderFrame(
+            masked,
+            phasesAt(masked, t),
+          )).energyIn(join);
+          final full = configFor(effect);
+          whole += (await renderFrame(full, phasesAt(full, t))).energyIn(join);
+        }
+        expect(whole, greaterThan(0), reason: 'the reference lights the join');
+        expect(
+          looped,
+          greaterThanOrEqualTo(whole * 0.98),
+          reason: 'the join kept $looped of $whole',
+        );
+      });
+    }
   });
 
   group('line', () {
