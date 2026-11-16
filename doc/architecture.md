@@ -96,7 +96,7 @@ Some of the shader's maths runs on the CPU too, and the two copies must agree ex
 | 9–12 | `uWinA[8]`, `uWinB[8]`, `uOverA[8]`, `uOverB[8]` — conic tables, 16 (position, alpha) stops each | 4 × 32 |
 | 13–15 | `uBlobA[42]`, `uBlobB[30]`, `uBlobC[30]` — 14, 10, and 10 blobs, three vec4s each | 408 |
 
-That is 672 floats, `beamUniformFloats` — inside the GLES budget. `test/render/uniform_layout_test.dart` parses `shaders/beam.frag` and checks that every uniform is a `vec4` or `vec4` array, that each array holds what `BeamFrameData` packs (`beamLayerCount`, `tableStops`, the blob slots), that the shader's loops match the slot counts, and that the declared floats add up to `beamUniformFloats`. The test cannot check the *order*: a uniform reordered on one side only shifts every value after it, and the frame is garbage rather than an error. Change the shader's declarations and `beam_frame.dart`'s offsets in one commit.
+That is 672 floats, `beamUniformFloats` — inside the 896 (224 `vec4`s) GLES 3.0 guarantees. `test/render/uniform_layout_test.dart` parses `shaders/beam.frag` and checks that every uniform is a `vec4` or `vec4` array, that each array holds what `BeamFrameData` packs (`beamLayerCount`, `tableStops`, the blob slots), that the shader's loops run to the slot counts, and that the declared floats add up to `beamUniformFloats`. It also checks the *order*: it derives each uniform's offset from the shader's declarations and runs every `BeamFrameData` writer on a fresh frame, so a uniform reordered on one side only — which would otherwise shift every value after it and paint garbage rather than fail — breaks the test. Change the shader's declarations and `beam_frame.dart`'s offsets in one commit.
 
 ## Module layout
 
