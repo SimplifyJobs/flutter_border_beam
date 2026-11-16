@@ -65,8 +65,8 @@ class BeamHover extends StatefulWidget {
   /// straight through to the `BorderBeam`.
   final BeamStyle? style;
 
-  /// Corner radii, corner family, stroke width, segment, and dashes, passed
-  /// straight through to the `BorderBeam`.
+  /// Corner radii, corner family, stroke width, ring offset, segment, and
+  /// dashes, passed straight through to the `BorderBeam`.
   final BeamShape? shape;
 
   /// Cycle length, rest between sweeps, playback rate, direction, and the
