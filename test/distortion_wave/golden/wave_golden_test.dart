@@ -118,8 +118,9 @@ void main() {
     WidgetTester tester,
     String name,
     Size size,
-    Widget wave,
-  ) async {
+    Widget wave, {
+    BorderRadius? displayCornerRadii,
+  }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -127,7 +128,10 @@ void main() {
       Directionality(
         textDirection: TextDirection.ltr,
         child: MediaQuery(
-          data: MediaQueryData(size: size),
+          data: MediaQueryData(
+            size: size,
+            displayCornerRadii: displayCornerRadii,
+          ),
           child: RepaintBoundary(child: wave),
         ),
       ),
@@ -211,6 +215,29 @@ void main() {
         );
       });
     }
+  });
+
+  // A display whose corners differ — sharp on the left, round on the right —
+  // with the wave filling it: the colour follows one smooth curve round
+  // every corner, the hairline each corner as it is.
+  testWidgets('display corners that differ', (tester) async {
+    await capture(
+      tester,
+      'display_corners_mixed',
+      const Size(466, 678),
+      DistortionWave(
+        progress: 0.42,
+        source: const WaveSource.rect(Rect.fromLTWH(20, 598, 426, 56)),
+        revealedChild: done,
+        child: sheet,
+      ),
+      displayCornerRadii: const BorderRadius.only(
+        topLeft: Radius.circular(8),
+        topRight: Radius.circular(59),
+        bottomRight: Radius.circular(59),
+        bottomLeft: Radius.circular(8),
+      ),
+    );
   });
 
   group('palettes', () {

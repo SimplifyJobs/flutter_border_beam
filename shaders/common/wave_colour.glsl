@@ -83,10 +83,12 @@ vec4 waveOutline(vec2 p) {
 // How wide the crease where two edges meet is rounded, in rim widths.
 const float CORNER_POOL = 2.5;
 
-// How much nearer the rim's own depth can be than the outline's distance
-// (on a corner's diagonal; see waveRimInset).
+// How much nearer the rim's own depth can be than the outline's distance:
+// the gap between a corner rounded to the roundest corner's radius and the
+// corner itself, along its diagonal, plus the easing (see waveRimInset).
 float wavePoolSlack() {
-  return 0.25 * CORNER_POOL * uRim.x;
+  float k = CORNER_POOL * uRim.x;
+  return 0.41422 * max(uBand.w, k) + 0.25 * k;
 }
 
 // A smooth minimum: the smaller of a and b, eased where they are within k.
@@ -95,17 +97,28 @@ float waveSmin(float a, float b, float k) {
   return min(a, b) - h * h * k * 0.25;
 }
 
-// How deep in from the edges the rim's colour is measured. The distance to
-// the outline creases along a corner's diagonal, where the nearest edge
-// changes: round a sharp corner the colour would turn along a mitre. Here
-// the distances to the two edges that meet there are eased into each other,
-// so the colour turns smoothly from one edge to the next, pooling a little
-// into the corner. Round a round corner the outline's own distance is the
-// smaller, and already smooth.
+// How deep in from the edges the rim's colour is measured: as if every
+// corner were as round as the view's roundest one (and never sharper than
+// the easing), so the colour follows one smooth curve round every corner.
+//
+// The distance to the outline itself would follow each corner as it is: a
+// sharp one (where a display's corners differ, as on a phone whose corners
+// are 8 pt on one side and 59 pt on the other) would turn the colour
+// through a near-square corner, beside round ones. The sliver between that
+// round curve and the sharp corner itself is lit as the glass edge is, so
+// the light fills the corner rather than turning a square. Deeper than the
+// curve, where its distance would crease along the diagonal, the two
+// distances are eased into each other. The hairline keeps to the glass.
 float waveRimInset(vec2 p, float inset) {
   vec2 hs = uRect.zw * 0.5;
-  vec2 e = hs - abs(p - hs);
-  return min(inset, max(waveSmin(e.x, e.y, CORNER_POOL * uRim.x), 0.0));
+  vec2 c = p - hs;
+  float k = CORNER_POOL * uRim.x;
+  float r = c.x > 0.0 ? (c.y > 0.0 ? uRadii.z : uRadii.y)
+                      : (c.y > 0.0 ? uRadii.w : uRadii.x);
+  float rho = min(max(max(r, uBand.w), k), min(hs.x, hs.y));
+  vec2 q = abs(c) - hs + rho;
+  float sd = length(max(q, 0.0)) + min(-waveSmin(-q.x, -q.y, k), 0.0) - rho;
+  return min(inset, max(-sd, 0.0));
 }
 
 bool waveNearEdge(float inset) {
