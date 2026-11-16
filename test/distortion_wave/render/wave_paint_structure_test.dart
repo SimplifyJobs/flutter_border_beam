@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prismatic/prismatic.dart';
 import 'package:prismatic/src/distortion_wave/models/wave_spec.dart';
+import 'package:prismatic/src/distortion_wave/render/render_wave_stage.dart';
 import 'package:prismatic/src/distortion_wave/timeline/wave_frame.dart';
 
 import '../widget/wave_test_utils.dart';
@@ -74,6 +75,47 @@ void main() {
     }
     return lo;
   }
+
+  testWidgets('the pictures of the sides are drawn the right way up', (
+    tester,
+  ) async {
+    // Early in the pull, nothing is bent far from the source: the outgoing
+    // side, top half red and bottom half green, shows as it is — so a
+    // picture sampled upside down on some backend would show here.
+    useWaveView(tester);
+    final key = GlobalKey();
+    await tester.pumpWidget(
+      waveHost(
+        RepaintBoundary(
+          key: key,
+          child: DistortionWave(
+            progress: 0.01,
+            source: const WaveSource.rect(button),
+            revealedChild: flatSide(incomingColor, 'in'),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: ColoredBox(color: Color(0xFFFF0000))),
+                Expanded(child: ColoredBox(color: Color(0xFF00FF00))),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(waveStage(tester).debugLastPhase, WavePhase.distorting);
+    final bytes = await tester.runAsync(() async {
+      final boundary =
+          key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+      final image = await boundary.toImage(pixelRatio: 2);
+      final data = await image.toByteData();
+      image.dispose();
+      return data!;
+    });
+    final frame = _Frame(bytes!, (waveTestSize.width * 2).round());
+    expect(frame.at(195, 120), _near(const Color(0xFFFF0000), tolerance: 8));
+    expect(frame.at(195, 600), _near(const Color(0xFF00FF00), tolerance: 8));
+  });
 
   testWidgets('at rest each side is drawn as itself', (tester) async {
     var frame = await frameAt(tester, 0);
