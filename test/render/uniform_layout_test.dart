@@ -219,9 +219,9 @@ void main() {
   });
 
   test('the uniforms stay inside the GLES budget', () {
-    // A fragment shader may count on 224 vec4s of uniforms on the weakest
-    // GLES devices; stay well inside that.
-    expect(beamUniformFloats, lessThanOrEqualTo(900));
+    // OpenGL ES 3.0 guarantees a fragment shader 224 vec4s of uniforms
+    // (MAX_FRAGMENT_UNIFORM_VECTORS), all a GLES device is bound to offer.
+    expect(beamUniformFloats, lessThanOrEqualTo(224 * 4));
   });
 
   test("the shader's loop bounds match the slot counts", () {
