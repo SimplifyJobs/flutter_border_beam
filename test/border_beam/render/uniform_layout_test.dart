@@ -1,34 +1,18 @@
-import 'dart:io';
-
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prismatic/src/border_beam/render/beam_frame.dart';
 import 'package:prismatic/src/border_beam/render/beam_outline.dart';
+
+import '../../support/shader_source.dart';
 
 /// The Dart packer writes uniforms by float index, so the shader's declared
 /// layout and `beamUniformFloats` must agree float for float — a uniform
 /// added on one side only shifts every value after it, and the frame is
 /// garbage rather than an error.
 void main() {
-  final source = File('shaders/beam.frag').readAsStringSync();
-  final declaration = RegExp(
-    r'^\s*uniform\s+(\w+)\s+(\w+)\s*(?:\[\s*(\d+)\s*\])?\s*;',
-    multiLine: true,
-  );
-  final uniforms = [
-    for (final m in declaration.allMatches(source))
-      (type: m[1]!, name: m[2]!, count: int.parse(m[3] ?? '1')),
-  ];
-
-  const floatsPerType = {
-    'float': 1,
-    'vec2': 2,
-    'vec3': 3,
-    'vec4': 4,
-    'mat2': 4,
-    'mat3': 9,
-    'mat4': 16,
-  };
+  // beam.frag with its includes inlined, as the shader compiler sees it.
+  final source = shaderSource('shaders/beam.frag');
+  final uniforms = shaderUniforms(source);
 
   test('the shader declares its uniforms', () {
     expect(uniforms, isNotEmpty);

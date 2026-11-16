@@ -41,3 +41,5 @@ dev_dependencies:
 flutter:
   shaders:
     - shaders/beam.frag
+    - shaders/wave.frag
+    - shaders/wave_glow.frag
