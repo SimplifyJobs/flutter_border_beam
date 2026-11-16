@@ -188,6 +188,9 @@ design data rather than transcriptions.
   does reduced motion's `slow`. Pausing still freezes the fade.
 - A `BorderBeamController` can move from one beam to another in the same
   frame.
+- Reduced motion holds a controller-driven beam too. Under `staticFrame` or
+  `hide`, `start()` and `resume()` show the still frame (or nothing) without
+  ticking, and turning reduced motion off lets the beam run on.
 - `BeamFocusRing` no longer overrides `style.colors` and theme colours with
   its `ocean` default. `colors` is now nullable: null inherits, and `ocean`
   applies only when nothing else sets colours.

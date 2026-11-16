@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 // which earlier supported SDKs lack; move when the floor allows it.
 // ignore: deprecated_member_use
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import 'animation/beam_clock.dart';
 import 'animation/beam_phases.dart';
@@ -456,7 +457,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     _cycleSeconds = BeamConfig.cycleSecondsFor(_timing, _effect);
     widget.controller
       ?..attach(_clock)
-      ..addListener(_applySpeed);
+      ..addListener(_onControllerCommand);
     widget.speedListenable?.addListener(_applySpeed);
     _applySpeed();
     _applyFadeCurve();
@@ -527,6 +528,36 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
         ? slowMotionFactor
         : 1.0;
     _clock.speed = base * factor;
+  }
+
+  // A controller command can set the clock running, but reduced motion still
+  // decides whether it moves. Under staticFrame or hide the clock is held at
+  // full opacity instead (the still frame, or nothing), as a beam that owns
+  // its playback would be, and leaving reduced motion lets it run on from
+  // there. A fade-out is left to run down, so stop() still ends the beam.
+  void _onControllerCommand() {
+    _applySpeed();
+    if (_synced || !_motionFrozen) return;
+    if (_clock.isRunning && _clock.stage != BeamFadeStage.fadingOut) {
+      _clock.showStatic();
+      _pausedForReducedMotion = true;
+    }
+    _rebuildStillFrame();
+  }
+
+  // Under staticFrame a controller beam shows its still frame while its clock
+  // is visible, which build reads. Commands and fades change that without a
+  // rebuild of their own.
+  void _rebuildStillFrame() {
+    if (!mounted || _reducedApplied != BeamReducedMotion.staticFrame) return;
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+      return;
+    }
+    setState(() {});
   }
 
   void _scheduleAutoplayStart() {
@@ -902,6 +933,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
   }
 
   void _onFadeComplete(bool active) {
+    if (widget.controller != null && !_synced) _rebuildStillFrame();
     if (active) {
       widget.onActivate?.call();
     } else {
@@ -1164,10 +1196,10 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
         _controllerUnderSyncMessage,
       );
       oldWidget.controller
-        ?..removeListener(_applySpeed)
+        ?..removeListener(_onControllerCommand)
         ..detach(_clock);
       if (!_synced) widget.controller?.attach(_clock);
-      widget.controller?.addListener(_applySpeed);
+      widget.controller?.addListener(_onControllerCommand);
     }
     if (oldWidget.speedListenable != widget.speedListenable) {
       oldWidget.speedListenable?.removeListener(_applySpeed);
@@ -1207,7 +1239,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
   void dispose() {
     _startTimer?.cancel();
     _durationStartedAt = null;
-    widget.controller?.removeListener(_applySpeed);
+    widget.controller?.removeListener(_onControllerCommand);
     widget.speedListenable?.removeListener(_applySpeed);
     _scrollPosition?.removeListener(_onScrollChanged);
     _scrollPosition = null;

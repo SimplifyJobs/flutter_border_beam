@@ -515,6 +515,109 @@ void main() {
       );
       expect(controller.isActive, isTrue);
     });
+
+    group('with a controller', () {
+      Widget controlled(
+        BorderBeamController controller, {
+        bool on = true,
+        BeamReducedMotion? mode,
+      }) => beamHost(
+        disableAnimations: on,
+        BorderBeam(
+          controller: controller,
+          playback: BeamPlayback(reducedMotion: mode),
+          child: const SizedBox.expand(),
+        ),
+      );
+
+      BorderBeamController newController() {
+        final controller = BorderBeamController();
+        addTearDown(controller.dispose);
+        return controller;
+      }
+
+      testWidgets('start shows the static frame without ticking', (
+        tester,
+      ) async {
+        final controller = newController();
+        await tester.pumpWidget(controlled(controller));
+        controller.start();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+
+        expect(controller.isActive, isTrue);
+        expect(controller.isRunning, isFalse);
+        expect(tester.binding.transientCallbackCount, 0);
+        expect(beamPainterOf(tester).staticMode, isTrue);
+        expect((await beamPixels(tester)).totalAlpha, greaterThan(0));
+      });
+
+      testWidgets('start under hide paints nothing and never ticks', (
+        tester,
+      ) async {
+        final controller = newController();
+        await tester.pumpWidget(
+          controlled(controller, mode: BeamReducedMotion.hide),
+        );
+        controller.start();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+
+        expect(controller.isRunning, isFalse);
+        expect(tester.binding.transientCallbackCount, 0);
+        expect((await beamPixels(tester)).totalAlpha, 0);
+      });
+
+      testWidgets('resume does not set a still beam moving', (tester) async {
+        final controller = newController();
+        await tester.pumpWidget(controlled(controller, on: false));
+        controller.start();
+        await tester.pump();
+        await tester.pump(pastFadeIn);
+        await tester.pumpWidget(controlled(controller));
+        await tester.pump();
+        expect(controller.isRunning, isFalse);
+
+        controller.resume();
+        await tester.pump(const Duration(milliseconds: 200));
+        expect(controller.isRunning, isFalse);
+        expect(tester.binding.transientCallbackCount, 0);
+      });
+
+      testWidgets('turning it off runs a beam the controller started', (
+        tester,
+      ) async {
+        final controller = newController();
+        await tester.pumpWidget(controlled(controller));
+        controller.start();
+        await tester.pump();
+        await tester.pumpWidget(controlled(controller, on: false));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+
+        expect(controller.isRunning, isTrue);
+        expect(beamPainterOf(tester).staticMode, isFalse);
+        expect(
+          beamPainterOf(tester).clock.fadeOpacity,
+          1,
+          reason: 'the still frame was at full opacity; no fade replays',
+        );
+      });
+
+      testWidgets('stop still takes a still beam away', (tester) async {
+        final controller = newController();
+        await tester.pumpWidget(controlled(controller));
+        controller.start();
+        await tester.pump();
+        controller.stop();
+        await tester.pump();
+        await tester.pump(pastFadeOut);
+
+        expect(controller.isActive, isFalse);
+        expect(tester.binding.transientCallbackCount, 0);
+        expect((await beamPixels(tester)).totalAlpha, 0);
+      });
+    });
   });
 
   group('debugFrozenAt', () {
