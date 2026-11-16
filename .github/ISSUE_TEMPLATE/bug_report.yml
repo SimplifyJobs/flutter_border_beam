@@ -56,7 +56,7 @@ body:
     attributes:
       label: Effect(s) and palette
       description: Which `BeamEffect` and which `BeamColors` (or custom colors).
-      placeholder: "rotate + line; BeamColors.colorful"
+      placeholder: "rotate; BeamColors.colorful"
     validations:
       required: true
 
