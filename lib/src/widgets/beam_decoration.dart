@@ -48,8 +48,9 @@ import '../render/beam_renderer.dart';
 /// The beam draws its light over whatever is beneath it, so put it in
 /// `foregroundDecoration:` — the same place `BorderBeam` paints, over the
 /// child. Use `decoration:` only when the beam should sit under opaque
-/// content. Outward light (rotate's `comet`) paints past the box,
-/// so leave clip-free room around it either way.
+/// content. Light that reaches outward — rotate's `comet`, a positive
+/// `shape.ringOffset` — paints past the box, so leave clip-free room around
+/// it either way.
 ///
 /// ## Limits of the decoration form
 ///
