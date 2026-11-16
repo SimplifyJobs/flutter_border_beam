@@ -3,15 +3,15 @@
 // A beam is up to three layers composited bottom to top, each evaluated per
 // pixel in this one pass:
 //
-//   layer 0 — the inner glow (or the halo's wide bloom),
+//   layer 0 — the inner glow,
 //   layer 1 — the hairline stroke,
-//   layer 2 — the bloom (or the halo's core glow).
+//   layer 2 — the bloom.
 //
 // A layer is an optional conic overlay (the white or black highlight at the
 // head of a beam, or the bloom band) with a stack of soft radial colour blobs
 // painted over it (premultiplied source-over, each over the ones before), an
 // optional inset shadow, then masks — a geometry mask (the 1px ring, the filled shape, a
-// blurred ring, or the space outside the shape), a window (a rotating conic
+// blurred ring, or a glow outside the shape), a window (a rotating conic
 // or a radial ellipse), and an edge fade — and finally a 3×3
 // colour matrix (hue rotation, brightness, saturation) and the layer opacity.
 //
@@ -39,7 +39,7 @@ uniform vec4 uQuads;  // arc length where each quadrant starts: TR, BR, BL, TL
 uniform vec4 uMask;   // x segment start u, y segment span (0 = all), z feather (u), w dashes
 uniform vec4 uConic;  // xy conic centre, z conic start (turns), w repeats around the turn
 // Per layer, 9 vec4s:
-//   0: x geometry kind, y blur sigma, z reach (halo), w opacity
+//   0: x geometry kind, y blur sigma, z reach (glow), w opacity
 //   1: x edge fade px, y window kind, z overlay table (0 none, 1 A, 2 B), w overlay ink (0 black, 1 white)
 //   2: window parameters (radial: centre, radii)
 //   3: x radial mid stop, y radial mid alpha, z blob mode (0 planar, 1 path,
@@ -256,10 +256,6 @@ float layerMask(vec4 h0, vec4 h1, vec4 h2, vec4 h3, vec2 pos, vec2 pathP, float 
     float sigma = max(h0.y, 1e-3);
     float c = (d + 0.5 * w) / sigma;
     m = w / sigma * INV_SQRT_TAU * exp(-0.5 * c * c) * inside;
-  } else if (kind < 4.5) {
-    // Outside the outline only: a glow behind the child, which covers the
-    // inside.
-    m = 1.0 - inside;
   } else {
     // A glow outside the outline that fades out: the shape grown by
     // [inflate] and blurred by [sigma].

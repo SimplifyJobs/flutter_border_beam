@@ -7,7 +7,7 @@ import 'look_blobs.dart';
 // The blob tables of the four original palettes — the hand-tuned heart of
 // the beam's look. Every effect draws its colour from these: the rotate
 // stroke and inner glow, the compact chip tables, the line streak and its
-// spikes, and the pulse and halo glows. Positions are fractions of the box
+// spikes, and the pulse's glows. Positions are fractions of the box
 // (`Offset(0.33, -0.074)` sits a third along the top edge, just above it);
 // sizes are ellipse radii in px.
 

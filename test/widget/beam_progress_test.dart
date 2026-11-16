@@ -54,7 +54,7 @@ Future<void> _settle(WidgetTester tester) async {
 
 const _travelling = <BeamEffect>[BeamEffect.rotate(), BeamEffect.line()];
 
-const _ambient = <BeamEffect>[BeamEffect.pulse(), BeamEffect.halo()];
+const _ambient = <BeamEffect>[BeamEffect.pulse()];
 
 /// `BorderBeam.progress`: a value, not the clock, places the sweep of a
 /// travelling effect, while the fade and the hue keep running underneath.

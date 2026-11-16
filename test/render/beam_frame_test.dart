@@ -338,20 +338,6 @@ void main() {
         expect(r.debugFrame.trackSpan, 0, reason: '${effect.name}: own mask');
       }
     });
-
-    test('the halo glows outside the box only', () {
-      final r = renderer();
-      final config = configFor(const BeamEffect.halo());
-      final canvas = recordFrame(r, config, phasesAt(config, 1.3));
-      final d = r.debugFrame;
-      expect(d.geometryOf(0), BeamGeometry.halo);
-      expect(d.geometryOf(2), BeamGeometry.halo);
-      expect(d.reachOutside, greaterThan(20));
-      expect(
-        canvas.drawBounds.single.contains(box.topLeft - const Offset(20, 20)),
-        isTrue,
-      );
-    });
   });
 
   group('palettes', () {

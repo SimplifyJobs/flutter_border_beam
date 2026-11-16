@@ -35,21 +35,6 @@ class PulseParams {
     );
   }
 
-  /// The halo's parameters on a [dark] or light surface, for a cycle of
-  /// [cycleSeconds].
-  factory PulseParams.halo({required bool dark, required double cycleSeconds}) {
-    final k = cycleSeconds / 2.3;
-    return PulseParams._(
-      sp: dark ? 0.28 : 0.36,
-      dr: dark ? 14 : 19,
-      op: dark ? 0.46 : 0,
-      gh: dark ? 0.16 : 0.58,
-      bs: (dark ? 2.3 : 3.7) * k,
-      ss: (dark ? 6.4 : 4.6) * k,
-      ghs: (dark ? 2.4 : 3.8) * k,
-    );
-  }
-
   /// Blob size breathing amplitude (fraction).
   final double sp;
 
@@ -252,51 +237,3 @@ const double pulseCornerEndStop = 0.70;
 
 /// Blur of the pulse's bloom, px.
 const double pulseBloomBlur = 8;
-
-// ─── The halo ──────────────────────────────────────────────────────────────
-
-/// The halo glows' constant shrink about the box centre, horizontally.
-const double haloScaleX = 0.95;
-
-/// The halo glows' constant shrink, vertically.
-const double haloScaleY = 0.9;
-
-/// The box size the halo geometry is authored for.
-const double haloReferenceWidth = 350;
-
-/// See [haloReferenceWidth].
-const double haloReferenceHeight = 140;
-
-/// Lower clamp of the halo's size scale.
-const double haloMinScale = 0.35;
-
-/// Upper clamp of the halo's size scale.
-const double haloMaxScale = 4;
-
-/// Damping of the size-derived halo unit, which scales the glows' reach and
-/// blur with the box.
-const double haloUnitDamping = 0.7;
-
-/// Growth of the halo blobs.
-const double haloBoost = 1.05;
-
-/// Multiplier on the halo glows' opacity, brightness, and saturation.
-const double haloGlowMultiplier = 1.71;
-
-/// How far past the box the core glow's shape reaches, in units.
-const double haloCoreInset = 6;
-
-/// How far past the box the bloom's shape reaches, in units.
-const double haloBloomInset = 14;
-
-/// Blur of the core glow, in units: what melts its blobs into one glow.
-const double haloCoreBlur = 10;
-
-/// Blur of the bloom, in units.
-const double haloBloomBlur = 19;
-
-/// Brightness of the halo glows before [haloGlowMultiplier].
-const double haloGlowBrightness = 1.3;
-
-/// Saturation of the halo glows before [haloGlowMultiplier].
-const double haloGlowSaturation = 1.2;

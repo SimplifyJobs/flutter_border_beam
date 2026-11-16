@@ -8,10 +8,18 @@ import 'tokens.dart';
 /// kind of widget that effect is for. Purely presentational; every one
 /// takes its [width] from the stage.
 
-BoxDecoration _box(Tokens t, double radius) => BoxDecoration(
+/// A continuous-corner (superellipse) shape of [radius], the way iOS rounds
+/// its surfaces. The beams around these surfaces use the same corners
+/// (`BeamShape(superellipse: true)`), so the light sits on the edge.
+RoundedSuperellipseBorder squircle(double radius, {Color? side}) =>
+    RoundedSuperellipseBorder(
+      borderRadius: BorderRadius.circular(radius),
+      side: side == null ? BorderSide.none : BorderSide(color: side),
+    );
+
+ShapeDecoration _box(Tokens t, double radius) => ShapeDecoration(
   color: t.surface,
-  borderRadius: BorderRadius.circular(radius),
-  border: Border.all(color: t.surfaceLine),
+  shape: squircle(radius, side: t.surfaceLine),
 );
 
 TextStyle _text(Color color, {double size = 13, FontWeight? weight}) =>
@@ -96,10 +104,9 @@ class Composer extends StatelessWidget {
     Widget chip(String label) => Container(
       height: 26,
       padding: const EdgeInsets.only(left: 9, right: 5),
-      decoration: BoxDecoration(
+      decoration: ShapeDecoration(
         color: t.chip,
-        borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: t.chipLine),
+        shape: squircle(13, side: t.chipLine),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -185,41 +192,11 @@ class ThinkingCard extends StatelessWidget {
               widthFactor: fraction,
               child: Container(
                 height: 8,
-                decoration: BoxDecoration(
-                  color: t.chip,
-                  borderRadius: BorderRadius.circular(4),
-                ),
+                decoration: ShapeDecoration(color: t.chip, shape: squircle(4)),
               ),
             ),
             const SizedBox(height: 10),
           ],
-        ],
-      ),
-    );
-  }
-}
-
-/// A call-to-action pill — what `halo` breathes around.
-class AskButton extends StatelessWidget {
-  /// Creates the button.
-  const AskButton({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = Tokens.of(context);
-    return Container(
-      height: 56,
-      padding: const EdgeInsets.symmetric(horizontal: 28),
-      decoration: _box(t, 28),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.auto_awesome, size: 18, color: t.text),
-          const SizedBox(width: 10),
-          Text(
-            'Ask anything',
-            style: _text(t.text, size: 16, weight: FontWeight.w500),
-          ),
         ],
       ),
     );

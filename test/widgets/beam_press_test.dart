@@ -278,7 +278,7 @@ void main() {
       await tester.pumpWidget(
         scene(
           const BeamPress(
-            effect: BeamEffect.halo(),
+            effect: BeamEffect.rotate(count: 2),
             colors: BeamColors.sunset,
             borderRadius: 20,
             style: BeamStyle(strength: 0.4),
@@ -290,7 +290,7 @@ void main() {
       );
 
       final beam = beamOf(tester);
-      expect(beam.effect, const BeamEffect.halo());
+      expect(beam.effect, const BeamEffect.rotate(count: 2));
       expect(beam.colors, BeamColors.sunset);
       expect(beam.borderRadius, 20);
       expect(beam.style, const BeamStyle(strength: 0.4));

@@ -213,7 +213,7 @@ void main() {
       await tester.pumpWidget(
         beamHost(
           BorderBeam(
-            effect: const BeamEffect.halo(),
+            effect: const BeamEffect.rotate(count: 2),
             controller: controller,
             onActivate: () => activated++,
             onDeactivate: () => deactivated++,

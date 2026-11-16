@@ -5,7 +5,7 @@
     "display": "standalone",
     "background_color": "#070707",
     "theme_color": "#070707",
-    "description": "Animated border beam effects for Flutter: rotate, line, pulse, and halo.",
+    "description": "Animated border beam effects for Flutter: rotate, line, and pulse.",
     "orientation": "any",
     "prefer_related_applications": false,
     "icons": [

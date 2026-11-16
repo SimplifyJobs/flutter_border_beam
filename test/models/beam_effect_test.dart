@@ -1,34 +1,28 @@
 import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// `BeamEffect` is the sealed "what the beam does" value: four effects in
+/// `BeamEffect` is the sealed "what the beam does" value: three effects in
 /// two families, each carrying its own defaults, and the parameterised ones
 /// compare by value so a rebuilt-inline effect never re-resolves a config.
 void main() {
   const travelling = {'rotate', 'line'};
-  const ambient = {'pulse', 'halo'};
+  const ambient = {'pulse'};
 
   group('values', () {
-    test('lists all four effects in gallery order', () {
-      expect(BeamEffect.values.map((e) => e.name), [
-        'rotate',
-        'line',
-        'pulse',
-        'halo',
-      ]);
+    test('lists all three effects in gallery order', () {
+      expect(BeamEffect.values.map((e) => e.name), ['rotate', 'line', 'pulse']);
     });
 
     test('every entry is a distinct effect with a distinct name', () {
-      expect(BeamEffect.values.map((e) => e.name).toSet(), hasLength(4));
-      expect(BeamEffect.values.map((e) => e.runtimeType).toSet(), hasLength(4));
-      expect(BeamEffect.values.toSet(), hasLength(4));
+      expect(BeamEffect.values.map((e) => e.name).toSet(), hasLength(3));
+      expect(BeamEffect.values.map((e) => e.runtimeType).toSet(), hasLength(3));
+      expect(BeamEffect.values.toSet(), hasLength(3));
     });
 
     test('carries each effect with its default parameters', () {
       expect(BeamEffect.values, contains(const BeamEffect.rotate()));
       expect(BeamEffect.values, contains(const BeamEffect.line()));
       expect(BeamEffect.values, contains(const BeamEffect.pulse()));
-      expect(BeamEffect.values, contains(const BeamEffect.halo()));
     });
   });
 
@@ -41,7 +35,7 @@ void main() {
     }
 
     test('the two families partition the effects', () {
-      expect({...travelling, ...ambient}, hasLength(4));
+      expect({...travelling, ...ambient}, hasLength(3));
       expect(
         BeamEffect.values.where((e) => e.travels).map((e) => e.name).toSet(),
         travelling,
@@ -106,7 +100,6 @@ void main() {
         ),
         (BeamEffect.line(edge: BeamEdge.left), LineEffect(edge: BeamEdge.left)),
         (BeamEffect.pulse(), PulseEffect()),
-        (BeamEffect.halo(), HaloEffect()),
       ];
       for (final (a, b) in pairs) {
         expect(a, b);
@@ -154,9 +147,7 @@ void main() {
     });
 
     test('a parameterless effect prints empty parentheses', () {
-      for (final effect in const [BeamEffect.pulse(), BeamEffect.halo()]) {
-        expect(effect.toString(), 'BeamEffect.${effect.name}()');
-      }
+      expect(const BeamEffect.pulse().toString(), 'BeamEffect.pulse()');
     });
   });
 

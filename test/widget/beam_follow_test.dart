@@ -227,7 +227,7 @@ void main() {
     }
   });
 
-  for (final effect in const [BeamEffect.pulse(), BeamEffect.halo()]) {
+  for (final effect in const [BeamEffect.pulse()]) {
     testWidgets('${effect.name} has no travel for it to steer', (tester) async {
       await start(tester, effect: effect);
       await tester.pumpWidget(

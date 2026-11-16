@@ -8,7 +8,7 @@ import 'controls.dart';
 import 'surfaces.dart';
 import 'tokens.dart';
 
-/// The one screen: a stage you swipe between the four effects, each on the
+/// The one screen: a stage you swipe between the three effects, each on the
 /// surface it is made for, with a caption, an effect selector, and the
 /// palettes underneath. Tapping the stage fades the beam out and back in.
 class Home extends StatefulWidget {
@@ -28,10 +28,23 @@ class Home extends StatefulWidget {
 class _HomeState extends State<Home> {
   static const _effects = BeamEffect.values;
 
-  final PageController _pages = PageController();
-  final ValueNotifier<double> _page = ValueNotifier<double>(0);
-  int _index = 0;
-  String _palette = 'colorful';
+  // Launch flags, for captures and recordings:
+  // --dart-define=START=pulse --dart-define=PALETTE=ocean (and THEME=light,
+  // read in main.dart).
+  static final int _start = math.max(
+    0,
+    _effects.indexWhere((e) => e.name == const String.fromEnvironment('START')),
+  );
+
+  late final PageController _pages = PageController(initialPage: _start);
+  late final ValueNotifier<double> _page = ValueNotifier<double>(
+    _start.toDouble(),
+  );
+  late int _index = _start;
+  String _palette = const String.fromEnvironment(
+    'PALETTE',
+    defaultValue: 'colorful',
+  );
   bool _active = true;
 
   @override
@@ -172,23 +185,16 @@ class _HomeState extends State<Home> {
     ),
   );
 
+  // The surfaces' continuous corners, so each beam sits on its edge.
+  static const _cardShape = BeamShape.all(surfaceRadius, superellipse: true);
+
   // One effect on the surface it is made for.
   Widget _exhibit(BeamEffect effect, double stageWidth) {
     final width = math.min(340.0, stageWidth - 48);
     final (Widget surface, BeamShape shape) = switch (effect) {
-      RotateEffect() => (
-        TaskCard(width: width),
-        const BeamShape.all(surfaceRadius),
-      ),
-      LineEffect() => (
-        Composer(width: width),
-        const BeamShape.all(surfaceRadius),
-      ),
-      PulseEffect() => (
-        ThinkingCard(width: width),
-        const BeamShape.all(surfaceRadius),
-      ),
-      HaloEffect() => (const AskButton(), const BeamShape.stadium()),
+      RotateEffect() => (TaskCard(width: width), _cardShape),
+      LineEffect() => (Composer(width: width), _cardShape),
+      PulseEffect() => (ThinkingCard(width: width), _cardShape),
     };
     return BorderBeam(
       effect: effect,
@@ -265,5 +271,4 @@ String _blurb(BeamEffect effect) => switch (effect) {
   RotateEffect() => 'A beam laps the border of a card.',
   LineEffect() => 'A streak rides the edge of an input.',
   PulseEffect() => 'Colour breathes in while it thinks.',
-  HaloEffect() => 'Light breathes out, past the edges.',
 };

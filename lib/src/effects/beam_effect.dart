@@ -13,8 +13,8 @@ import '../models/beam_options.dart';
 /// * **Travelling** — [rotate], [line]. A position runs along the border
 ///   once per cycle; these respond to `BeamTiming.direction`,
 ///   `BeamTiming.cycleGap`, `BorderBeam.progress`, and `BorderBeam.follow`.
-/// * **Ambient** — [pulse], [halo]. Light breathes around the whole border;
-///   the travel inputs are ignored.
+/// * **Ambient** — [pulse]. Light breathes around the whole border; the
+///   travel inputs are ignored.
 @immutable
 sealed class BeamEffect {
   const BeamEffect._();
@@ -36,16 +36,11 @@ sealed class BeamEffect {
   /// corners. A contained "thinking" state.
   const factory BeamEffect.pulse() = PulseEffect;
 
-  /// A halo breathing outward around the widget. Leave room around it — the
-  /// light is painted outside the widget's bounds.
-  const factory BeamEffect.halo() = HaloEffect;
-
   /// Every effect with its default parameters, in gallery order.
   static const List<BeamEffect> values = [
     BeamEffect.rotate(),
     BeamEffect.line(),
     BeamEffect.pulse(),
-    BeamEffect.halo(),
   ];
 
   /// A short identifier, e.g. `rotate`.
@@ -166,31 +161,4 @@ final class PulseEffect extends BeamEffect {
 
   @override
   int get hashCode => (PulseEffect).hashCode;
-}
-
-/// See [BeamEffect.halo].
-final class HaloEffect extends BeamEffect {
-  /// Creates a halo.
-  const HaloEffect() : super._();
-
-  @override
-  String get name => 'halo';
-
-  @override
-  bool get travels => false;
-
-  @override
-  Duration get defaultCycle => const Duration(milliseconds: 2300);
-
-  @override
-  BeamHueMode get defaultHueMode => BeamHueMode.continuous;
-
-  @override
-  Duration get defaultHuePeriod => const Duration(seconds: 14);
-
-  @override
-  bool operator ==(Object other) => other is HaloEffect;
-
-  @override
-  int get hashCode => (HaloEffect).hashCode;
 }

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_border_beam/flutter_border_beam.dart';
 
+import 'surfaces.dart' show squircle;
 import 'tokens.dart';
 
 /// Scales its child down a touch while pressed, and clicks on tap.
@@ -92,10 +93,7 @@ class EffectSelector extends StatelessWidget {
     return Container(
       height: 40,
       padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: t.track,
-        borderRadius: BorderRadius.circular(20),
-      ),
+      decoration: ShapeDecoration(color: t.track, shape: squircle(20)),
       child: LayoutBuilder(
         builder: (context, box) {
           final segment = box.maxWidth / labels.length;
@@ -109,10 +107,10 @@ class EffectSelector extends StatelessWidget {
                   top: 0,
                   bottom: 0,
                   child: DecoratedBox(
-                    decoration: BoxDecoration(
+                    decoration: ShapeDecoration(
                       color: t.thumb,
-                      borderRadius: BorderRadius.circular(17),
-                      boxShadow: [
+                      shape: squircle(17),
+                      shadows: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.08),
                           blurRadius: 6,

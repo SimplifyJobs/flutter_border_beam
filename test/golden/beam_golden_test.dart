@@ -70,7 +70,6 @@ void main() {
       BeamEffect.rotate(),
       BeamEffect.line(),
       BeamEffect.pulse(),
-      BeamEffect.halo(),
     ]) {
       for (final MapEntry(key: palette, value: colors) in {
         'mono': BeamColors.mono,

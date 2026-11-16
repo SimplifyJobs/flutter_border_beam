@@ -99,8 +99,6 @@ void emitEffect(BeamFrame frame) {
       _line(frame, effect);
     case PulseEffect():
       _pulse(frame);
-    case HaloEffect():
-      _halo(frame);
   }
 }
 
@@ -858,20 +856,15 @@ class _LineFrame {
 // ─── Pulse ──────────────────────────────────────────────────────────────────
 
 // One oscillator bank per tuning, rebuilt only when the tuning changes.
-final Map<(bool, bool, double), PulseOscillatorBank> _banks = {};
+final Map<(bool, double), PulseOscillatorBank> _banks = {};
 final PulseFrame _pulseFrame = PulseFrame();
 
-PulseFrame _breathe(BeamFrame f, {required bool halo}) {
-  final key = (halo, f.dark, f.config.cycleSeconds);
+PulseFrame _breathe(BeamFrame f) {
+  final key = (f.dark, f.config.cycleSeconds);
   final bank = _banks[key] ??= () {
     if (_banks.length > 16) _banks.clear();
     return PulseOscillatorBank(
-      halo
-          ? PulseParams.halo(dark: f.dark, cycleSeconds: f.config.cycleSeconds)
-          : PulseParams.pulse(
-              dark: f.dark,
-              cycleSeconds: f.config.cycleSeconds,
-            ),
+      PulseParams.pulse(dark: f.dark, cycleSeconds: f.config.cycleSeconds),
     );
   }();
   bank.sample(f.seconds, _pulseFrame);
@@ -895,26 +888,14 @@ void _pulseBlob(
   required PulseRegion region,
   required PulseQuad quad,
   required PulseFrame pulse,
-  double sx = 1,
-  double sy = 1,
-  double boost = 1,
-  Offset scale = const Offset(1, 1),
 }) {
   final r = region.index;
-  var c = Offset(
-    box.left + position.dx * box.width + pulse.bx[r],
-    box.top + position.dy * box.height + pulse.by[r],
-  );
-  final centre = f.rect.center;
-  c =
-      centre +
-      Offset((c.dx - centre.dx) * scale.dx, (c.dy - centre.dy) * scale.dy);
   f.data.addSimpleBlob(
     k,
-    cx: c.dx,
-    cy: c.dy,
-    rx: w * pulse.bw[r] * sx * boost * scale.dx,
-    ry: h * pulse.bh[r] * pulse.bgh * sy * boost * scale.dy,
+    cx: box.left + position.dx * box.width + pulse.bx[r],
+    cy: box.top + position.dy * box.height + pulse.by[r],
+    rx: w * pulse.bw[r],
+    ry: h * pulse.bh[r] * pulse.bgh,
     color: color,
     alpha: _quad(pulse, quad),
   );
@@ -930,25 +911,13 @@ void _frozenBlob(
   required double h,
   required Color color,
   required double alpha,
-  double sx = 1,
-  double sy = 1,
-  double boost = 1,
-  Offset scale = const Offset(1, 1),
 }) {
-  var c = Offset(
-    box.left + position.dx * box.width,
-    box.top + position.dy * box.height,
-  );
-  final centre = f.rect.center;
-  c =
-      centre +
-      Offset((c.dx - centre.dx) * scale.dx, (c.dy - centre.dy) * scale.dy);
   f.data.addSimpleBlob(
     k,
-    cx: c.dx,
-    cy: c.dy,
-    rx: w * sx * boost * scale.dx,
-    ry: h * sy * boost * scale.dy,
+    cx: box.left + position.dx * box.width,
+    cy: box.top + position.dy * box.height,
+    rx: w,
+    ry: h,
     color: color.withValues(alpha: alpha),
   );
 }
@@ -958,7 +927,7 @@ void _pulse(BeamFrame f) {
   final dark = f.dark;
   final preset = presetFor(pulsePresets, dark: dark);
   final base = f.alpha * (f.mono ? 0.5 : 1);
-  final pulse = _breathe(f, halo: false);
+  final pulse = _breathe(f);
   final params = PulseParams.pulse(
     dark: dark,
     cycleSeconds: f.config.cycleSeconds,
@@ -1052,150 +1021,6 @@ void _pulse(BeamFrame f) {
       h: spec.h,
       color: src.color,
       alpha: params.frozenBloomAlpha,
-    );
-  }
-}
-
-// ─── Halo ───────────────────────────────────────────────────────────────────
-
-void _halo(BeamFrame f) {
-  final d = f.data;
-  final dark = f.dark;
-  final preset = presetFor(haloPresets, dark: dark);
-  final base = f.alpha * (f.mono ? 0.5 : 1);
-  final pulse = _breathe(f, halo: true);
-  final params = PulseParams.halo(
-    dark: dark,
-    cycleSeconds: f.config.cycleSeconds,
-  );
-  final rect = f.rect;
-  final sx = (rect.width / haloReferenceWidth).clamp(
-    haloMinScale,
-    haloMaxScale,
-  );
-  final sy = (rect.height / haloReferenceHeight).clamp(
-    haloMinScale,
-    haloMaxScale,
-  );
-  final unit = sx / haloMinScale * haloUnitDamping;
-  final g = f.glowSize;
-  final coreInset = haloCoreInset * unit * g;
-  final bloomInset = haloBloomInset * unit * g;
-  final coreBlur = haloCoreBlur * unit * g;
-  final bloomBlur = haloBloomBlur * unit * g;
-  const scale = Offset(haloScaleX, haloScaleY);
-  const sigmaScale = (haloScaleX + haloScaleY) / 2;
-  // The glows' shapes are the box grown by their inset and then shrunk about
-  // the centre: what sticks out past the box on average.
-  double reach(double inset) =>
-      (((rect.width + 2 * inset) * haloScaleX - rect.width) / 2 +
-          ((rect.height + 2 * inset) * haloScaleY - rect.height) / 2) /
-      2;
-  final glowBrightness = haloGlowBrightness * haloGlowMultiplier;
-  final glowSaturation = haloGlowSaturation * haloGlowMultiplier;
-
-  // Bloom: the wide static wash.
-  final bloomBox = rect.inflate(bloomInset);
-  d
-    ..setLayer(
-      0,
-      BeamGeometry.halo,
-      opacity: base * preset.bloomOpacity * haloGlowMultiplier * f.glowOpacity,
-      sigma: bloomBlur * sigmaScale,
-      inflate: reach(bloomInset),
-    )
-    ..setBlobSpace(0, BeamBlobSpace.blurred, blur: bloomBlur * sigmaScale);
-  _filter(
-    f,
-    0,
-    preset,
-    keepTone: true,
-    brightness: glowBrightness,
-    saturation: glowSaturation,
-    fold: false,
-  );
-  for (final spec in pulseOuterBloom) {
-    final src = _borderAt(f.tables, spec.ci);
-    _frozenBlob(
-      f,
-      0,
-      box: bloomBox,
-      position: Offset(spec.x ?? src.position.dx, spec.y ?? src.position.dy),
-      w: spec.w,
-      h: spec.h,
-      color: src.color,
-      alpha: params.frozenBloomAlpha,
-      sx: sx,
-      sy: sy,
-      boost: haloBoost,
-      scale: scale,
-    );
-  }
-
-  // Stroke: the core blobs breathing on the hairline.
-  d
-    ..setLayer(
-      1,
-      BeamGeometry.ring,
-      opacity: base * preset.strokeOpacity * haloGlowMultiplier,
-    )
-    ..setDashed(1);
-  _filter(f, 1, preset, keepTone: true, fold: false);
-  for (final spec in pulseOuterCore) {
-    final src = _borderAt(f.tables, spec.ci);
-    _pulseBlob(
-      f,
-      1,
-      box: rect,
-      position: Offset(spec.x ?? src.position.dx, spec.y ?? src.position.dy),
-      w: spec.w,
-      h: spec.h,
-      color: src.color,
-      region: spec.region,
-      quad: spec.quad,
-      pulse: pulse,
-      sx: sx,
-      sy: sy,
-    );
-  }
-
-  // Core: the breathing glow hugging the edge.
-  final coreBox = rect.inflate(coreInset);
-  d
-    ..setLayer(
-      2,
-      BeamGeometry.halo,
-      opacity: base * preset.innerOpacity * haloGlowMultiplier * f.glowOpacity,
-      sigma: coreBlur * sigmaScale,
-      inflate: reach(coreInset),
-    )
-    ..setBlobSpace(2, BeamBlobSpace.blurred, blur: coreBlur * sigmaScale);
-  _filter(
-    f,
-    2,
-    preset,
-    keepTone: true,
-    brightness: glowBrightness,
-    saturation: glowSaturation,
-    fold: false,
-  );
-  for (final spec in pulseOuterCore) {
-    final src = _borderAt(f.tables, spec.ci);
-    _pulseBlob(
-      f,
-      2,
-      box: coreBox,
-      position: Offset(spec.x ?? src.position.dx, spec.y ?? src.position.dy),
-      w: spec.w,
-      h: spec.h,
-      color: src.color,
-      region: spec.region,
-      quad: spec.quad,
-      pulse: pulse,
-      sx: sx,
-      sy: sy,
-      boost: haloBoost,
-      scale: scale,
     );
   }
 }

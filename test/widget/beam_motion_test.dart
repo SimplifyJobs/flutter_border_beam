@@ -76,7 +76,7 @@ Future<int> _alphaSum(WidgetTester tester) async {
 
 const _travelling = <BeamEffect>[BeamEffect.rotate(), BeamEffect.line()];
 
-const _ambient = <BeamEffect>[BeamEffect.pulse(), BeamEffect.halo()];
+const _ambient = <BeamEffect>[BeamEffect.pulse()];
 
 /// How the mounted beam moves: travel direction, phase offset, several
 /// travellers, the one-shot pulse and flash accents, the live strength

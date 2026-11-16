@@ -35,7 +35,7 @@ BeamFramePhases _now(WidgetTester tester) {
 
 const _travelling = <BeamEffect>[BeamEffect.rotate(), BeamEffect.line()];
 
-const _ambient = <BeamEffect>[BeamEffect.pulse(), BeamEffect.halo()];
+const _ambient = <BeamEffect>[BeamEffect.pulse()];
 
 /// `BeamTiming.cycleGap` rests a travelling effect between sweeps: the sweep
 /// still takes `cycle`, then the beam parks at the end of its travel while

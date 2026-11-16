@@ -320,7 +320,7 @@ void main() {
       for (final effect in [
         const BeamEffect.line(),
         const BeamEffect.pulse(),
-        const BeamEffect.halo(),
+        const BeamEffect.rotate(comet: true),
       ]) {
         await tester.pumpWidget(
           scene(

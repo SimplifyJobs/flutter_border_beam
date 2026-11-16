@@ -27,7 +27,7 @@ import 'render/beam_renderer.dart';
 /// An animated glow around [child]'s border.
 ///
 /// Pick what the light does with [effect] — a travelling beam, a streak on
-/// one edge, or a breathing pulse or halo:
+/// one edge, or a breathing pulse:
 ///
 /// ```dart
 /// BorderBeam(
@@ -75,8 +75,8 @@ import 'render/beam_renderer.dart';
 ///
 /// ## Light outside the bounds
 ///
-/// Glows that reach outward — [BeamEffect.halo], a `comet`, a positive
-/// `shape.ringOffset` — paint past the child's bounds. Give them clip-free
+/// Light that reaches outward — rotate's `comet`, a positive
+/// `shape.ringOffset` — paints past the child's bounds. Give them clip-free
 /// room (padding in the parent; no tight [ClipRRect] above the beam).
 class BorderBeam extends StatefulWidget {
   /// Creates a beam around [child].
@@ -935,7 +935,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
           BeamEdge.top || BeamEdge.bottom => follow.dx,
           BeamEdge.left || BeamEdge.right => follow.dy,
         }.clamp(0.0, 1.0);
-      case PulseEffect() || HaloEffect():
+      case PulseEffect():
         // Ambient light has no travel to steer.
         return null;
     }

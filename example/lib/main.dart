@@ -24,7 +24,7 @@ class ExampleApp extends StatefulWidget {
 }
 
 class _ExampleAppState extends State<ExampleApp> {
-  bool _dark = true;
+  bool _dark = const String.fromEnvironment('THEME') != 'light';
 
   @override
   Widget build(BuildContext context) => MaterialApp(

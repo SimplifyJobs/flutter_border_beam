@@ -11,7 +11,7 @@ export 'src/border_beam.dart' show BorderBeam;
 export 'src/border_beam_controller.dart' show BorderBeamController;
 export 'src/border_beam_theme.dart' show BorderBeamTheme, BorderBeamThemeData;
 export 'src/effects/beam_effect.dart'
-    show BeamEffect, HaloEffect, LineEffect, PulseEffect, RotateEffect;
+    show BeamEffect, LineEffect, PulseEffect, RotateEffect;
 export 'src/models/beam_colors.dart' show BeamColors, BeamSeedHarmony;
 export 'src/models/beam_options.dart'
     show BeamDirection, BeamEdge, BeamHueMode, BeamReducedMotion, BeamRepeat;

@@ -13,7 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 const Size cardSize = Size(350, 140);
 
 /// Room left around the box in rendered images, enough for the widest outward
-/// glow (a halo's reach grows with the box's short side).
+/// light (a rotate comet's trail).
 const double renderMargin = 80;
 
 /// Every effect, by name, with its default parameters.

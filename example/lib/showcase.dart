@@ -8,7 +8,7 @@ import 'demo_harness.dart';
 ///   tool/record_demo.sh --target lib/showcase.dart --prefix SHOWCASE --contact
 ///
 /// Each scene holds for ~2 full animation cycles on the dark demo backdrop:
-/// the four effects, then palettes and a squircle.
+/// the three effects, then palettes and a squircle.
 Future<void> main() => runDemoReel(
   prefix: 'SHOWCASE',
   hold: const Duration(seconds: 7),
@@ -41,8 +41,6 @@ Future<void> main() => runDemoReel(
     ),
     'pulse': () =>
         _card(const BorderBeam(effect: BeamEffect.pulse(), child: _Surface())),
-    'halo': () =>
-        _card(const BorderBeam(effect: BeamEffect.halo(), child: _Surface())),
     'palettes': () => const _PaletteSweep(),
     'squircle': () => _card(
       const BorderBeam(

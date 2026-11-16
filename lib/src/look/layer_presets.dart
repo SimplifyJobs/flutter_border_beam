@@ -98,26 +98,6 @@ const BeamLayerPresets linePresets = (
   ),
 );
 
-/// The outward halo.
-const BeamLayerPresets haloPresets = (
-  dark: BeamLayerPreset(
-    strokeOpacity: 0.94,
-    innerOpacity: 0.34,
-    bloomOpacity: 0.3,
-    innerShadow: _transparent,
-    saturation: 1.2,
-    brightness: 1.9,
-  ),
-  light: BeamLayerPreset(
-    strokeOpacity: 1.96,
-    innerOpacity: 1.04,
-    bloomOpacity: 0.42,
-    innerShadow: _transparent,
-    saturation: 0.6,
-    brightness: 1.7,
-  ),
-);
-
 /// The inward pulse.
 const BeamLayerPresets pulsePresets = (
   dark: BeamLayerPreset(

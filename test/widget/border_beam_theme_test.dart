@@ -19,10 +19,10 @@ void main() {
 
     test('copyWith replaces the given slots and keeps the rest', () {
       final copy = full.copyWith(
-        effect: const BeamEffect.halo(),
+        effect: const BeamEffect.rotate(count: 2),
         shape: const BeamShape(superellipse: true),
       );
-      expect(copy.effect, const BeamEffect.halo());
+      expect(copy.effect, const BeamEffect.rotate(count: 2));
       expect(copy.shape, const BeamShape(superellipse: true));
       expect(copy.style, full.style);
       expect(copy.timing, full.timing);
@@ -73,7 +73,10 @@ void main() {
       );
       expect(same, full);
       expect(same.hashCode, full.hashCode);
-      expect(full.copyWith(effect: const BeamEffect.halo()), isNot(full));
+      expect(
+        full.copyWith(effect: const BeamEffect.rotate(count: 2)),
+        isNot(full),
+      );
       expect(
         full.copyWith(timing: const BeamTiming(cycle: Duration(seconds: 4))),
         isNot(full),
@@ -118,7 +121,9 @@ void main() {
           child: BorderBeamTheme(
             data: const BorderBeamThemeData(style: BeamStyle(strength: 0.8)),
             child: BorderBeamTheme(
-              data: const BorderBeamThemeData(effect: BeamEffect.halo()),
+              data: const BorderBeamThemeData(
+                effect: BeamEffect.rotate(count: 2),
+              ),
               child: Builder(
                 builder: (context) {
                   data = BorderBeamTheme.of(context);
@@ -129,7 +134,11 @@ void main() {
           ),
         ),
       );
-      expect(data.effect, const BeamEffect.halo(), reason: 'innermost wins');
+      expect(
+        data.effect,
+        const BeamEffect.rotate(count: 2),
+        reason: 'innermost wins',
+      );
       expect(
         data.style,
         const BeamStyle(colors: BeamColors.ocean, strength: 0.8),
@@ -243,19 +252,22 @@ void main() {
       await tester.pumpWidget(
         beamHost(
           const BorderBeamTheme(
-            data: BorderBeamThemeData(effect: BeamEffect.halo()),
+            data: BorderBeamThemeData(effect: BeamEffect.rotate(count: 2)),
             child: BorderBeam(child: SizedBox.expand()),
           ),
         ),
       );
-      expect(beamPainterOf(tester).config.effect, const BeamEffect.halo());
+      expect(
+        beamPainterOf(tester).config.effect,
+        const BeamEffect.rotate(count: 2),
+      );
     });
 
     testWidgets('a beam effect wins over the theme', (tester) async {
       await tester.pumpWidget(
         beamHost(
           const BorderBeamTheme(
-            data: BorderBeamThemeData(effect: BeamEffect.halo()),
+            data: BorderBeamThemeData(effect: BeamEffect.rotate(count: 2)),
             child: BorderBeam(
               effect: BeamEffect.line(edge: BeamEdge.top),
               child: SizedBox.expand(),
@@ -285,8 +297,11 @@ void main() {
         ),
       );
 
-      await tester.pumpWidget(build(inner: const BeamEffect.halo()));
-      expect(beamPainterOf(tester).config.effect, const BeamEffect.halo());
+      await tester.pumpWidget(build(inner: const BeamEffect.rotate(count: 2)));
+      expect(
+        beamPainterOf(tester).config.effect,
+        const BeamEffect.rotate(count: 2),
+      );
 
       await tester.pumpWidget(build());
       expect(beamPainterOf(tester).config.effect, const BeamEffect.pulse());

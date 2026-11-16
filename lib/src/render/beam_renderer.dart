@@ -118,7 +118,7 @@ class BeamRenderer {
           inside = math.max(inside, edge > 0 ? edge + 1 : double.infinity);
         case BeamGeometry.blurredRing:
           inside = math.max(inside, 3 * sigma + borderWidth);
-        case BeamGeometry.halo || BeamGeometry.glow:
+        case BeamGeometry.glow:
           outside = math.max(outside, d.inflateOf(k) + 3 * sigma);
       }
     }

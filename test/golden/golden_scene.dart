@@ -4,8 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 /// Shared staging for the golden families.
 ///
 /// Every scene is a beam over a mock surface, centred on the demo backdrop
-/// with [goldenMargin] of clear room on every side — the outward glows (halo,
-/// comet, a positive ring offset) paint past the box and must land in the
+/// with [goldenMargin] of clear room on every side — outward light (a comet,
+/// a positive ring offset) paints past the box and must land in the
 /// image, not off it. Only that keyed region is captured, so the PNGs stay
 /// small and an unrelated change to the test surface size moves nothing.
 ///

@@ -167,41 +167,35 @@ void main() {
   });
 
   group('outward light', () {
-    for (final (label, effect) in [
-      ('halo', const BeamEffect.halo()),
-      ('rotate comet', const BeamEffect.rotate(comet: true)),
-    ]) {
-      test('$label paints past the bounds', () async {
-        final config = configFor(effect);
-        final frame = await renderFrame(config, phasesAt(config, 1.3));
-        expect(
-          frame.lit(threshold: 8) - frame.litIn(box.inflate(4), threshold: 8),
-          greaterThan(0),
-        );
-      });
-    }
-
-    test('a halo reaches further out than a comet', () async {
-      Future<int> farOut(BeamEffect effect) async {
-        final config = configFor(effect);
-        final frame = await renderFrame(config, phasesAt(config, 1.3));
-        return frame.lit(threshold: 8) -
-            frame.litIn(box.inflate(16), threshold: 8);
-      }
-
+    test('a rotate comet paints past the bounds', () async {
+      final config = configFor(const BeamEffect.rotate(comet: true));
+      final frame = await renderFrame(config, phasesAt(config, 1.3));
       expect(
-        await farOut(const BeamEffect.halo()),
-        greaterThan(await farOut(const BeamEffect.rotate(comet: true))),
+        frame.lit(threshold: 8) - frame.litIn(box.inflate(4), threshold: 8),
+        greaterThan(0),
+      );
+    });
+
+    test('without a comet the light stays inside the bounds', () async {
+      final config = configFor(const BeamEffect.rotate());
+      final frame = await renderFrame(config, phasesAt(config, 1.3));
+      expect(
+        frame.lit(threshold: 8) - frame.litIn(box.inflate(4), threshold: 8),
+        0,
       );
     });
   });
 
   group('dashes', () {
     // The straight run of the top edge, one pixel row inside the stroke,
-    // under a halo — lit along much of the edge, so dashes have light to
-    // cut.
+    // under a pulse with the glows off — the hairline alone, lit along long
+    // stretches of the edge, so dashes have light to cut.
     Future<List<int>> topRow(BeamShape shape) async {
-      final config = configFor(const BeamEffect.halo(), shape: shape);
+      final config = configFor(
+        const BeamEffect.pulse(),
+        shape: shape,
+        style: const BeamStyle(glow: 0),
+      );
       final frame = await renderFrame(config, phasesAt(config, 1.3));
       final y = box.top.toInt();
       return [

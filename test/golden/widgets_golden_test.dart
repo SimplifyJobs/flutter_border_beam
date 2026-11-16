@@ -44,16 +44,16 @@ void main() {
     );
   });
 
-  testWidgets('decoration halo', (tester) async {
+  testWidgets('decoration pulse', (tester) async {
     await captureGolden(
       tester,
-      'widgets_decoration_halo',
+      'widgets_decoration_pulse',
       goldenScene(
         Container(
           decoration: surface(),
           foregroundDecoration: const BeamDecoration(
             brightness: Brightness.dark,
-            effect: BeamEffect.halo(),
+            effect: BeamEffect.pulse(),
             colors: BeamColors.ocean,
             borderRadius: 16,
           ),

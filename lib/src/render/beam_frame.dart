@@ -55,10 +55,6 @@ enum BeamGeometry {
   /// The ring blurred by the layer's sigma, clipped to the shape.
   blurredRing,
 
-  /// Outside the outline only: a glow behind the child. Its inflate and
-  /// sigma say how far it reaches (its blobs carry the blur).
-  halo,
-
   /// Outside the outline, fading out: the shape grown by the layer's
   /// inflate and blurred by its sigma.
   glow,
@@ -282,8 +278,8 @@ final class BeamFrameData {
   int _h(int k, int row) => _layers + k * _layerFloats + row * 4;
 
   /// Switches layer [k] on with [geometry] and [opacity] (clamped to 0–1
-  /// when painted). [sigma] blurs the blurred geometries; [inflate] grows the
-  /// halo's shape.
+  /// when painted). [sigma] blurs the blurred geometries; [inflate] grows a
+  /// glow's shape.
   void setLayer(
     int k,
     BeamGeometry geometry, {
