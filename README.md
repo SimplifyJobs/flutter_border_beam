@@ -26,14 +26,13 @@
 
 The whole beam is **one fragment shader drawn in one pass**: no `saveLayer`, no blur filters, no clips, and no offscreen render targets. It runs at the display's refresh rate, 120Hz included, and is cheap enough to leave on a card while the user scrolls.
 
-**Four effects**, chosen with `effect:`:
+**Three effects**, chosen with `effect:`:
 
 | Effect | Family | Default cycle | Use it for |
 | --- | --- | --- | --- |
 | `BeamEffect.rotate()` | travelling | 2.4s | A beam with a soft tail laps the border. Cards, panels, surfaces. The default. |
 | `BeamEffect.line()` | travelling | 3.1s | A streak rides one edge with light spiking up from it. Inputs, search bars, composers. |
 | `BeamEffect.pulse()` | ambient | 2.3s | Colour breathes inward from the whole border, strongest at the corners. A contained "thinking" state. |
-| `BeamEffect.halo()` | ambient | 2.3s | A halo breathes outward around the widget. Needs room around it. |
 
 <table>
   <tr>
@@ -42,8 +41,8 @@ The whole beam is **one fragment shader drawn in one pass**: no `saveLayer`, no 
       <sub><b>rotate</b> — a beam laps the border</sub>
     </td>
     <td width="50%" align="center">
-      <img src="screenshots/pulse_outside.png" width="360" alt="Halo effect around a card" /><br/>
-      <sub><b>halo</b> — light breathes outward around the widget</sub>
+      <img src="screenshots/pulse.png" width="360" alt="Pulse effect on a card" /><br/>
+      <sub><b>pulse</b> — colour breathes in from the border</sub>
     </td>
   </tr>
   <tr>
@@ -135,7 +134,7 @@ Future<void> main() async {
 }
 ```
 
-Without it, a beam loads the shader on demand and paints nothing for the few milliseconds that takes, which its 0.6s fade-in hides.
+Without it, a beam loads the shader on demand and paints nothing for the few milliseconds that takes, which its fade-in hides.
 
 ### Effects
 
@@ -144,7 +143,6 @@ BorderBeam(effect: const BeamEffect.rotate(), child: card);
 BorderBeam(effect: const BeamEffect.rotate(length: 1.5, count: 2, comet: true), child: card);
 BorderBeam(effect: const BeamEffect.line(edge: BeamEdge.top), child: searchBar);
 BorderBeam(effect: const BeamEffect.pulse(), child: card);
-BorderBeam(effect: const BeamEffect.halo(), child: card);
 ```
 
 | Effect | Parameters | Default hue drift |
@@ -152,13 +150,12 @@ BorderBeam(effect: const BeamEffect.halo(), child: card);
 | `rotate` | `length` (tail, 0.25–2, default 1), `count` (1–4 beams, default 1), `comet` (outer trailing glow, default false) | ping-pong, 12s |
 | `line` | `edge` (default `BeamEdge.bottom`) | ping-pong, 8s |
 | `pulse` | — | continuous, 16s |
-| `halo` | — | continuous, 14s |
 
-The two families take different inputs. **Travelling** effects (`rotate`, `line`) move a position along the border once per cycle; they respond to `direction`, `cycleGap`, `progress`, and `follow`. **Ambient** effects (`pulse`, `halo`) light the whole border at once and ignore those inputs. `phaseOffset` applies to both families.
+The two families take different inputs. **Travelling** effects (`rotate`, `line`) move a position along the border once per cycle; they respond to `direction`, `cycleGap`, `progress`, and `follow`. The **ambient** `pulse` lights the whole border at once and ignores those inputs. `phaseOffset` applies to both families.
 
 Every effect is drawn by the same shader in the same single draw, so they cost the same order of GPU time. Pick for the look.
 
-`BeamEffect.values` lists all four with their defaults, and each effect is a value type, so `BorderBeam(effect: someEffect)` picked at runtime needs no switch.
+`BeamEffect.values` lists all three with their defaults, and each effect is a value type, so `BorderBeam(effect: someEffect)` picked at runtime needs no switch.
 
 [Full documentation →](doc/effects.md)
 
@@ -209,7 +206,7 @@ BorderBeam(
 BorderBeam(colors: BeamColors.ember.scaleAlpha(0.6), child: card);
 ```
 
-A palette is a ring of 1–8 colour stops around the border: position 0 is top-centre and positions increase clockwise. Neighbouring stops blend, and the last blends back into the first. `rotate`, `pulse`, and `halo` reveal the colours wherever their light falls; `line` spreads the palette across its streak.
+A palette is a ring of 1–8 colour stops around the border: position 0 is top-centre and positions increase clockwise. Neighbouring stops blend, and the last blends back into the first. `rotate` and `pulse` reveal the colours wherever their light falls; `line` spreads the palette across its streak.
 
 | Preset | Colours | Notes |
 | --- | --- | --- |
@@ -321,7 +318,7 @@ BorderBeam(
 | `colors` | The palette. |
 | `theme` | `dark`, `light`, or `auto` (follows `Theme.of(context).brightness`). Each effect is tuned separately for dark and light surfaces. |
 | `strength` | Overall opacity, 0–1. |
-| `glow` | Scales the size and intensity of every glow around the stroke; the stroke itself is unchanged. |
+| `glow` | Scales every glow around the stroke: how far it reaches and, below 1, how bright it is; 0 leaves only the stroke, which `glow` never changes. |
 | `hueMode` | How the colours drift: `pingPong` (swing ±`hueShift`), `continuous` (a full turn per `huePeriod`), or `none`. Defaults per effect. |
 | `hueShift` | Degrees either side for `pingPong`. |
 | `hueBase` | A fixed hue rotation, in degrees, on top of any drift. |
@@ -354,7 +351,7 @@ Changing `cycle` while the beam runs **retimes it in place** — the beam keeps 
 ```dart
 BorderBeam(
   effect: const BeamEffect.pulse(),
-  active: isLoading,                          // fades in 0.6s / out 0.5s
+  active: isLoading,                          // fades in ~0.5s / out ~0.6s
   playback: const BeamPlayback(
     startAfter: Duration(milliseconds: 500),
     duration: Duration(seconds: 10),
@@ -374,7 +371,7 @@ BorderBeam(
 | `slow` | Keeps animating at a quarter of the configured speed. |
 | `animate` | Ignores the request. |
 
-`pauseWhenOffscreen` (default on) stops a beam's clock while it is scrolled more than 256px out of its nearest `Scrollable`, and resumes it where it left off. `fadeCurve` replaces the spring that eases the fades. `debugFrozenAt` pins the beam to one instant of its timeline — for screenshots and golden tests, not product code.
+`pauseWhenOffscreen` (default on) stops a beam's clock while it is scrolled more than 256px out of its nearest `Scrollable`, and resumes it where it left off. `fadeCurve` replaces the critically damped springs that ease the fades. `debugFrozenAt` pins the beam to one instant of its timeline — for screenshots and golden tests, not product code.
 
 
 ## Advanced
@@ -417,7 +414,7 @@ controller.flash();                      // a sharper blink, hold 120ms, decay
 controller.stop();                       // fade out, halt
 ```
 
-`isAttached`, `isActive`, and `isRunning` report state, and the controller is a `ChangeNotifier`. **One controller drives one beam.** A beam under a `BeamSync` runs on the group's clock and cannot also take a controller.
+`speed` and `seek` move the animation, never a fade or an accent, which run in real time; a `speedListenable` still wins over the controller's rate, and reduced motion's `slow` still quarters it. `isAttached`, `isActive`, and `isRunning` report state, and the controller is a `ChangeNotifier`. **One controller drives one beam** at a time; handing it to another beam in the same frame is fine. A beam under a `BeamSync` runs on the group's clock and cannot also take a controller.
 
 ### Driving the beam yourself
 
@@ -439,7 +436,7 @@ BorderBeam(
 | Input | Type | What it does |
 | --- | --- | --- |
 | `progress` | `double?` (0–1) | Places the travel instead of the clock: `rotate` becomes a progress ring, `line` a progress bar. The clock keeps running underneath, so the fade and hue stay alive. Cheap to drive every frame. |
-| `follow` | `Offset?` (normalized) | Eases the travel to the border point nearest a point in the box — critically damped, about 150ms. Null hands it back to the clock without a snap. `progress` wins over it. |
+| `follow` | `Offset?` (normalized) | Eases the travel to the border point nearest a point in the box — critically damped, about 150ms. Null hands it back to the clock without a snap, keeping the direction it was travelling. `progress` wins over it. |
 | `strengthListenable` | `ValueListenable<double>?` | Scales the beam's opacity each frame, without a rebuild. |
 | `speedListenable` | `ValueListenable<double>?` | Sets the playback rate each frame; wins over `timing.speed` and a controller's rate. |
 
@@ -463,7 +460,7 @@ BeamSync(
 );
 ```
 
-Effect, palette, shape, and `phaseOffset` stay per beam, but **the group owns playback**: `active`, `autoPlay`, `startAfter`, `duration`, and `repeat` are ignored below a `BeamSync`. Use its own `active`, `speed`, and `reducedMotion` instead.
+Effect, palette, shape, and `phaseOffset` stay per beam, but **the group owns playback**: `active`, `autoPlay`, `startAfter`, `duration`, `repeat`, `fadeCurve`, `pauseWhenOffscreen`, and `timing.speed` are ignored below a `BeamSync`. Use its own `active`, `speed`, and `reducedMotion` instead. A member that changes its `cycle` retimes only itself.
 
 ### Overlay and decoration
 
@@ -549,7 +546,7 @@ Every field is nullable and null means *inherit*; the defaults below are what yo
 | --- | --- | --- |
 | `cycle` | `Duration?` | per effect (see [Overview](#overview)) |
 | `cycleGap` | `Duration?` | zero; travelling effects only |
-| `speed` | `double?` | `1` (a controller's `speed` replaces it) |
+| `speed` | `double?` | `1` (a controller's `speed` replaces it; the fades always run in real time) |
 | `direction` | `BeamDirection?` | `forward` |
 | `phaseOffset` | `double?` | `0` (fraction of a cycle, 0–1) |
 | `huePeriod` | `Duration?` | per effect (see [Effects](#effects)) |
@@ -558,14 +555,14 @@ Every field is nullable and null means *inherit*; the defaults below are what yo
 
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `active` | `bool?` | `true` | Play state. Toggling fades in (0.6s) / out (0.5s). |
+| `active` | `bool?` | `true` | Play state. Toggling fades in (~0.5s) / out (~0.6s). |
 | `autoPlay` | `bool?` | `true` | Whether the beam starts by itself. |
 | `startAfter` | `Duration?` | none | Delay before autoplay. Must be null with a controller. |
 | `duration` | `Duration?` | none | Total play time before the beam fades out by itself. Must be null with a controller. |
 | `repeat` | `BeamRepeat?` | `forever()` | `forever()`, `once()`, or `count(n)` cycles, then a fade-out. |
 | `reducedMotion` | `BeamReducedMotion?` | `staticFrame` | What to do when the platform asks for reduced motion. |
 | `pauseWhenOffscreen` | `bool?` | `true` | Stop the clock while scrolled out of view (256px margin). |
-| `fadeCurve` | `Curve?` | the fade spring | The easing of both fades. `BeamPlayback.cssEase` is the web's `ease`. |
+| `fadeCurve` | `Curve?` | critically damped springs | The easing of both fades. `BeamPlayback.cssEase` is the web's `ease`. |
 | `debugFrozenAt` | `Duration?` | none | Pin the beam to one instant and never start its clock. |
 
 ### Shorthands and precedence
@@ -616,7 +613,7 @@ Keep the beam out from under widgets that force an offscreen pass, which costs m
 Pass the same radius your child uses — `borderRadius:` or `shape.radius` — and `superellipse: true` if the child uses `RoundedSuperellipseBorder`. The beam does not read the child's decoration.
 
 **My beam is clipped.**
-`halo`, `rotate(comet: true)`, and a positive `ringOffset` paint outside the child's bounds. Give the beam room — padding in the parent — and remove any tight `ClipRRect` / `ClipPath` above it.
+`rotate(comet: true)` and a positive `ringOffset` paint outside the child's bounds. Give the beam room — padding in the parent — and remove any tight `ClipRRect` / `ClipPath` above it.
 
 **Nothing shows up at all.**
 Check reduced motion: with `reducedMotion: BeamReducedMotion.hide`, a platform request for reduced motion paints nothing. In a widget test, `await BorderBeam.precache()` in `setUpAll` before checking pixels — the shader loads asynchronously.
@@ -624,8 +621,8 @@ Check reduced motion: with `reducedMotion: BeamReducedMotion.hide`, a platform r
 **Is it 120Hz?**
 It runs at whatever rate the engine renders. On ProMotion iPhones that needs `CADisableMinimumFrameDurationOnPhone` in your `Info.plist` — see [Performance](#performance).
 
-**Does the halo need an opaque child?**
-No. Like every effect, `halo` paints in one pass over the child: a thin stroke on the border and its glow outside it. Nothing is drawn behind the child, so it can be translucent.
+**Does the child need to be opaque?**
+No. Every effect paints in one pass over the child and nothing behind it, so a translucent child works.
 
 **Why does my segment run the wrong way?**
 Segments always run clockwise from `start` to `end`, wrapping through top-centre. Swap the anchors for the other side of the border.
@@ -639,7 +636,7 @@ With `BorderBeam`, yes: changing `cycle` retimes in place, and `BeamColors.lerp`
 
 ## Example app
 
-[`example/`](example) is the one-screen showcase behind the [live demo](https://simplifyjobs.github.io/flutter_border_beam/): swipe between the four effects, each on the kind of widget it is made for — a task card, a chat composer, a "thinking" card, a call-to-action pill — and recolour them with any preset in either theme.
+[`example/`](example) is the one-screen showcase behind the [live demo](https://simplifyjobs.github.io/flutter_border_beam/): swipe between the three effects, each on the kind of widget it is made for — a task card, a chat composer, a "thinking" card — and recolour them with any preset in either theme.
 
 ```console
 cd example && flutter run
@@ -661,7 +658,7 @@ Issues and pull requests are welcome — start with [CONTRIBUTING.md](CONTRIBUTI
 
 ## Credits
 
-This package was originally ported from, and remains inspired by, **[border-beam](https://github.com/Jakubantalik/Libraries/tree/main/packages/border-beam)** by **[Jakub Antalik](https://x.com/jakubantalik)** ([live demo](https://beam.jakubantalik.com), [Jakubantalik/border-beam](https://github.com/Jakubantalik/border-beam)), released under the MIT license. The four effects (`rotate`, `line`, `pulse`, `halo`), the four original palettes, and the timings they started from are his design — if you like the look, go star the original.
+This package was originally ported from, and remains inspired by, **[border-beam](https://github.com/Jakubantalik/Libraries/tree/main/packages/border-beam)** by **[Jakub Antalik](https://x.com/jakubantalik)** ([live demo](https://beam.jakubantalik.com), [Jakubantalik/border-beam](https://github.com/Jakubantalik/border-beam)), released under the MIT license. The effects (`rotate`, `line`, `pulse`), the four original palettes, and the timings they started from are his design — if you like the look, go star the original.
 
 Version 0.2.0 replaced the port with an independent native renderer: a single fragment shader written for Flutter, which no longer tracks the original's source.
 

@@ -9,7 +9,7 @@ Effects draw a palette as soft blobs of colour placed around the border — the 
 
 How the colours are shown depends on the effect:
 
-- `rotate`, `pulse`, and `halo` hold the colours still and reveal them wherever their light falls — a rotating beam changes colour as it laps the border.
+- `rotate` and `pulse` hold the colours still and reveal them wherever their light falls — a rotating beam changes colour as it laps the border.
 - `line` spreads the palette across its streak, so every colour shows at once.
 
 ## Presets
@@ -67,9 +67,9 @@ const BeamColors(
 const BeamColors.solid(Color(0xFF18A8F0));
 ```
 
-`BeamColors(colors, {stops})` takes 1–8 colours. `stops`, when given, has one entry per colour, ascending, each in `[0, 1)`; two equal neighbours make a hard edge. Alpha is honoured: a translucent stop glows more faintly. The lists are checked when the palette first resolves — in release builds too — and a malformed one throws an `ArgumentError`. Eight is the shader's budget: the stops are passed to the GPU as uniforms.
+`BeamColors(colors, {stops})` takes 1–8 colours. `stops`, when given, has one entry per colour, ascending, each in `[0, 1)`; two equal neighbours make a hard edge. Alpha is honoured: a translucent stop glows more faintly. The lists are checked when the palette first resolves — in release builds too — and a malformed one throws an `ArgumentError`.
 
-Colours blend **gamma-aware**: the shader interpolates squared channels (close to linear light) and takes the square root, so the midpoint between two saturated colours stays bright instead of turning muddy. The CPU uses the same maths (`BeamPalette.sample`), so a light placed on the CPU matches the stroke beneath it.
+Colours blend **gamma-aware**: squared channels (close to linear light) are interpolated and the square root taken, so the midpoint between two saturated colours stays bright instead of turning muddy. The blending runs on the CPU once per palette — the results are memoized — never per frame.
 
 ## From a brand colour
 
@@ -115,7 +115,7 @@ On top of its stops, a palette can drift in hue over time (`BeamStyle.hueMode`):
 - `continuous` turns it a full 360° per `huePeriod`;
 - `none` paints the palette as given.
 
-`hueBase` adds a fixed rotation in degrees on top, which is the quickest way to nudge a preset toward a brand colour. Each effect picks its own default mode and period — see [effects](effects.md#defaults). The rotation is applied on the CPU to at most eight colours per frame, so drifting costs nothing on the GPU.
+`hueBase` adds a fixed rotation in degrees on top, which is the quickest way to nudge a preset toward a brand colour. Each effect picks its own default mode and period — see [effects](effects.md#defaults). The rotation is folded into each blob's colour on the CPU every frame, so drifting costs nothing on the GPU.
 
 ## Values, equality, and the memo
 

@@ -8,11 +8,13 @@ One `Ticker` accumulates elapsed seconds. Every animated value — the travel po
 
 The clock ticks on every frame the engine produces. Nothing is capped, so a beam runs at 120Hz on a 120Hz display (on ProMotion iPhones, once the app opts in — see [performance](performance.md#120hz)).
 
-`speed` scales how fast the elapsed time advances. It is applied to the clock rather than to the config, so changing it never re-resolves the beam — a rate change is free. Three things can set the rate, in order: a `speedListenable`, then an attached `BorderBeamController`'s `speed`, then `timing.speed`. Under a `BeamSync` the group's `speed` owns all of them.
+`speed` scales how fast the elapsed time advances. It is applied to the clock rather than to the config, so changing it never re-resolves the beam — a rate change is free. Three things can set the rate, in order: a `speedListenable`, then an attached `BorderBeamController`'s `speed`, then `timing.speed`; `BeamReducedMotion.slow` then quarters whichever wins. Under a `BeamSync` the group's `speed` owns all of them.
+
+`speed` moves the animation only. The fades and the controller's `pulse()` / `flash()` accents run on real time, so a beam at half speed still fades in about 0.5s, and seeking or retiming never stretches, skips, or replays a fade. Pausing — the controller's `pause()`, an offscreen pause — freezes both.
 
 ## Cycle and retiming
 
-`cycle` is one sweep of a travelling effect and one breath of `pulse` and `halo`. Each effect has its own default — see [effects](effects.md#defaults).
+`cycle` is one sweep of a travelling effect and one breath of `pulse`. Each effect has its own default — see [effects](effects.md#defaults).
 
 Changing `cycle` on a live beam **retimes it in place**: the travel keeps the position it was at, so the beam speeds up or slows down instead of jumping to the new cycle's start.
 
@@ -28,6 +30,8 @@ BorderBeam(
 ```
 
 That is the tool when a beam should react to state: toggling `active` fades out and back in, while changing `cycle` keeps the light on and changes its urgency.
+
+The fades run on critically damped springs — Apple's `.smooth` — so the light eases in from rest and settles without overshoot: about 0.5s in, and a slightly longer, gentler 0.6s out, so it leaves softly rather than cutting off. They run in real time, whatever the `speed`, and a retime mid-fade leaves the fade alone. `BeamPlayback.fadeCurve` replaces both with your own curve (`BeamPlayback.cssEase` is the web's `ease`).
 
 ## Rest between sweeps
 
@@ -57,7 +61,7 @@ BorderBeam(
 );
 ```
 
-- **`direction`** — `forward` (clockwise; reading order for `line`), `reverse` (the mirror), or `bounce` (alternating each cycle). It applies to the travelling effects; `pulse` and `halo` have no direction.
+- **`direction`** — `forward` (clockwise; reading order for `line`), `reverse` (the mirror), or `bounce` (alternating each cycle). It applies to the travelling effects; `pulse` has no direction.
 - **`phaseOffset`** — the fraction of a cycle, 0–1, the timeline starts at. Two beams on the same cycle with different offsets run out of step — a travelling beam sits further along its sweep, an ambient one breathes out of phase.
 - **`BeamEffect.rotate(count:)`** — how many beams lap the border at once, 1–4, spaced evenly. They share one clock and one draw, so the count costs nothing extra.
 
@@ -89,8 +93,10 @@ The hue is a separate track from the travel, on its own period (`huePeriod`):
 | `hueMode` | What it does | Default for |
 | --- | --- | --- |
 | `pingPong` | Swings ±`hueShift` degrees (30 by default) and back, eased at each end. | `rotate` (12s), `line` (8s) |
-| `continuous` | Turns a full 360° per period, never reversing. | `pulse` (16s), `halo` (14s) |
+| `continuous` | Turns a full 360° per period, never reversing. | `pulse` (16s) |
 | `none` | No drift. | — (`mono` and `gold` force it) |
+
+`line` splits its `pingPong` drift in two: the bloom swings over one `huePeriod` and the stroke over one and a half, both capped narrower than the default `hueShift` (see [effects](effects.md#line--inputs)).
 
 Any effect accepts any mode: `continuous` on `rotate` turns a subtle swing into a full rainbow, and `pingPong` on `pulse` calms it. `mono` and `gold` never drift. `hueBase` shifts the whole palette by a fixed number of degrees, independent of the drift.
 
@@ -120,7 +126,7 @@ BeamSync(
 );
 ```
 
-The group owns playback: `active`, `autoPlay`, `startAfter`, `duration`, and `repeat` are ignored below it, and a `BorderBeamController` asserts rather than fighting for the clock. Everything visual stays per beam — effect, palette, shape — as does `phaseOffset`, which is what spaces a synced group evenly rather than stacking it.
+The group owns playback: `active`, `autoPlay`, `startAfter`, `duration`, `repeat`, `fadeCurve`, `pauseWhenOffscreen`, and `timing.speed` are ignored below it, and a `BorderBeamController` asserts rather than fighting for the clock. Everything visual stays per beam — effect, palette, shape — as does `phaseOffset`, which is what spaces a synced group evenly rather than stacking it. Timing stays per beam too: a member that changes its `cycle` retimes in place without moving the rest of the group.
 
 Reduced motion is group-owned too, because every beam shares one clock: set `BeamSync.reducedMotion` (`staticFrame` by default). Per-beam settings are ignored while synchronized.
 
@@ -161,9 +167,9 @@ Widget build(BuildContext context) {
 }
 ```
 
-The travel leaves its schedule and eases toward the given normalized point — critically damped, about 150ms, so a jittery pointer is smoothed without a lag you can feel. `rotate` turns its head toward it, the shortest way round (on a segment, to the border point nearest it); `line` follows the coordinate along its edge. Setting it back to null hands the travel back to the clock from wherever it is, without a snap.
+The travel leaves its schedule and eases toward the given normalized point — critically damped, about 150ms, so a jittery pointer is smoothed without a lag you can feel. `rotate` turns its head toward it, the shortest way round (on a segment, to the border point nearest it); `line` follows the coordinate along its edge. Setting it back to null hands the travel back to the clock from wherever it is, without a snap: the sweep resumes from that point, travelling the way it was — a bouncing beam keeps its direction — and never lands in the rest of a `cycleGap`.
 
-`progress` wins over `follow`, and the ambient effects ignore both. `BeamHover` is this wired up for you.
+`progress` wins over `follow`, and the ambient effects ignore both. A NaN `progress` or a non-finite `follow` counts as unset. `BeamHover` is this wired up for you.
 
 ### Live listenables
 

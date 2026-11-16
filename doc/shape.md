@@ -8,7 +8,7 @@
 const BeamShape.all(24);              // const — stores the number
 BeamShape.circular(24);               // not const — builds a BorderRadius
 const BeamShape.stadium();            // a pill; a circle on a square box
-const BeamShape(radius: someGeometry) // per-corner
+const BeamShape(radius: someGeometry); // per-corner
 ```
 
 `BeamShape.all` and `BeamShape.circular` describe the same shape and **compare equal** for the same number. The split exists because building a `BorderRadius` from a parameter is a runtime construction, so `circular` cannot be `const`; `all` stores the number and grows it into a `BorderRadius` where `radius` is read. Use `all` in a `const` widget or a `const BorderBeamThemeData`, and `circular` when you already think in `BorderRadius` terms.
@@ -55,7 +55,7 @@ A mismatch is the most common visual complaint, and it always looks like the bea
 
 ## Superellipse corners
 
-`superellipse: true` swaps circular corner arcs for a superellipse — the Apple-style squircle, whose curvature eases into the straight edge instead of stepping. The curve is fitted to Flutter's own `RSuperellipse`, so the stroke sits on the edge of a child shaped by `RoundedSuperellipseBorder` with the same radius.
+`superellipse: true` swaps circular corner arcs for a superellipse — the Apple-style squircle, whose curvature eases into the straight edge instead of stepping. The curve follows Flutter's own `RSuperellipse` construction at every aspect ratio — cards, pills, and circles alike — so the stroke sits on the edge of a child shaped by `RoundedSuperellipseBorder` with the same radius.
 
 ```dart
 BorderBeam(
@@ -145,7 +145,7 @@ BorderBeam(
 
 - **`rotate`** travels the segment: in forward travel it appears at the start and moves clockwise to the end, then begins again.
 - **`line`** rides the segment instead of its `edge`, in border space — `bottomEdge` carries the streak around both bottom corners; `bottomHalf` takes it down the right side, along the bottom, and up the left.
-- **`pulse`** and **`halo`** light only the part of the border inside the segment, and their glows fade near its ends.
+- **`pulse`** lights only the part of the border inside the segment, and its glows fade near its ends.
 
 `BeamTiming.direction` changes which way a traveller crosses the segment, not which span the segment selects. Stack a forward beam and a `reverse` one on the same segment for two arcs sweeping toward each other. `ringOffset` moves the outline before positions are measured, so a segment follows an offset ring.
 
@@ -164,4 +164,4 @@ Dashes combine with segments and with every effect.
 
 ## Light outside the bounds
 
-Most light stays on the border and inside it. Three things paint outside the child's box: `BeamEffect.halo()`, `BeamEffect.rotate(comet: true)`, and a positive `ringOffset`. Give those room — padding in the parent — and check for a `ClipRRect`, `ClipPath`, or a scroll view's clip above the beam.
+Most light stays on the border and inside it. Two things paint outside the child's box: `BeamEffect.rotate(comet: true)` and a positive `ringOffset`. Give those room — padding in the parent — and check for a `ClipRRect`, `ClipPath`, or a scroll view's clip above the beam.

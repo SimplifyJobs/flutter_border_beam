@@ -7,7 +7,7 @@ Two different things are called "theme" here, and keeping them apart is most of 
 
 ## Surface adaptation — `BeamTheme`
 
-Light reads differently on a dark surface and on a light one, so every effect is tuned twice. On a dark surface the hottest light whitens and part of it is *added* to what is underneath, so it glows; on a light surface the light is blended, the hottest part deepens toward its own colour instead of washing to white, and glows are lifted so they read as a tint rather than a smudge. `style.theme` picks which tuning a beam uses:
+Light reads differently on a dark surface and on a light one, so every effect is tuned twice, layer by layer — each layer's strength, the inset shadow, and the colour filter's brightness and saturation. On a dark surface the highlights (a rotating beam's head, the line's travelling spot, the pulse's corners) and the inset shadow along the edge are white, so the light glows; on a light surface they turn to dark ink and the hairline is quieter, so the light reads as a tint rather than a smudge. `style.theme` picks which tuning a beam uses:
 
 ```dart
 // The dark-surface tuning, whatever the app theme says.

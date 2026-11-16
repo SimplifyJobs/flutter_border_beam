@@ -8,13 +8,13 @@ A beam is meant to be something you can leave running on a card while the user s
 
 `test/render/frame_budget_test.dart` asserts this for every effect, on both surface tunings, across a palette subset, every shape family (rounded, per-corner, superellipse, stadium, segment, dashes, inward and outward ring offset, a thick border), the effect options, driven progress, and several instants: exactly one draw with the beam shader, zero `saveLayer`s, zero clips, no image or mask filter, and balanced saves and restores. A frame the fade or a cycle gap has blacked out draws nothing at all.
 
-**Pixels only where light can land.** The draw covers the box grown by the furthest outward glow, minus the interior beyond the furthest inward one — a ring, not the whole box. The inner glows fade out 28 px in, so a card's beam shades a band around its edge; the line's bloom rises through the box, and the halo's wash reaches well outside it.
+**Pixels only where light can land.** The draw covers the box grown by the furthest outward glow, minus the interior beyond the furthest inward one — a ring, not the whole box. The inner glows fade out a short way in, so a card's beam shades a band around its edge; the line's bloom rises through the box, and a comet reaches outside it.
 
 **Cheap pixels.** Per pixel the shader computes the distance to the outline once, looks up the few conic tables a frame uses, and then, layer by layer, skips everything a mask has already zeroed: the 1px stroke evaluates its blobs only on the ring itself, a windowed layer only inside its window. A layer holds at most 14 blobs (most hold 7–10), each a handful of multiply-adds and one square root or exponential.
 
 **Little CPU per frame.** Per frame the beam samples its phases from one elapsed-seconds number, samples the effect's keyframes or oscillators, writes a few dozen blobs and a fixed block of 672 uniform floats into a buffer it reuses, folds each layer's colour filter into its colours, and uploads the floats to a `FragmentShader` it keeps for its lifetime. There is no path building, no gradient construction, and no per-frame buffer allocation; a palette's blob tables are resolved once and remembered, and the outline's Dart mirror is cached until the box or radius changes.
 
-**Every effect costs about the same.** They share the shader and the single draw; the halo shades the most pixels, since its glow reaches furthest out.
+**Every effect costs about the same.** They share the shader and the single draw; what differs is how many pixels the draw covers — `line` covers its whole box, since its bloom rises through it, and `rotate(comet: true)` reaches furthest outside.
 
 ## 120Hz
 
@@ -31,7 +31,7 @@ The example app sets it. iPads with ProMotion need no key.
 
 ## Loading the shader
 
-The shader is a package asset, compiled by the Flutter tool and loaded once per process with `FragmentProgram.fromAsset`. A beam starts the load itself and paints nothing until it resolves — a few milliseconds that the 0.6s fade-in hides. To have the very first frame ready, load it at startup:
+The shader is a package asset, compiled by the Flutter tool and loaded once per process with `FragmentProgram.fromAsset`. A beam starts the load itself and paints nothing until it resolves — a few milliseconds that the fade-in hides. To have the very first frame ready, load it at startup:
 
 ```dart
 Future<void> main() async {
@@ -79,7 +79,7 @@ To fade a beam, use `style.strength` (static), `strengthListenable` (per frame, 
 
 1. **Use fewer beams.** A beam is emphasis; a screen where everything is emphasized has none. One hero beam usually looks better than six.
 2. **Put a group on a `BeamSync`.** Many beams become one ticker and one timeline, and the group reads as deliberate.
-3. **Keep glows proportionate.** `style.glow` scales how far light reaches; a larger reach means more pixels shaded. `halo` and `rotate(comet: true)` reach furthest outward.
+3. **Keep glows proportionate.** `style.glow` scales how far light reaches; a larger reach means more pixels shaded. `rotate(comet: true)` reaches furthest outward.
 4. **Keep `pauseWhenOffscreen` on.** Turn it off only when a beam must stay in step with something visible while it is itself out of view.
 5. **Keep palettes value-equal.** A palette that compares unequal on every build re-resolves the config each time. See [palettes](palettes.md#values-equality-and-the-memo).
 

@@ -36,7 +36,9 @@ flutter test                                 # everything, goldens included
 flutter test --exclude-tags golden           # everything but goldens (non-macOS)
 flutter test --tags golden                   # goldens only (macOS)
 dart pub publish --dry-run                   # archive validation
-cd example && flutter analyze                 # the example is a CI gate too
+
+# The example has no tests; CI gates it on analyze and a web build.
+cd example && flutter analyze --fatal-infos && flutter build web
 ```
 
 `flutter analyze` must report **zero** issues, infos included. The lint set
@@ -83,36 +85,41 @@ cannot be expressed that way, open an issue before writing it.
 
 ### The uniform contract
 
-`shaders/beam.frag` and `BeamRenderer._pack` in
-`lib/src/render/beam_renderer.dart` agree float for float, and
-`beamUniformFloats` holds the total. Change all three in the same commit.
-Uniforms are `vec4`s and `vec4[8]` arrays only, so the layout is the same on
-every backend. `test/render/uniform_layout_test.dart` parses the shader and
-checks the types, the array lengths, and the total — but it cannot see the
-order, so check that by hand: a uniform reordered on one side only shifts every
-value after it.
+The `uniform` block in `shaders/beam.frag` and the offsets and slot counts in
+`lib/src/render/beam_frame.dart` (`BeamFrameData`, `beamUniformFloats`) agree
+float for float. Change both in the same commit. Uniforms are `vec4`s and
+`vec4` arrays only, so the layout is the same on every backend, and arrays are
+indexed only by constants and loop indices (SkSL's strict ES2), which is why
+each layer has its own blob array. `test/render/uniform_layout_test.dart`
+parses the shader and checks the types, the array lengths, the loop bounds,
+and the total — but it cannot see the order, so check that by hand: a uniform
+reordered on one side only shifts every value after it.
 
 ### The CPU mirrors
 
 Two pieces of shader maths also run in Dart, and must match exactly:
 
 - **`BeamOutline`** (`lib/src/render/beam_outline.dart`) mirrors the shader's
-  `outline()` — the corner model, the signed distance, and the perimeter
-  coordinate `u`. Emitters place lights with it and segments resolve against
-  it.
-- **Colour mixing** (`lib/src/render/color_math.dart`) mirrors the shader's
-  `mixColor` and `paletteAt`: gamma-aware, interpolating squared channels.
+  `outline()` — the corner model, the signed distance, the nearest-piece
+  choice, and the perimeter coordinate `u`. Emitters lay blobs along the
+  outline with it, segments resolve against it, and `follow` maps the pointer
+  with it.
+- **Conic tables** — `BeamFrameData.tableAt` reads a table exactly as the
+  shader's `TABLE_LOOKUP` does.
 
-### Budgets and light
+### Slots and light
 
-- At most **8** bumps, **8** point lights, and **8** palette stops per frame.
-- Glows that reach **inside** the shape are point lights, anchored on the
-  border in their own frame. Never shade an inward glow from `u`: inside the
+- **Fixed slots:** 14 blobs in layer 0, 10 in layers 1 and 2, and 16 stops per
+  conic table; `addBlob` drops anything past a layer's slots. A palette
+  carries at most 8 colour stops.
+- Glows that reach **inside** the shape are planar blobs, or path-space blobs
+  kept within the edge fade. Never shade an inward glow from `u`: inside the
   shape it jumps across the medial axis and shows a seam.
-- Emitters are **pure** (a function of config, phases, outline, and colours)
-  and **allocation-free per frame**: they write into the renderer's reused
-  `BeamFrameData`, and anything that depends only on the outline is cached per
-  outline.
+- Emitters are **pure** (a function of the config, the phases, the outline,
+  and the palette's blob tables) and **allocation-light per frame**: they
+  write into the renderer's reused `BeamFrameData`; table transforms use
+  scratch lists, oscillator banks are cached per tuning, and derived tables
+  are memoized per palette.
 
 ## Where things go
 
@@ -123,7 +130,8 @@ doc comment, `travels`, `defaultCycle`, and any non-default `defaultCycleGap` /
 `BeamEffect.values`, the export in `lib/flutter_border_beam.dart`, and an
 emitter in `lib/src/effects/effect_emitters.dart`. The `switch` statements over
 `BeamEffect` (the emitter dispatch, `BorderBeam.follow`) are exhaustive, so the
-analyzer lists every place that needs a case. Then a golden scene, and the
+analyzer lists every place that needs a case; `BeamConfig.beamCount` falls
+back to one beam for anything but `rotate`. Then a golden scene, and the
 effect shows up in the render tests automatically through `render_utils.dart`'s
 `effectsByName`.
 
@@ -141,8 +149,9 @@ effect goes on that effect's class instead (`BeamEffect.rotate(length:)`).
 `lib/src/models/beam_presets.dart` (at most 8 stops, ascending, in `[0, 1)`),
 exposed as a `static const BeamColors` on `BeamColors` and added to
 `BeamColors.presets`, plus a palette golden (the example's swatch row picks
-it up from `BeamColors.presets`). Presets are design data: edit freely, and
-check the result on both dark and light surfaces.
+it up from `BeamColors.presets`). Without blob tables of its own, a preset
+is drawn by sampling its stops over `colorful`'s tables. Presets are design
+data: edit freely, and check the result on both dark and light surfaces.
 
 Anything public also needs a doc comment, a `CHANGELOG.md` entry, and a README
 mention if it changes what a user would reach for first.
@@ -182,7 +191,7 @@ prose — no "no longer", "was removed", "previously", "this used to". Git and
 `CHANGELOG.md` carry the history; a comment that narrates a change goes stale
 the moment someone reads it out of context. Describe the current behaviour and
 why it is that way. Don't quote tuning values (glow reaches, layer weights) in
-docs — they live in the emitters and change.
+docs — they live in `lib/src/look/` and the emitters, and they change.
 
 ## Commits and PRs
 
@@ -199,7 +208,7 @@ characters. For example:
 
 ```
 feat(effects): add a comet tail to the rotate effect
-fix(shader): keep the dash ends soft on the outer halo
+fix(shader): keep the dash ends soft on the bloom
 ```
 
 Before opening a PR:
@@ -209,7 +218,7 @@ Before opening a PR:
 - [ ] `flutter test` — green (say if you could not run goldens)
 - [ ] Goldens: none regenerated, or the PR names which and why
 - [ ] Frame budget: still one draw, no layers, clips, or filters
-- [ ] Shader uniforms, `_pack`, and `beamUniformFloats` changed together (if touched)
+- [ ] Shader uniforms and `beam_frame.dart`'s offsets and slot counts changed together (if touched)
 - [ ] Public API is documented, and the README covers anything user-facing
 - [ ] `CHANGELOG.md` has an entry under the unreleased version
 

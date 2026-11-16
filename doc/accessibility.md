@@ -69,13 +69,13 @@ BeamFocusRing(
 
 It follows `FocusManager.highlightMode`, the same rule `FocusableActionDetector` uses: it lights for keyboard and mouse focus and stays dark for touch, where a ring around a tapped field is noise. `alwaysShow: true` overrides that.
 
-Because it only flips `BorderBeam`'s `active`, focus arrives and leaves on the beam's fades (0.6s in, 0.5s out) rather than as a cut. A fade is still a state change, so keep the underlying widget's own focus decoration if your design needs an instant indicator.
+Because it only flips `BorderBeam`'s `active`, focus arrives and leaves on the beam's fades (about 0.5s in, 0.6s out) rather than as a cut. A fade is still a state change, so keep the underlying widget's own focus decoration if your design needs an instant indicator.
 
 ## Contrast and legibility
 
 The beam paints around content and only a short way into it, so it does not change text contrast directly. Two things still deserve a look:
 
 - **A bright beam next to small text** raises the luminance around it and can make a thin label feel lower-contrast than it measures. `style.strength` is the dial; 0.6–0.8 often sits better on dense UI than the full 1.0.
-- **Inward glows** (`pulse`, `line`'s spikes) reach into the child. Keep important content clear of the border by the child's own padding, or turn the reach down with `style.glow`.
+- **Inward glows** (the inner glow of `rotate` and `pulse`, `line`'s spikes) reach into the child. Keep important content clear of the border by the child's own padding, or turn the reach down with `style.glow`.
 
 For anyone sensitive to flicker, the relevant settings are the same: prefer longer cycles, and honour reduced motion with `staticFrame` or `hide`. At the default timings nothing in the package repeats faster than about once a second, but a very short `cycle` combined with `BorderBeamController.flash()` can, so treat sub-second cycles as a deliberate choice.

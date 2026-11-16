@@ -63,5 +63,5 @@ Out of scope:
 - Frame-rate or battery cost of an animation configured to be expensive.
 - Vulnerabilities in Flutter, Dart, or a browser engine — report those to
   their own projects.
-- The example gallery and the hosted playground, which contain no data and
+- The example app and its hosted live demo, which contain no data and
   no accounts.

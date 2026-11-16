@@ -14,8 +14,8 @@ Ticker ─► BeamClock ─► BeamPhaseResolver ─► effect emitter ─► Be
           pause, boost  travellers, cycles                      filters, tables    of the light        shaders/beam.frag
 ```
 
-1. **`BeamClock`** (`lib/src/animation/beam_clock.dart`) owns the ticker. It integrates speed-scaled time, runs the spring-eased fade-in (0.6s) and fade-out (0.5s), handles pause / resume / seek / retime, and carries the one-shot `pulse()` / `flash()` boosts. It is a `Listenable` and notifies on every frame the engine produces — there is no frame-rate cap. Under a `BeamSync` one clock serves the whole subtree.
-2. **`BeamPhaseResolver`** (`lib/src/animation/beam_phases.dart`) samples a `BeamFramePhases` for a time: the fade (including a cycle gap's envelope), the hue rotation and the time the hue track reads, the travel position of every traveller (`travellers`, spaced `1 / count` apart), whether this cycle runs mirrored, the continuous `cycles` clock the ambient effects breathe by, and whether a `progress` / `follow` value is driving the travel. Pure — the same time in gives the same phases out. It knows nothing about what an effect looks like.
+1. **`BeamClock`** (`lib/src/animation/beam_clock.dart`) owns the ticker. It keeps two times: the speed-scaled animation timeline every phase is sampled from, and unscaled active time — real seconds while it ticks. The fade-in and fade-out (critically damped springs, about 0.5s in and 0.6s out), the one-shot `pulse()` / `flash()` boosts, and `playback.duration` run on active time, so `speed`, seek, and retime move the animation without stretching, skipping, or replaying a fade; pause freezes both. It is a `Listenable` and notifies on every frame the engine produces — there is no frame-rate cap. Under a `BeamSync` one clock serves the whole subtree.
+2. **`BeamPhaseResolver`** (`lib/src/animation/beam_phases.dart`) samples a `BeamFramePhases` for a time: the fade (including a cycle gap's envelope), the hue rotation and the time the hue track reads, the travel position of every traveller (`travellers`, spaced `1 / count` apart), whether this cycle runs mirrored, the continuous `cycles` clock the breathing runs on (the pulse, the line's spikes), and whether a `progress` / `follow` value is driving the travel. Pure — the same time in gives the same phases out. It knows nothing about what an effect looks like.
 3. **The effect emitter** (`lib/src/effects/effect_emitters.dart`) is a switch over the sealed `BeamEffect`. Each effect is a function of the resolved `BeamConfig`, the phases, the `BeamOutline`, and the palette's blob tables (`BeamLook.tablesFor`), and writes its layers into a `BeamFrameData`. The time-driven design values — the line's width, height, spike, and edge-fade keyframes, the pulse's 17 oscillators — are sampled here, on the CPU, once per frame.
 4. **`BeamFrameData`** (`lib/src/render/beam_frame.dart`) is the frame as the shader consumes it: the outline, the visible track, the conic coordinate, four conic tables, and three layers, each with a geometry, a window, an edge fade, an inset shadow, an overlay, a colour filter, an opacity, and a stack of blobs. It is one `Float32List` laid out exactly like the shader's uniform block, reset and rewritten in place every frame.
 5. **`BeamRenderer`** (`lib/src/render/beam_renderer.dart`) owns one `FragmentShader`, one `Paint`, and one `BeamFrameData` per beam. Per frame it writes the outline and track, runs the emitter, folds each layer's colour filter into its colours, uploads the floats, works out where light can land, and issues a single `drawRect` or `drawDRRect` — or nothing, when no layer is lit.
@@ -26,28 +26,22 @@ Ticker ─► BeamClock ─► BeamPhaseResolver ─► effect emitter ─► Be
 
 ## The layer model
 
-The look is the reference design's own construction, evaluated per pixel. A beam is up to three layers, composited bottom to top:
-
-| Layer | rotate / line / pulse | halo |
-| --- | --- | --- |
-| 0 | the inner glow | the wide bloom wash |
-| 1 | the 1px stroke | the 1px stroke |
-| 2 | the bloom | the core glow |
+The look is the reference design's own construction, evaluated per pixel. A beam is up to three layers, composited bottom to top, and every effect uses the same three: layer 0 is the inner glow, layer 1 the 1px stroke, and layer 2 the bloom.
 
 A layer is:
 
 - **A stack of blobs** — soft radial ellipses, each with a centre, two radii, a straight colour, and a piecewise-linear alpha falloff (`a0` at the centre through two mid stops to 0 at the rim). They composite premultiplied source-over in painting order, each over the ones before. A blob is placed in the plane, or in **path space** (arc length along the outline × depth in), where a streak bends around a corner with the border.
 - **An overlay** — a conic table drawn in white or black under the blobs: the travelling beam's head highlight, the bloom band.
 - **An inset shadow** — solid to a depth inside the outline, then blurred.
-- **A geometry** — the 1px **ring** just inside the outline (anti-aliased over one device pixel, which is what keeps it a hairline), the **filled** shape, a **blurred ring** clipped to the shape, the space **outside** the shape (a glow behind the child), or a **fading glow** outside it.
+- **A geometry** — the 1px **ring** just inside the outline (anti-aliased over one device pixel, which is what keeps it a hairline), the **filled** shape, a **blurred ring** clipped to the shape, or a **glow** outside the shape that fades out (the shape grown by a reach and blurred — rotate's comet). The glow is the only geometry that paints outside the outline.
 - **A window** — a **conic** table (rotating with the beam: `tw = fract(angle − start)`, repeated `count` times round the turn) or a **radial** ellipse riding an edge.
-- **An edge fade** — opaque at the edge, transparent 28 px in (the two axes screened), or by depth in path space.
-- **A colour filter** — CSS `hue-rotate → brightness → saturate` as a 3 × 3 matrix. The renderer folds it into each colour of the layer on the CPU, before compositing, which keeps overlapping colours saturated; the halo's glows instead filter their composite in the shader, as their design does.
-- **An opacity** — the family preset × fade × strength × the mono halving × `glow`, clamped to 1.
+- **An edge fade** — opaque at the edge, fading to transparent a short depth in (the two axes screened), or by depth in path space. `BeamStyle.glow` deepens it, capped so a small box keeps a clear middle.
+- **A colour filter** — CSS `hue-rotate → brightness → saturate` as a 3 × 3 matrix. The renderer always folds it into each colour of the layer on the CPU — every blob, the overlay ink, the shadow — before compositing, which keeps overlapping colours saturated; the layer's matrix in the shader stays the identity.
+- **An opacity** — the family preset × fade × strength × the mono halving × `glow` (up to 1, on the glow layers), clamped to 1.
 
 ### The outline
 
-The outline is a rectangle with four independently sized corners. A corner is either a circular arc or a superellipse ("squircle") curve. The superellipse is a p-norm curve fitted to Flutter's `RSuperellipse`: the curve spans `k · r` along each edge with `k = 1.42`, exponent `n = 3.04`, and stays within `0.006 · r` of `Path.addRSuperellipse` — so the stroke sits on the edge of a child clipped by `RoundedSuperellipseBorder`. A circular corner is the same code path with `k = 1, n = 2`.
+The outline is a rectangle with four independently sized corners. A corner is either a circular arc or a superellipse ("squircle") curve. The superellipse follows Flutter's own `RSuperellipse` construction (`impeller/geometry/round_superellipse_param`): each corner is two halves meeting on its diagonal, and each half is a superellipse from the middle of its edge to a joint, then a circular arc to the diagonal, with the exponent and joint looked up from the ratio of the edge's half-length to the radius. That ratio is why one shape spans cards, pills, and circles — a 56 px pill's ends come out as exact semicircles while its long edges ease in over a much longer run — and it keeps the stroke on the edge of a child clipped by `RoundedSuperellipseBorder` to within Flutter's own path approximation. The shader derives each corner's parameters from the radii and box per pixel, only near a corner. Uneven radii keep each corner to its own quarter of the box rather than Flutter's proportional split, which is exact in ordinary use and drifts by about 2% of the radius only where a half-short-side corner meets a square one across that side.
 
 For every pixel the shader derives the signed distance `d` to the outline (negative inside), the arc length `s` from top-centre clockwise (`u = s / length`), and the outward normal of the nearest piece. Distance in a corner is the first-order estimate `R · f / |∇f|` (exact for a circle); deep inside a superellipse corner it blends toward the circular distance. `u` is continuous on and outside a convex outline, but inside the shape the nearest piece jumps across the medial axis — so the glows that reach inside are planar blobs, or path-space blobs that stay within the edge fade, never fields of `u`.
 
@@ -56,14 +50,14 @@ For every pixel the shader derives the signed distance `d` to the outline (negat
 The reference design blurs three things; each becomes closed-form maths:
 
 - **A blurred 1px ring** (the rotate bloom, the pulse bloom) is the ring's width times the normal density across it: `w / σ · φ(d_c / σ)` with `d_c` the distance to the ring's centre line, clipped to the shape. Its colour comes from the bloom's conic table — pre-blurred around the turn on the CPU — or from blobs sampled where the ring is, not where the light spread to.
-- **A blurred blob** (the line's spikes and dot, the halo's wash and core) is the energy-preserving gaussian of the blob plus the blur: the profile's mass and variance are integrated on the CPU (`σ² = r² · m₂ / 2m₀ + blur²`, peak `= mass / (σx · σy)`). Where the design cuts a blob at an edge before blurring it (the line's bloom stops at the box), the gaussian is truncated there and moment-matched, so light below the edge never spills back in.
+- **A blurred blob** (the line's spikes and dot) is the energy-preserving gaussian of the blob plus the blur: the profile's mass and variance are integrated on the CPU (`σ² = r² · m₂ / 2m₀ + blur²`, peak `= mass / (σx · σy)`). Where the design cuts a blob at an edge before blurring it (the line's bloom stops at the box), the gaussian is truncated there and moment-matched, so light below the edge never spills back in.
 - **A blurred glow outside the shape** (the comet) is a smooth step across the outline grown by its reach: `Φ((reach − d) / σ)`.
 
 ### Compositing and the draw
 
 Layers composite source-over, premultiplied, then the visible track (the segment mask, feathered more the further light is from the stroke) multiplies the result; a layer marked dashed is cut into dashes first. A small interleaved-gradient dither on the soft tails keeps 8-bit targets from banding.
 
-The renderer bounds the draw to where light can land: the box grown by the furthest outward reach (the halo's inset plus three sigmas of its blur, the comet's reach), minus the interior beyond the furthest inward reach (the edge fade, the blurred ring's three sigmas). That ring is one `drawDRRect`; when a layer fills the whole box (the line's bloom) it is one `drawRect`.
+The renderer bounds the draw to where light can land: the box grown by the furthest outward reach (the comet's reach plus three sigmas of its blur), minus the interior beyond the furthest inward reach (the edge fade, the blurred ring's three sigmas). That ring is one `drawDRRect`; when a layer fills the whole box (the line's bloom) it is one `drawRect`.
 
 ## The design data
 
@@ -74,16 +68,16 @@ The renderer bounds the draw to where light can land: the box grown by the furth
 | `palette_tables.dart` | `BeamLookTables` and the tables of the four original palettes: 9 border blobs, 8 + 8 compact-chip blobs, the line's 9 + 9 + 9 streak blobs, its spike colours and 5 bloom spike pairs. |
 | `extra_palettes.dart` | The seven extras' colour lists, cycled over `colorful`'s tables. |
 | `beam_look.dart` | `BeamLook.tablesFor(palette)`: a palette's own tables, the extras' cycled ones, or — for every other palette — `colorful`'s geometry recoloured by sampling the palette's stops where each blob sits. Memoized per palette. |
-| `layer_presets.dart` | Per family (rotate, compact chip, line, pulse, halo) and surface: the three layer opacities, the inset shadow colour, brightness, saturation. |
+| `layer_presets.dart` | Per family (rotate, compact chip, line, pulse) and surface: the three layer opacities, the inset shadow colour, brightness, saturation. |
 | `rotate_look.dart` | The rotate window, the compact window, the head highlight and bloom band tables; the inner blob alpha and scale; blurs; the 56 px compact threshold. |
 | `line_look.dart` | The line's keyframes (travel x and width, edge fade, height, two spike tracks) and its window, highlight, spike, dot, ambient, and shadow geometry. |
-| `pulse_tables.dart`, `pulse_look.dart` | The pulse and halo blob tables (ring map, inner sizes, bloom and core tables), the breathing parameters, the 17-oscillator bank, and the halo's tuned glow recipe. |
+| `pulse_tables.dart`, `pulse_look.dart` | The pulse's blob tables (ring map, inner sizes, bloom), the breathing parameters, the 17-oscillator bank, and the breath the corner opacities follow (a quicker swell than fade). |
 
 ## Mirrors between Dart and the shader
 
 Some of the shader's maths runs on the CPU too, and the two copies must agree exactly.
 
-**`BeamOutline`** (`lib/src/render/beam_outline.dart`) is the Dart mirror of the shader's `outline()`. `locate()` returns the same `(d, u)` the GPU computes, including the nearest-piece choice; `pointAt` / `normalAt` invert it. Emitters lay blobs along the outline with it, `BeamSegment` anchors resolve against it, and `BorderBeam.follow` maps a pointer to the border with it. The renderer packs its `radii`, `inset`, `exponent`, `length`, `arcFactor`, and `quadStarts` straight into the shader, so a change to the corner model goes in both places at once.
+**`BeamOutline`** (`lib/src/render/beam_outline.dart`) is the Dart mirror of the shader's `outline()`. `locate()` returns the same `(d, u)` the GPU computes, including the nearest-piece choice; `pointAt` / `normalAt` invert it. Emitters lay blobs along the outline with it, `BeamSegment` anchors resolve against it, and `BorderBeam.follow` maps a pointer to the border with it. The renderer packs its `radii`, its corner model (circular or superellipse), `length`, and `quadStarts` straight into the shader, so a change to the corner model goes in both places at once. A test renders the real shader at 3× and checks its distance against `locate()` pixel by pixel.
 
 **Conic tables.** `BeamFrameData.tableAt` reads a table exactly as the shader's `TABLE_LOOKUP` does; tests read windows and overlays back through it.
 
@@ -93,8 +87,8 @@ Some of the shader's maths runs on the CPU too, and the two copies must agree ex
 | --- | --- | --- |
 | 1 | `uRect` — box left, top, width, height | 4 |
 | 2 | `uRadii` — corner radii TL, TR, BR, BL | 4 |
-| 3 | `uShape` — corner inset, exponent, stroke width, px per device px | 4 |
-| 4 | `uPerim` — perimeter length, corner arc factor, dither | 4 |
+| 3 | `uShape` — corner model (0 circular, 1 superellipse), unused, stroke width, px per device px | 4 |
+| 4 | `uPerim` — perimeter length, unused, dither | 4 |
 | 5 | `uQuads` — arc length at which each quadrant starts | 4 |
 | 6 | `uMask` — track start, span, feather, dashes | 4 |
 | 7 | `uConic` — conic centre, start angle (turns), repeats | 4 |
@@ -110,7 +104,7 @@ That is 672 floats, `beamUniformFloats` — inside the GLES budget. `test/render
 
 | File | Contents |
 | --- | --- |
-| `lib/flutter_border_beam.dart` | The barrel. It exports `BorderBeam`, `BorderBeamController`, `BorderBeamTheme` / `BorderBeamThemeData`, `BeamSync`, `BeamEffect` and its four subclasses, `BeamColors` / `BeamSeedHarmony`, the option types (`BeamDirection`, `BeamEdge`, `BeamHueMode`, `BeamReducedMotion`, `BeamRepeat`), `BeamAnchor` / `BeamCorner` / `BeamSegment`, `BeamTheme`, the four value objects, and the four widgets. Nothing under `render/` is public. |
+| `lib/flutter_border_beam.dart` | The barrel. It exports `BorderBeam`, `BorderBeamController`, `BorderBeamTheme` / `BorderBeamThemeData`, `BeamSync`, `BeamEffect` and its three subclasses (`RotateEffect`, `LineEffect`, `PulseEffect`), `BeamColors` / `BeamSeedHarmony`, the option types (`BeamDirection`, `BeamEdge`, `BeamHueMode`, `BeamReducedMotion`, `BeamRepeat`), `BeamAnchor` / `BeamCorner` / `BeamSegment`, `BeamTheme`, the four value objects, and the four widgets. Nothing under `render/` is public. |
 | `lib/src/border_beam.dart` | The widget: `BorderBeam` and `BorderBeam.overlay`, the three shorthands (`colors`, `active`, `borderRadius`), the driven inputs (`progress`, `follow`, `strengthListenable`, `speedListenable`), `BorderBeam.precache()`, and all scheduling and lifecycle. A controller attached ⇒ it owns playback. |
 | `lib/src/border_beam_controller.dart` | `BorderBeamController`, a `ChangeNotifier` over one clock. |
 | `lib/src/border_beam_theme.dart` | `BorderBeamTheme` (an `InheritedWidget`) and `BorderBeamThemeData`, with an `effect` slot and one per value object. `of` walks every enclosing scope, depends on each, and merges them outside-in. |
@@ -120,7 +114,7 @@ That is 672 floats, `beamUniformFloats` — inside the GLES budget. `test/render
 
 | File | Contents |
 | --- | --- |
-| `beam_effect.dart` | The sealed `BeamEffect` and its four `final` subclasses. Each knows its name, whether it travels, and its default cycle, cycle gap, hue mode, and hue period. Value-equal. |
+| `beam_effect.dart` | The sealed `BeamEffect` and its three `final` subclasses. Each knows its name, whether it travels, and its default cycle, cycle gap, hue mode, and hue period. Value-equal. |
 | `effect_emitters.dart` | `emitEffect` and one private emitter per effect; `BeamFrame` (what an emitter reads); `applyTrack` / `segmentTrack` (the visible track); `conicFraction` (the conic angle of a point, shared with `follow`). |
 
 ### `lib/src/look/`
@@ -133,10 +127,10 @@ The design data (see above).
 | --- | --- |
 | `beam_renderer.dart` | `BeamRenderer`: per-beam shader, `Paint`, and frame data; the upload; the draw bounds. |
 | `beam_frame.dart` | `BeamFrameData` — the uniform buffer and its writers — the layer, window, table, and blob-space enums, `beamUniformFloats`, and the slot counts. |
-| `beam_outline.dart` | `BeamOutline`, the Dart mirror of the shader's outline, and the superellipse fit constants. |
+| `beam_outline.dart` | `BeamOutline`, the Dart mirror of the shader's outline, including the port of Flutter's `RSuperellipse` construction (`squircleReach`). |
 | `beam_painter.dart` | `BeamPainter`, the `CustomPainter`. |
 | `beam_program.dart` | `BeamProgram`, the shared `FragmentProgram`. |
-| `color_math.dart` | `hueRotate`, `mixColor`, `samplePalette` — palette blending for stops and lerps. |
+| `color_math.dart` | `mixColor`, `samplePalette` — gamma-aware palette blending on the CPU (stops, lerps, derived blob tables). The shader never blends palette stops; blobs arrive coloured. |
 
 ### `shaders/beam.frag`
 
@@ -154,8 +148,8 @@ The four public value objects (`beam_style.dart`, `beam_shape.dart`, `beam_timin
 
 | File | Contents |
 | --- | --- |
-| `beam_clock.dart` | The ticker, playback rate, pause / resume / seek / retime, the fade envelopes, and the `pulse` / `flash` boosts. |
-| `spring_curve.dart` | The in-package fade spring (mass 1, stiffness 180, damping 20). |
+| `beam_clock.dart` | The ticker, playback rate, pause / resume / seek / retime, the fade envelopes, and the `pulse` / `flash` boosts — the animation on the speed-scaled timeline, the fades and boosts on unscaled active time. |
+| `spring_curve.dart` | `BeamSpringCurve`: springs described as Apple's APIs describe them (damping ratio and response) — the critically damped fade-in and fade-out, and the bouncier rise of the pulse/flash accents. |
 | `beam_phases.dart` | `BeamFramePhases` and `BeamPhaseResolver`. |
 
 ### `lib/src/widgets/`
@@ -185,7 +179,7 @@ The four public value objects (`beam_style.dart`, `beam_shape.dart`, `beam_timin
 | `test/models/` | The value objects, `BeamConfig.resolve`, `BeamColors` and palettes, `BeamEffect`, segments. |
 | `test/animation/` | The clock, the spring, phase sampling, travel, and a seeded property test over `BeamPhaseResolver.sample`. |
 | `test/render/` | The frame budget, the uniform layout, `BeamOutline`, `BeamFrameData` sanity and structure per effect (`beam_frame_test.dart`), degenerate geometry, a paint smoke sweep through the real shader, and where light lands (`paint_structure_test.dart`). |
-| `test/widget/` | `BorderBeam` itself: lifecycle, updates, shorthands, theming, sync, speed, progress, follow, motion, playback, cycle gap. |
+| `test/widget/` | `BorderBeam` itself: lifecycle, updates, shorthands, theming, sync, speed, progress, follow, motion, playback, cycle gap, shape. |
 | `test/widgets/` | The four widgets in `lib/src/widgets/`. |
 | `test/golden/` | Five golden families — `beam_`, `palette_`, `motion_`, `surface_`, `widgets_`. |
 

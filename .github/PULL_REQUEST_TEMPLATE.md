@@ -41,8 +41,8 @@ touched, with `--plain-name`.
 
 <!--
 `test/render/frame_budget_test.dart` must pass unchanged. If you touched the
-shader's uniforms, say so: `shaders/beam.frag`, `_pack` in
-`lib/src/render/beam_renderer.dart`, and `beamUniformFloats` must move
+shader's uniforms, say so: `shaders/beam.frag` and the offsets and slot
+counts in `lib/src/render/beam_frame.dart` (`beamUniformFloats`) must move
 together, and the uniform order is checked by hand.
 -->
 

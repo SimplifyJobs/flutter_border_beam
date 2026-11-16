@@ -8,7 +8,7 @@ All notable changes to this package are documented here, following
 A new renderer and a new effect model. This is the first release since 0.1.0
 and includes everything developed in between, so it breaks the API: the
 [migration table](#migrating-to-020) maps every removed name to its
-replacement.
+replacement, where it has one.
 
 ### Why the renderer changed
 
@@ -26,8 +26,8 @@ the pulse variants ran at a capped ~30fps, as the original's pulse driver does.
 - the same look, layer for layer: the shader evaluates the original design's
   layers per pixel — the hairline stroke and its head highlight, the
   edge-faded inner glow with its inset shadow, the bloom, the line's spikes,
-  the pulse's breathing blobs, the halo's glow — from the original palettes'
-  blob tables, matching 0.1 frame for frame;
+  the pulse's breathing blobs — from the original palettes' blob tables,
+  checked against 0.1 side by side;
 - every blur evaluated analytically instead (a blurred hairline is a gaussian
   across the ring, a blurred colour blob an energy-preserving gaussian);
 - fragment work limited to the band where light can land;
@@ -53,12 +53,11 @@ design data rather than transcriptions.
 
 - `BeamEffect`, a sealed value type chosen with `effect:` on `BorderBeam`,
   `BorderBeam.overlay`, `BeamDecoration`, `BeamFocusRing`, `BeamHover`, and
-  `BeamPress`, and as a default with `BorderBeamThemeData.effect`. Four
+  `BeamPress`, and as a default with `BorderBeamThemeData.effect`. Three
   effects:
   - `BeamEffect.rotate({length, count, comet})` — a beam laps the border.
   - `BeamEffect.line({edge})` — a streak rides one edge with spikes of light.
   - `BeamEffect.pulse()` — colour breathes inward from the border.
-  - `BeamEffect.halo()` — light breathes outward around the widget.
 - `BeamEffect.values`, and per effect `travels`, `defaultCycle`,
   `defaultCycleGap`, `defaultHueMode`, and `defaultHuePeriod`.
 
@@ -71,7 +70,8 @@ design data rather than transcriptions.
   `ember`, `ice`, `gold`, `holographic`, and, new in this release, `lagoon`,
   `dusk`, `forest`, `rose`, `cosmic`, `citrus`, `sky`, and `lavender`.
   `BeamColors.presets` maps every name to its palette.
-- `BeamColors.fromSeed` (four harmonies), `BeamColors.fromScheme`,
+- `BeamColors.fromSeed` (four harmonies, every one kept within a readable
+  lightness band and above a saturation floor), `BeamColors.fromScheme`,
   `BeamColors.lerp`, and `scaleAlpha`.
 
 #### API since 0.1.0
@@ -88,50 +88,66 @@ design data rather than transcriptions.
 - `BorderBeamTheme` / `BorderBeamThemeData` supply defaults to a subtree;
   nested themes merge field by field.
 - `BorderBeam.overlay` paints a beam with no child, sized by its parent.
-- `BeamSync` runs a subtree's beams off one clock.
+- `BeamSync` runs a subtree's beams off one clock; a member that changes its
+  `cycle` retimes only itself.
 - `BorderBeam.progress`, `follow`, `strengthListenable`, and
-  `speedListenable` drive the beam without a controller.
+  `speedListenable` drive the beam without a controller. Releasing `follow`
+  hands the sweep back where it is, keeping a bouncing beam's direction and
+  staying out of a `cycleGap` rest. `speedListenable` wins over a
+  controller's `speed`, and reduced motion's `slow` quarters whichever rate
+  applies.
 - `BeamShape.segment` with `BeamSegment`, `BeamAnchor`, and `BeamCorner`
   lights part of the border; `BeamShape.dashes` breaks it into dashes;
   per-corner, direction-aware radii; stadiums; `ringOffset`.
-- `BeamTiming.cycleGap`, `direction` (`forward` / `reverse` / `bounce`), and
-  `phaseOffset`; `BeamStyle.hueMode` (`pingPong` / `continuous` / `none`).
+- `BeamTiming.cycleGap` (changing only the gap keeps the sweep where it is),
+  `direction` (`forward` / `reverse` / `bounce`), and `phaseOffset`;
+  `BeamStyle.hueMode` (`pingPong` / `continuous` / `none`).
 - `BeamPlayback.repeat`, four `reducedMotion` behaviours (`staticFrame`,
   `hide`, `slow`, `animate`), `pauseWhenOffscreen`, `fadeCurve` with
-  `BeamPlayback.cssEase`, and `debugFrozenAt`.
-- `BorderBeamController.pulse()` and `flash()`, one-shot brightness accents.
-- `BeamDecoration`, and the `BeamFocusRing`, `BeamHover`, and `BeamPress`
-  wrappers.
+  `BeamPlayback.cssEase`, and `debugFrozenAt`, which can be switched on and
+  off at runtime.
+- `BorderBeamController.pulse()` and `flash()`, one-shot brightness accents
+  that, like the fades, run in real time.
+- `BeamDecoration` (which honours `playback.repeat`), and the
+  `BeamFocusRing`, `BeamHover`, and `BeamPress` wrappers.
 
 ### Changed
 
 - **Package name.** The package is `flutter_border_beam`; import
   `package:flutter_border_beam/flutter_border_beam.dart`.
-- **Every effect is re-tuned for the shader.** The look is close to 0.1's and
-  in places richer, but it is not pixel-matched to the original, and every
-  golden was regenerated.
-- **`pulseOutside` is `halo`.** It paints in the same single pass over the
-  child as every other effect — a thin stroke on the border and its glow
-  outside it — so the child no longer has to be opaque, and a
-  `BeamDecoration` halo goes in `foregroundDecoration:` like every other
-  effect.
+- **Every golden was regenerated.** Each effect is rebuilt from 0.1's
+  layers and checked against it side by side, but blurs evaluated
+  analytically are not pixel-identical to blur filters, and the pulse
+  breathes differently (below).
+- **Fades glide.** Toggling `active` fades on critically damped springs
+  (Apple's `.smooth`): about 0.5s in and a gentler 0.6s out, easing from
+  rest and settling without overshoot. `BeamPlayback.fadeCurve` swaps in
+  your own curve.
+- **`pulse` breathes like a breath.** Each corner's light swells a little
+  quicker than it fades back, on Apple's ease-in-out, instead of an even
+  swing.
 - **`small` is folded into `rotate`.** `rotate`'s glow scales with the box, so
   one effect reads on a chip and on a full-screen surface. The default radius
   is 16 for every effect.
 - **`pulseInside` is `pulse`.**
-- **Default timings:** `rotate`'s cycle is 2.4s (was 1.96s); `line` has one
-  8s hue period (was 12s with a separate 8s bloom track) and no longer caps
-  its hue swing at 13°.
-- **Palettes are stop rings, not blob tables.** The four original presets and
-  the seven extras are re-derived as stops from where 0.1 placed their glows.
-  `mono`'s halved layer opacity is now automatic for any grey palette.
+- **Default timings:** `rotate`'s cycle is 2.4s (was 1.96s). `line`'s two
+  hue tracks both follow `huePeriod` — the bloom's period is `huePeriod`
+  (8s by default) and the stroke's one and a half times it, the same 8s and
+  12s as 0.1 — so `bloomHuePeriod` is gone.
+- **Palettes are stop rings.** A palette is a ring of colour stops rather
+  than a list of blob specs. The four original presets and the seven extras
+  are given as stops placed where 0.1 put their glows, and keep their
+  hand-tuned blob tables behind them; every other palette is drawn by
+  sampling its stops over `colorful`'s tables. `mono` keeps its half-opacity
+  layers.
 - **`BeamColors.lerp`** clamps `t` to 0–1 and mixes gamma-aware at eight
   sampled positions; **`scaleAlpha`** scales each stop's alpha.
 - **`hueRange` is `hueShift`.**
 - **Every effect runs at the display rate**; the pulse variants' ~30fps cap is
   gone.
-- **Superellipse corners** are computed in the shader, from a p-norm curve
-  fitted to Flutter's `RSuperellipse`.
+- **Superellipse corners** are computed in the shader and follow Flutter's own
+  `RSuperellipse` construction, so pills, circles, and large radii sit on
+  `RoundedSuperellipseBorder` as exactly as ordinary corners do.
 - **`BeamFocusRing`** defaults to `BeamEffect.rotate()` (was `small`, whose
   compact look `rotate` takes on small controls); **`BeamPress`** defaults to
   `BeamEffect.pulse()` (was `pulseInside`).
@@ -140,6 +156,9 @@ design data rather than transcriptions.
 
 - `BeamVariant` and the named constructors `BorderBeam.rotate`, `.small`,
   `.line`, `.pulseInside`, and `.pulseOutside` — use `effect:`.
+- `pulseOutside`'s outward halo. Nothing in 0.2.0 paints it:
+  `BeamEffect.pulse()` breathes on the border instead, and
+  `BeamEffect.rotate(comet: true)` carries light outside the box.
 - `BeamThemeConfig`, `BeamBlob`, `LineBlob`, `BeamColors.custom`,
   `BeamColors.spec`, `BeamContour`, `BeamPathContour`,
   `BeamPulseOutsideTuning`, and `BeamStyle.pulseOutsideStock`.
@@ -158,6 +177,17 @@ design data rather than transcriptions.
   upstream spec and its parity test, `tool/spec/`, and the upstream-drift
   workflow.
 
+### Fixed
+
+- **Fades run in real time.** `speed`, `seek`, and a retime move only the
+  animation; none of them stretches, skips, or replays a fade, and neither
+  does reduced motion's `slow`. Pausing still freezes the fade.
+- A `BorderBeamController` can move from one beam to another in the same
+  frame.
+- A NaN or infinite style or shape number is treated as unset (an infinite
+  `strength` clamps instead), as are a NaN `progress` and a non-finite
+  `follow`, so the shader is never handed one.
+
 ### Migrating to 0.2.0
 
 | Before | 0.2.0 |
@@ -167,7 +197,7 @@ design data rather than transcriptions.
 | `BorderBeam.small(…)` | `BorderBeam(effect: const BeamEffect.rotate(), borderRadius: 32, …)` — set the radius you relied on; the default is 16 |
 | `BorderBeam.line(…)` | `BorderBeam(effect: const BeamEffect.line(), …)` |
 | `BorderBeam.pulseInside(…)` | `BorderBeam(effect: const BeamEffect.pulse(), …)` |
-| `BorderBeam.pulseOutside(…)` | `BorderBeam(effect: const BeamEffect.halo(), …)` — the child may be translucent |
+| `BorderBeam.pulseOutside(…)` | no direct replacement — `BorderBeam(effect: const BeamEffect.pulse(), …)` for a breathing state on the border, or `BeamEffect.rotate(comet: true)` for light that reaches outside the box |
 | `BorderBeam(variant: BeamVariant.x, …)` | `BorderBeam(effect: const BeamEffect.x(), …)` |
 | `BeamDecoration(variant: …)` | `BeamDecoration(effect: …)`, in `foregroundDecoration:` for every effect |
 | `BeamFocusRing` / `BeamHover` / `BeamPress` `(variant: …)` | `(effect: …)` |
@@ -188,7 +218,8 @@ design data rather than transcriptions.
 | `sparkle`, `renderScale` | no replacement; glows scale with the box |
 | `themeConfig`, `BeamThemeConfig` | no replacement — `theme`, `strength`, and `glow` |
 | `pulseOutsideTuning`, `BeamPulseOutsideTuning`, `BeamStyle.pulseOutsideStock` | no replacement |
-| `bloomHuePeriod`, `breatheFactor`, `spikeFactor`, `spike2Factor` | no replacement; `huePeriod` sets the one hue track |
+| `bloomHuePeriod` | `BeamTiming(huePeriod: …)`, which paces both of `line`'s hue tracks |
+| `breatheFactor`, `spikeFactor`, `spike2Factor` | no replacement |
 | `BeamColors.custom(colors)` / `custom(colors, base: …)` | `BeamColors(colors)`, optionally with `stops:` |
 | `BeamColors.spec(…)`, `BeamBlob`, `LineBlob` | `BeamColors(colors, stops: …)` |
 | 0.1.0 `useSuperellipse: true` | `shape: const BeamShape(superellipse: true)` |
@@ -211,8 +242,8 @@ design data rather than transcriptions.
 - Removed the upstream spec parity test, its fixtures, `tool/spec/`, and
   `.github/workflows/upstream_drift.yaml`.
 - CI runs format / analyze / test with coverage, macOS goldens, the minimum
-  SDK, pana, and the example app; pushing a `vX.Y.Z` tag publishes through
-  `release.yaml` over GitHub OIDC.
+  SDK, pana, and the example app (analyze and a web build); pushing a
+  `vX.Y.Z` tag publishes through `release.yaml` over GitHub OIDC.
 
 ### Docs
 
@@ -222,6 +253,10 @@ design data rather than transcriptions.
   `doc/parity.md` is gone; [`doc/architecture.md`](doc/architecture.md)
   describes the frame pipeline, the light model, and the Dart / shader
   contracts.
+- [`example/`](example) is a one-screen showcase of the three effects, each
+  on the kind of widget it is made for, with palette swatches and a theme
+  toggle; its web build is the
+  [live demo](https://simplifyjobs.github.io/flutter_border_beam/).
 
 ## 0.1.0
 
