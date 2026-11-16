@@ -14,15 +14,15 @@ Ticker ─► BeamClock ─► BeamPhaseResolver ─► effect emitter ─► Be
           pause, boost  travellers, cycles                      filters, tables    of the light        shaders/beam.frag
 ```
 
-1. **`BeamClock`** (`lib/src/animation/beam_clock.dart`) owns the ticker. It keeps two times: the speed-scaled animation timeline every phase is sampled from, and unscaled active time — real seconds while it ticks. The fade-in and fade-out (critically damped springs, about 0.5s in and 0.6s out), the one-shot `pulse()` / `flash()` boosts, and `playback.duration` run on active time, so `speed`, seek, and retime move the animation without stretching, skipping, or replaying a fade; pause freezes both. It is a `Listenable` and notifies on every frame the engine produces — there is no frame-rate cap. Under a `BeamSync` one clock serves the whole subtree.
-2. **`BeamPhaseResolver`** (`lib/src/animation/beam_phases.dart`) samples a `BeamFramePhases` for a time: the fade (including a cycle gap's envelope), the hue rotation and the time the hue track reads, the travel position of every traveller (`travellers`, spaced `1 / count` apart), whether this cycle runs mirrored, the continuous `cycles` clock the breathing runs on (the pulse, the line's spikes), and whether a `progress` / `follow` value is driving the travel. Pure — the same time in gives the same phases out. It knows nothing about what an effect looks like.
-3. **The effect emitter** (`lib/src/effects/effect_emitters.dart`) is a switch over the sealed `BeamEffect`. Each effect is a function of the resolved `BeamConfig`, the phases, the `BeamOutline`, and the palette's blob tables (`BeamLook.tablesFor`), and writes its layers into a `BeamFrameData`. The time-driven design values — the line's width, height, spike, and edge-fade keyframes, the pulse's 17 oscillators — are sampled here, on the CPU, once per frame.
-4. **`BeamFrameData`** (`lib/src/render/beam_frame.dart`) is the frame as the shader consumes it: the outline, the visible track, the conic coordinate, four conic tables, and three layers, each with a geometry, a window, an edge fade, an inset shadow, an overlay, a colour filter, an opacity, and a stack of blobs. It is one `Float32List` laid out exactly like the shader's uniform block, reset and rewritten in place every frame.
-5. **`BeamRenderer`** (`lib/src/render/beam_renderer.dart`) owns one `FragmentShader`, one `Paint`, and one `BeamFrameData` per beam. Per frame it writes the outline and track, runs the emitter, folds each layer's colour filter into its colours, uploads the floats, works out where light can land, and issues a single `drawRect` or `drawDRRect` — or nothing, when no layer is lit.
+1. **`BeamClock`** (`lib/src/border_beam/animation/beam_clock.dart`) owns the ticker. It keeps two times: the speed-scaled animation timeline every phase is sampled from, and unscaled active time — real seconds while it ticks. The fade-in and fade-out (critically damped springs, about 0.5s in and 0.6s out), the one-shot `pulse()` / `flash()` boosts, and `playback.duration` run on active time, so `speed`, seek, and retime move the animation without stretching, skipping, or replaying a fade; pause freezes both. It is a `Listenable` and notifies on every frame the engine produces — there is no frame-rate cap. Under a `BeamSync` one clock serves the whole subtree.
+2. **`BeamPhaseResolver`** (`lib/src/border_beam/animation/beam_phases.dart`) samples a `BeamFramePhases` for a time: the fade (including a cycle gap's envelope), the hue rotation and the time the hue track reads, the travel position of every traveller (`travellers`, spaced `1 / count` apart), whether this cycle runs mirrored, the continuous `cycles` clock the breathing runs on (the pulse, the line's spikes), and whether a `progress` / `follow` value is driving the travel. Pure — the same time in gives the same phases out. It knows nothing about what an effect looks like.
+3. **The effect emitter** (`lib/src/border_beam/effects/effect_emitters.dart`) is a switch over the sealed `BeamEffect`. Each effect is a function of the resolved `BeamConfig`, the phases, the `BeamOutline`, and the palette's blob tables (`BeamLook.tablesFor`), and writes its layers into a `BeamFrameData`. The time-driven design values — the line's width, height, spike, and edge-fade keyframes, the pulse's 17 oscillators — are sampled here, on the CPU, once per frame.
+4. **`BeamFrameData`** (`lib/src/border_beam/render/beam_frame.dart`) is the frame as the shader consumes it: the outline, the visible track, the conic coordinate, four conic tables, and three layers, each with a geometry, a window, an edge fade, an inset shadow, an overlay, a colour filter, an opacity, and a stack of blobs. It is one `Float32List` laid out exactly like the shader's uniform block, reset and rewritten in place every frame.
+5. **`BeamRenderer`** (`lib/src/border_beam/render/beam_renderer.dart`) owns one `FragmentShader`, one `Paint`, and one `BeamFrameData` per beam. Per frame it writes the outline and track, runs the emitter, folds each layer's colour filter into its colours, uploads the floats, works out where light can land, and issues a single `drawRect` or `drawDRRect` — or nothing, when no layer is lit.
 
-`BeamPainter` (`lib/src/render/beam_painter.dart`) is the `CustomPainter` that runs this as `BorderBeam`'s foreground painter. Its repaint listenable is the clock merged with the shader-ready signal and the driven `progress` / `strength` listenables, so frames never rebuild widgets. `BeamDecoration` runs the same renderer from a `BoxPainter`.
+`BeamPainter` (`lib/src/border_beam/render/beam_painter.dart`) is the `CustomPainter` that runs this as `BorderBeam`'s foreground painter. Its repaint listenable is the clock merged with the shader-ready signal and the driven `progress` / `strength` listenables, so frames never rebuild widgets. `BeamDecoration` runs the same renderer from a `BoxPainter`.
 
-`BeamProgram` (`lib/src/render/beam_program.dart`) loads `shaders/beam.frag` once per process (`FragmentProgram.fromAsset`, trying the `packages/prismatic/` key a consuming app uses and the bare key the package's own tests use). Until it resolves, beams paint nothing; `BorderBeam.precache()` awaits it.
+`beamProgram` (`lib/src/border_beam/render/beam_program.dart`, a `ShaderProgram` from `lib/src/core/shader_program.dart`) loads `shaders/beam.frag` once per process (`FragmentProgram.fromAsset`, trying the `packages/prismatic/` key a consuming app uses and the bare key the package's own tests use). Until it resolves, beams paint nothing; `BorderBeam.precache()` awaits it.
 
 ## The layer model
 
@@ -61,7 +61,7 @@ The renderer bounds the draw to where light can land: the box grown by the furth
 
 ## The design data
 
-`lib/src/look/` holds the tuned values the look is built from — plain data, safe to retune (the goldens will move):
+`lib/src/border_beam/look/` holds the tuned values the look is built from — plain data, safe to retune (the goldens will move):
 
 | File | Contents |
 | --- | --- |
@@ -77,7 +77,7 @@ The renderer bounds the draw to where light can land: the box grown by the furth
 
 Some of the shader's maths runs on the CPU too, and the two copies must agree exactly.
 
-**`BeamOutline`** (`lib/src/render/beam_outline.dart`) is the Dart mirror of the shader's `outline()`. `locate()` returns the same `(d, u)` the GPU computes, including the nearest-piece choice; `pointAt` / `normalAt` invert it. Emitters lay blobs along the outline with it, `BeamSegment` anchors resolve against it, and `BorderBeam.follow` maps a pointer to the border with it. The renderer packs its `radii`, its corner model (circular or superellipse), `length`, and `quadStarts` straight into the shader, so a change to the corner model goes in both places at once. A test renders the real shader at 3× and checks its distance against `locate()` pixel by pixel.
+**`BeamOutline`** (`lib/src/border_beam/render/beam_outline.dart`) is the Dart mirror of the shader's `outline()`. `locate()` returns the same `(d, u)` the GPU computes, including the nearest-piece choice; `pointAt` / `normalAt` invert it. Emitters lay blobs along the outline with it, `BeamSegment` anchors resolve against it, and `BorderBeam.follow` maps a pointer to the border with it. The renderer packs its `radii`, its corner model (circular or superellipse), `length`, and `quadStarts` straight into the shader, so a change to the corner model goes in both places at once. A test renders the real shader at 3× and checks its distance against `locate()` pixel by pixel.
 
 **Conic tables.** `BeamFrameData.tableAt` reads a table exactly as the shader's `TABLE_LOOKUP` does; tests read windows and overlays back through it.
 
@@ -96,7 +96,7 @@ Some of the shader's maths runs on the CPU too, and the two copies must agree ex
 | 9–12 | `uWinA[8]`, `uWinB[8]`, `uOverA[8]`, `uOverB[8]` — conic tables, 16 (position, alpha) stops each | 4 × 32 |
 | 13–15 | `uBlobA[42]`, `uBlobB[30]`, `uBlobC[30]` — 14, 10, and 10 blobs, three vec4s each | 408 |
 
-That is 672 floats, `beamUniformFloats` — inside the 896 (224 `vec4`s) GLES 3.0 guarantees. `test/render/uniform_layout_test.dart` parses `shaders/beam.frag` and checks that every uniform is a `vec4` or `vec4` array, that each array holds what `BeamFrameData` packs (`beamLayerCount`, `tableStops`, the blob slots), that the shader's loops run to the slot counts, and that the declared floats add up to `beamUniformFloats`. It also checks the *order*: it derives each uniform's offset from the shader's declarations and runs every `BeamFrameData` writer on a fresh frame, so a uniform reordered on one side only — which would otherwise shift every value after it and paint garbage rather than fail — breaks the test. Change the shader's declarations and `beam_frame.dart`'s offsets in one commit.
+That is 672 floats, `beamUniformFloats` — inside the 896 (224 `vec4`s) GLES 3.0 guarantees. `test/border_beam/render/uniform_layout_test.dart` parses `shaders/beam.frag` and checks that every uniform is a `vec4` or `vec4` array, that each array holds what `BeamFrameData` packs (`beamLayerCount`, `tableStops`, the blob slots), that the shader's loops run to the slot counts, and that the declared floats add up to `beamUniformFloats`. It also checks the *order*: it derives each uniform's offset from the shader's declarations and runs every `BeamFrameData` writer on a fresh frame, so a uniform reordered on one side only — which would otherwise shift every value after it and paint garbage rather than fail — breaks the test. Change the shader's declarations and `beam_frame.dart`'s offsets in one commit.
 
 ## Module layout
 
@@ -105,23 +105,23 @@ That is 672 floats, `beamUniformFloats` — inside the 896 (224 `vec4`s) GLES 3.
 | File | Contents |
 | --- | --- |
 | `lib/prismatic.dart`, `lib/border_beam.dart` | `prismatic.dart` is the package barrel and re-exports `border_beam.dart`, which exports `BorderBeam`, `BorderBeamController`, `BorderBeamTheme` / `BorderBeamThemeData`, `BeamSync`, `BeamEffect` and its three subclasses (`RotateEffect`, `LineEffect`, `PulseEffect`), `BeamColors` / `BeamSeedHarmony`, the option types (`BeamDirection`, `BeamEdge`, `BeamHueMode`, `BeamReducedMotion`, `BeamRepeat`), `BeamAnchor` / `BeamCorner` / `BeamSegment`, `BeamTheme`, the four value objects, and the four widgets. Nothing under `render/` is public. |
-| `lib/src/border_beam.dart` | The widget: `BorderBeam` and `BorderBeam.overlay`, the three shorthands (`colors`, `active`, `borderRadius`), the driven inputs (`progress`, `follow`, `strengthListenable`, `speedListenable`), `BorderBeam.precache()`, and all scheduling and lifecycle. A controller attached ⇒ it owns playback. |
-| `lib/src/border_beam_controller.dart` | `BorderBeamController`, a `ChangeNotifier` over one clock. |
-| `lib/src/border_beam_theme.dart` | `BorderBeamTheme` (an `InheritedWidget`) and `BorderBeamThemeData`, with an `effect` slot and one per value object. `of` walks every enclosing scope, depends on each, and merges them outside-in. |
-| `lib/src/beam_sync.dart` | `BeamSync` and its internal scope — one clock for a subtree. |
+| `lib/src/border_beam/border_beam.dart` | The widget: `BorderBeam` and `BorderBeam.overlay`, the three shorthands (`colors`, `active`, `borderRadius`), the driven inputs (`progress`, `follow`, `strengthListenable`, `speedListenable`), `BorderBeam.precache()`, and all scheduling and lifecycle. A controller attached ⇒ it owns playback. |
+| `lib/src/border_beam/border_beam_controller.dart` | `BorderBeamController`, a `ChangeNotifier` over one clock. |
+| `lib/src/border_beam/border_beam_theme.dart` | `BorderBeamTheme` (an `InheritedWidget`) and `BorderBeamThemeData`, with an `effect` slot and one per value object. `of` walks every enclosing scope, depends on each, and merges them outside-in. |
+| `lib/src/border_beam/beam_sync.dart` | `BeamSync` and its internal scope — one clock for a subtree. |
 
-### `lib/src/effects/`
+### `lib/src/border_beam/effects/`
 
 | File | Contents |
 | --- | --- |
 | `beam_effect.dart` | The sealed `BeamEffect` and its three `final` subclasses. Each knows its name, whether it travels, and its default cycle, cycle gap, hue mode, and hue period. Value-equal. |
 | `effect_emitters.dart` | `emitEffect` and one private emitter per effect; `BeamFrame` (what an emitter reads); `applyTrack` / `segmentTrack` (the visible track); `conicFraction` (the conic angle of a point, shared with `follow`). |
 
-### `lib/src/look/`
+### `lib/src/border_beam/look/`
 
 The design data (see above).
 
-### `lib/src/render/`
+### `lib/src/border_beam/render/`
 
 | File | Contents |
 | --- | --- |
@@ -129,14 +129,14 @@ The design data (see above).
 | `beam_frame.dart` | `BeamFrameData` — the uniform buffer and its writers — the layer, window, table, and blob-space enums, `beamUniformFloats`, and the slot counts. |
 | `beam_outline.dart` | `BeamOutline`, the Dart mirror of the shader's outline, including the port of Flutter's `RSuperellipse` construction (`squircleReach`). |
 | `beam_painter.dart` | `BeamPainter`, the `CustomPainter`. |
-| `beam_program.dart` | `BeamProgram`, the shared `FragmentProgram`. |
+| `beam_program.dart` | `beamProgram`, the beam's shared `ShaderProgram`. |
 | `color_math.dart` | `mixColor`, `samplePalette` — gamma-aware palette blending on the CPU (stops, lerps, derived blob tables). The shader never blends palette stops; blobs arrive coloured. |
 
 ### `shaders/beam.frag`
 
 The layer model, per pixel. Its header describes it; its uniform block is the contract above. It is declared under `flutter: shaders:` in `pubspec.yaml` and must ship in the published archive.
 
-### `lib/src/models/`
+### `lib/src/border_beam/models/`
 
 The four public value objects (`beam_style.dart`, `beam_shape.dart`, `beam_timing.dart`, `beam_playback.dart`) are all-nullable, `const`, with `copyWith` / `merge` / `==`; a null field means *inherit*. `beam_options.dart` holds the option enums and `BeamRepeat`; `beam_segment.dart` holds `BeamAnchor`, `BeamCorner`, and `BeamSegment`.
 
@@ -144,7 +144,7 @@ The four public value objects (`beam_style.dart`, `beam_shape.dart`, `beam_timin
 
 `beam_config.dart` is where it lands: `BeamConfig.resolve({effect, palette, brightness, style, shape, timing, textDirection})` settles every inherited value — the effect's default cycle, gap, hue mode, and hue period, the 16px default radius, a fixed-hue palette forcing `BeamHueMode.none` — into one value-equal config, so `BeamPainter.shouldRepaint` compares configs.
 
-### `lib/src/animation/`
+### `lib/src/border_beam/animation/`
 
 | File | Contents |
 | --- | --- |
@@ -152,13 +152,13 @@ The four public value objects (`beam_style.dart`, `beam_shape.dart`, `beam_timin
 | `spring_curve.dart` | `BeamSpringCurve`: springs described as Apple's APIs describe them (damping ratio and response) — the critically damped fade-in and fade-out, and the bouncier rise of the pulse/flash accents. |
 | `beam_phases.dart` | `BeamFramePhases` and `BeamPhaseResolver`. |
 
-### `lib/src/widgets/`
+### `lib/src/border_beam/widgets/`
 
 `beam_decoration.dart` (the renderer as a `Decoration`), `beam_focus_ring.dart`, `beam_hover.dart`, `beam_press.dart`.
 
 ## Invariants
 
-**One draw per lit frame, and nothing that forces an offscreen pass.** A frame issues exactly one `drawRect` or `drawDRRect` with the beam shader — or none, when the fade or a cycle gap leaves no layer lit — and no `saveLayer`, no clip, no `ImageFilter`, no `MaskFilter`, with saves and restores balanced. `test/render/frame_budget_test.dart` asserts this for every effect × theme × palette subset × shape family × several instants, plus effect options and driven progress. A blur in the design becomes analytic maths in the shader, never a layer.
+**One draw per lit frame, and nothing that forces an offscreen pass.** A frame issues exactly one `drawRect` or `drawDRRect` with the beam shader — or none, when the fade or a cycle gap leaves no layer lit — and no `saveLayer`, no clip, no `ImageFilter`, no `MaskFilter`, with saves and restores balanced. `test/border_beam/render/frame_budget_test.dart` asserts this for every effect × theme × palette subset × shape family × several instants, plus effect options and driven progress. A blur in the design becomes analytic maths in the shader, never a layer.
 
 **The uniform contract moves as one.** The shader's uniform block and `beam_frame.dart`'s offsets and slot counts change in the same commit (see above).
 
@@ -176,11 +176,11 @@ The four public value objects (`beam_style.dart`, `beam_shape.dart`, `beam_timin
 
 | Directory | Covers |
 | --- | --- |
-| `test/models/` | The value objects, `BeamConfig.resolve`, `BeamColors` and palettes, `BeamEffect`, segments. |
-| `test/animation/` | The clock, the spring, phase sampling, travel, and a seeded property test over `BeamPhaseResolver.sample`. |
-| `test/render/` | The frame budget, the uniform layout, `BeamOutline`, `BeamFrameData` sanity and structure per effect (`beam_frame_test.dart`), degenerate geometry, a paint smoke sweep through the real shader, and where light lands (`paint_structure_test.dart`). |
-| `test/widget/` | `BorderBeam` itself: lifecycle, updates, shorthands, theming, sync, speed, progress, follow, motion, playback, cycle gap, shape. |
-| `test/widgets/` | The four widgets in `lib/src/widgets/`. |
-| `test/golden/` | Five golden families — `beam_`, `palette_`, `motion_`, `surface_`, `widgets_`. |
+| `test/border_beam/models/` | The value objects, `BeamConfig.resolve`, `BeamColors` and palettes, `BeamEffect`, segments. |
+| `test/border_beam/animation/` | The clock, the spring, phase sampling, travel, and a seeded property test over `BeamPhaseResolver.sample`. |
+| `test/border_beam/render/` | The frame budget, the uniform layout, `BeamOutline`, `BeamFrameData` sanity and structure per effect (`beam_frame_test.dart`), degenerate geometry, a paint smoke sweep through the real shader, and where light lands (`paint_structure_test.dart`). |
+| `test/border_beam/widget/` | `BorderBeam` itself: lifecycle, updates, shorthands, theming, sync, speed, progress, follow, motion, playback, cycle gap, shape. |
+| `test/border_beam/widgets/` | The four widgets in `lib/src/border_beam/widgets/`. |
+| `test/border_beam/golden/` | Five golden families — `beam_`, `palette_`, `motion_`, `surface_`, `widgets_`. |
 
 Golden scenes freeze the fake clock at t = 1.3s (past the fade-in, mid-cycle); travelling effects are captured a second time further along. Goldens are generated on macOS on the Flutter version `ci.yaml` pins; regenerating on another OS or SDK produces diffs.

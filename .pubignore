@@ -34,4 +34,4 @@ CLAUDE.md
 # codecov/codecov-action downloads into the working tree in CI.
 /codecov*
 # Golden reference images only matter to the repo's own CI, not to consumers.
-test/golden/
+test/**/golden/

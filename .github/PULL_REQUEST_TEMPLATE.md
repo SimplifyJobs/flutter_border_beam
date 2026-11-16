@@ -11,7 +11,7 @@ the first thing a reviewer needs to know.
 <!--
 Bullets, each opening with a bold lead-in naming the area:
 
-- **Render** (`lib/src/render/`, `shaders/beam.frag`) — …
+- **Render** (`lib/src/border_beam/render/`, `shaders/beam.frag`) — …
 - **Docs** — …
 -->
 
@@ -40,9 +40,9 @@ touched, with `--plain-name`.
 **Frame budget** — still one draw, no `saveLayer` / clip / image or mask filter:
 
 <!--
-`test/render/frame_budget_test.dart` must pass unchanged. If you touched the
+`test/border_beam/render/frame_budget_test.dart` must pass unchanged. If you touched the
 shader's uniforms, say so: `shaders/beam.frag` and the offsets and slot
-counts in `lib/src/render/beam_frame.dart` (`beamUniformFloats`) must move
+counts in `lib/src/border_beam/render/beam_frame.dart` (`beamUniformFloats`) must move
 together, and the uniform order is checked by hand.
 -->
 

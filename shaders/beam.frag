@@ -22,8 +22,8 @@
 //
 // Uniforms are vec4s and vec4 arrays only, so the float layout is identical on
 // every backend (Impeller Metal / Vulkan / GLES, and Skia's SkSL). The Dart
-// packer (lib/src/render/beam_frame.dart) mirrors this order exactly;
-// test/render/ parses this file to keep the two in step.
+// packer (lib/src/border_beam/render/beam_frame.dart) mirrors this order exactly;
+// test/border_beam/render/ parses this file to keep the two in step.
 
 #version 460 core
 
@@ -72,7 +72,7 @@ const float INV_SQRT_TAU = 0.3989422804;
 // a superellipse |x/a|^n + |y/a|^n = 1 that hands over at a joint J to a
 // circular arc ending on the diagonal. A half is evaluated in a frame where
 // its edge runs along y = a, x is measured from the middle of that edge, and
-// the diagonal is x = y. lib/src/render/beam_outline.dart mirrors all of it.
+// the diagonal is x = y. lib/src/border_beam/render/beam_outline.dart mirrors all of it.
 
 const float SQUIRCLE_REACH = 2.5;  // past this many radii the edge is straight
 const float GAP_FACTOR = 0.29289321881;

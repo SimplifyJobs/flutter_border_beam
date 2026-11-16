@@ -36,7 +36,7 @@ How the colours are shown depends on the effect:
 | `sky` | cerulean, periwinkle, white-blue | |
 | `lavender` | lilac, lavender, soft pink | |
 
-`BeamColors.presets` is a `Map<String, BeamColors>` of all 19, in this order — handy for a picker. The presets' stops live in `lib/src/models/beam_presets.dart` and their blob tables in `lib/src/look/`; every one is meant to read on both dark and light surfaces.
+`BeamColors.presets` is a `Map<String, BeamColors>` of all 19, in this order — handy for a picker. The presets' stops live in `lib/src/border_beam/models/beam_presets.dart` and their blob tables in `lib/src/border_beam/look/`; every one is meant to read on both dark and light surfaces.
 
 Two presets pin the hue: `mono` and `gold` set `BeamHueMode.none` whatever the style says, because a hue sweep over greys or a single-hue metal reads as the material changing. `mono` is also painted with its layers at half strength (the line softens its spikes instead), since white light reads brighter than coloured light at the same opacity.
 
