@@ -73,7 +73,7 @@ Because it only flips `BorderBeam`'s `active`, focus arrives and leaves on the b
 
 ## Contrast and legibility
 
-The beam paints around content and only a short way into it, so it does not change text contrast directly. Two things still deserve a look:
+The beam mostly paints around content, but `BorderBeam` paints over its child, so wherever the light reaches in it changes the contrast of what lies beneath. Two things deserve a look:
 
 - **A bright beam next to small text** raises the luminance around it and can make a thin label feel lower-contrast than it measures. `style.strength` is the dial; 0.6–0.8 often sits better on dense UI than the full 1.0.
 - **Inward glows** (the inner glow of `rotate` and `pulse`, `line`'s spikes) reach into the child. Keep important content clear of the border by the child's own padding, or turn the reach down with `style.glow`.
