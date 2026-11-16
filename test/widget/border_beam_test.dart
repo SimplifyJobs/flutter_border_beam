@@ -358,6 +358,7 @@ void main() {
         ('flash', controller.flash),
         ('pause', controller.pause),
         ('resume', controller.resume),
+        ('seek', () => controller.seek(const Duration(seconds: 1))),
         ('speed', () => controller.speed = 2),
         ('stop', controller.stop),
       ]) {
