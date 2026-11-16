@@ -13,7 +13,8 @@ import 'package:flutter_test/flutter_test.dart';
 const Size cardSize = Size(350, 140);
 
 /// Room left around the box in rendered images, enough for the widest outward
-/// light (a rotate comet's trail).
+/// light (a rotate comet's trail). [renderFrame] fails a frame that draws
+/// past it rather than reading back a cropped one.
 const double renderMargin = 80;
 
 /// Every effect, by name, with its default parameters.
@@ -193,8 +194,9 @@ Future<RenderedFrame> renderFrame(
 }) async {
   final r = renderer ?? BeamRenderer();
   final recorder = ui.PictureRecorder();
+  final canvas = RecordingCanvas(ui.Canvas(recorder));
   r.paint(
-    ui.Canvas(recorder),
+    canvas,
     Offset(renderMargin, renderMargin) & size,
     config,
     phases,
@@ -203,6 +205,18 @@ Future<RenderedFrame> renderFrame(
   final picture = recorder.endRecording();
   final width = (size.width + 2 * renderMargin).ceil();
   final height = (size.height + 2 * renderMargin).ceil();
+  // The draw covers everywhere light can land, so it must fit the image:
+  // light past the margin would be cut off and every region read short.
+  for (final bounds in canvas.drawBounds) {
+    expect(
+      bounds.left >= 0 &&
+          bounds.top >= 0 &&
+          bounds.right <= width &&
+          bounds.bottom <= height,
+      isTrue,
+      reason: 'the draw $bounds outgrows the ${renderMargin}px margin',
+    );
+  }
   final image = await picture.toImage(width, height);
   picture.dispose();
   final bytes = await image.toByteData();
