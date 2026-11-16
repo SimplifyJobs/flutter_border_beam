@@ -41,10 +41,12 @@ class _HomeState extends State<Home> {
     _start.toDouble(),
   );
   late int _index = _start;
-  String _palette = const String.fromEnvironment(
-    'PALETTE',
-    defaultValue: 'colorful',
-  );
+  // An unknown PALETTE falls back to colorful, so the caption never names a
+  // palette the beam is not drawing.
+  static const _paletteFlag = String.fromEnvironment('PALETTE');
+  String _palette = BeamColors.presets.containsKey(_paletteFlag)
+      ? _paletteFlag
+      : 'colorful';
   bool _active = true;
 
   @override
