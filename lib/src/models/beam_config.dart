@@ -63,7 +63,7 @@ class BeamConfig {
     double finite(double? value, double fallback) =>
         value != null && value.isFinite ? value : fallback;
     final strength = style.strength;
-    final cycle = math.max(seconds(timing.cycle, effect.defaultCycle), 0.05);
+    final cycle = cycleSecondsFor(timing, effect);
     final hueMode = palette.fixedHue
         ? BeamHueMode.none
         : (style.hueMode ?? effect.defaultHueMode);
@@ -94,6 +94,24 @@ class BeamConfig {
       ),
     );
   }
+
+  /// The shortest cycle a beam runs, in seconds: a shorter `BeamTiming.cycle`
+  /// runs at this length.
+  static const double minCycleSeconds = 0.05;
+
+  /// The cycle, in seconds, [timing] gives [effect]: its own or the effect's
+  /// default, floored at [minCycleSeconds] — the [cycleSeconds] a config
+  /// resolved from them carries.
+  ///
+  /// Whatever schedules against the cycle outside a config (a running
+  /// clock's retime, for one) reads it here, so it measures the cycle the
+  /// beam actually runs rather than the one it was asked for.
+  static double cycleSecondsFor(BeamTiming timing, BeamEffect effect) =>
+      math.max(
+        (timing.cycle ?? effect.defaultCycle).inMicroseconds /
+            Duration.microsecondsPerSecond,
+        minCycleSeconds,
+      );
 
   /// What the beam does.
   final BeamEffect effect;

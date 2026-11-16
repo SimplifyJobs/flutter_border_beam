@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_border_beam/src/animation/beam_clock.dart';
 import 'package:flutter_border_beam/src/animation/beam_phases.dart';
+import 'package:flutter_border_beam/src/models/beam_config.dart';
 import 'package:flutter_border_beam/src/render/beam_painter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -302,6 +303,49 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       expect(activated, 1);
       expect(clock.fadeOpacity, 1);
+    });
+
+    testWidgets('a cycle under the floor retimes on the cycle the beam runs', (
+      tester,
+    ) async {
+      Widget build(Duration cycle) => beamHost(
+        BorderBeam(
+          timing: BeamTiming(cycle: cycle),
+          child: const SizedBox.expand(),
+        ),
+      );
+
+      await tester.pumpWidget(build(const Duration(milliseconds: 10)));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 20));
+      final before = _frame(tester);
+      expect(
+        before.painter.config.cycleSeconds,
+        BeamConfig.minCycleSeconds,
+        reason: 'a 10ms cycle runs at the floor',
+      );
+
+      // 20ms is under the floor too: the beam runs the same cycle, so its
+      // timeline must not move.
+      await tester.pumpWidget(build(const Duration(milliseconds: 20)));
+      final same = _frame(tester);
+      expect(
+        same.painter.clock.elapsedSeconds,
+        closeTo(before.painter.clock.elapsedSeconds, 1e-12),
+      );
+      expect(
+        same.phases.travelProgress,
+        closeTo(before.phases.travelProgress, 1e-9),
+      );
+
+      // Out of the floor, the sweep holds where the floored cycle had it.
+      await tester.pumpWidget(build(const Duration(milliseconds: 200)));
+      final after = _frame(tester);
+      expect(after.painter.config.cycleSeconds, closeTo(0.2, 1e-12));
+      expect(
+        after.phases.travelProgress,
+        closeTo(before.phases.travelProgress, 1e-9),
+      );
     });
 
     testWidgets('an unchanged cycle leaves the timeline alone', (tester) async {

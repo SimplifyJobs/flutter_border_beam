@@ -315,11 +315,6 @@ class BorderBeam extends StatefulWidget {
   }
 }
 
-// The cycle length a resolved timing implies for an effect.
-double _cycleSecondsOf(BeamTiming timing, BeamEffect effect) =>
-    (timing.cycle ?? effect.defaultCycle).inMicroseconds /
-    Duration.microsecondsPerSecond;
-
 // The rest between sweeps a resolved timing implies for an effect.
 double _gapSecondsOf(BeamTiming timing, BeamEffect effect) => effect.travels
     ? (timing.cycleGap ?? effect.defaultCycleGap).inMicroseconds /
@@ -454,7 +449,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     _playback = widget._playbackInput ?? const BeamPlayback();
     validateBeamTiming(_timing);
     validateRepeat(_playback.repeat);
-    _cycleSeconds = _cycleSecondsOf(_timing, _effect);
+    _cycleSeconds = BeamConfig.cycleSecondsFor(_timing, _effect);
     widget.controller
       ?..attach(_clock)
       ..addListener(_applySpeed);
@@ -486,7 +481,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     _effect = widget.effect ?? data.effect ?? const BeamEffect.rotate();
     _playback = playback;
     _timing = timing;
-    _cycleSeconds = _cycleSecondsOf(timing, _effect);
+    _cycleSeconds = BeamConfig.cycleSecondsFor(timing, _effect);
     final nextGap = _gapSecondsOf(timing, _effect);
     // A different effect is a different animation: there is no phase of the
     // old one to hold.
