@@ -9,6 +9,8 @@ library;
 export 'src/distortion_wave/distortion_wave.dart' show DistortionWave;
 export 'src/distortion_wave/distortion_wave_controller.dart'
     show DistortionWaveController;
+export 'src/distortion_wave/distortion_wave_route.dart'
+    show DistortionWaveRoute;
 export 'src/distortion_wave/distortion_wave_theme.dart'
     show DistortionWaveTheme, DistortionWaveThemeData;
 export 'src/distortion_wave/models/wave_dots.dart' show WaveDots;
