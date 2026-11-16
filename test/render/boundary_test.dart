@@ -190,18 +190,24 @@ void main() {
           }
         }
         for (final bad in [double.nan, double.infinity]) {
-          paintEverywhere(
-            effect,
-            'non-finite $bad',
-            style: BeamStyle(
-              strength: bad,
-              // NaN fails the constructor's `glow >= 0` assertion.
-              glow: bad.isNaN ? null : bad,
-              hueShift: bad,
-              hueBase: bad,
-              hueMode: BeamHueMode.pingPong,
+          // Each falls back to its default, and the strength to full: the
+          // beam still lights the card.
+          expect(
+            paintEverywhere(
+              effect,
+              'non-finite $bad',
+              style: BeamStyle(
+                strength: bad,
+                // NaN fails the constructor's `glow >= 0` assertion.
+                glow: bad.isNaN ? null : bad,
+                hueShift: bad,
+                hueBase: bad,
+                hueMode: BeamHueMode.pingPong,
+              ),
+              shape: BeamShape(borderWidth: bad, ringOffset: bad),
             ),
-            shape: BeamShape(borderWidth: bad, ringOffset: bad),
+            greaterThan(0),
+            reason: 'non-finite $bad',
           );
         }
         expect(
