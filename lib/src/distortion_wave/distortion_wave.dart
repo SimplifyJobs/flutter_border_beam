@@ -11,6 +11,7 @@ import 'models/wave_style.dart';
 import 'models/wave_type.dart';
 import 'render/render_wave_stage.dart';
 import 'render/wave_programs.dart';
+import 'render/wave_warm_up.dart';
 import 'timeline/wave_clock.dart';
 import 'wave_source.dart';
 
@@ -120,9 +121,14 @@ class DistortionWave extends StatefulWidget {
   /// interrupted by another.
   final VoidCallback? onFinish;
 
-  /// Loads the wave's shaders ahead of the first wave. A wave started before
-  /// they load shows its sides plainly until they do.
-  static Future<void> precache() => loadWavePrograms();
+  /// Loads the wave's shaders ahead of the first wave, and draws each of
+  /// them once out of sight so the GPU has built their pipelines before the
+  /// first wave's first frames. A wave started before they load shows its
+  /// sides plainly until they do.
+  static Future<void> precache() async {
+    await loadWavePrograms();
+    warmUpWaveRendering();
+  }
 
   @override
   State<DistortionWave> createState() => _DistortionWaveState();
@@ -178,11 +184,26 @@ class _DistortionWaveState extends State<DistortionWave>
       widget.controller?.attach(this);
     }
     _resolveLook();
-    if (widget.progress != null) _held.value = widget.progress!;
+    final held = widget.progress;
+    final wasHeld = oldWidget.progress;
+    if (held != null) {
+      // Picking the wave up: it opens from wherever a run would.
+      if (wasHeld == null && _atRest) _runSource = _sourceForRun(null);
+      _held.value = held;
+    } else if (wasHeld != null) {
+      // Letting go: the wave plays on from where it was held, toward the
+      // side it is meant to rest on.
+      _clock.jumpTo(wasHeld);
+      drive(reveal: widget.controller?.isRevealed ?? widget.revealed);
+      return;
+    }
     if (widget.controller == null && widget.revealed != oldWidget.revealed) {
       drive(reveal: widget.revealed);
     }
   }
+
+  WaveSource? _sourceForRun(WaveSource? source) =>
+      source ?? widget.source ?? _anchors.last?.source;
 
   void _resolveLook() {
     final theme = DistortionWaveTheme.of(context);
@@ -223,9 +244,7 @@ class _DistortionWaveState extends State<DistortionWave>
     // The source, and the touch the wave leans with, are taken only when a
     // run starts from rest: changing them mid-wave would make everything on
     // screen jump.
-    if (_atRest) {
-      _runSource = source ?? widget.source ?? _anchors.last?.source;
-    }
+    if (_atRest) _runSource = _sourceForRun(source);
     final spec = _spec!;
     final run = ++_run;
     void arrived() {
@@ -255,7 +274,7 @@ class _DistortionWaveState extends State<DistortionWave>
   @override
   void seekTo(double progress) {
     if (!mounted) return;
-    if (_atRest) _runSource = widget.source ?? _anchors.last?.source;
+    if (_atRest) _runSource = _sourceForRun(null);
     _run++;
     setState(() => _revealing = progress >= 0.5);
     _clock.jumpTo(progress);
@@ -292,7 +311,7 @@ class _DistortionWaveState extends State<DistortionWave>
       child: WaveStage(
         progress: scrubbing ? _held : _clock,
         spec: _spec!,
-        source: scrubbing ? widget.source : (_runSource ?? widget.source),
+        source: _runSource ?? widget.source,
         devicePixelRatio:
             MediaQuery.maybeDevicePixelRatioOf(context) ??
             View.of(context).devicePixelRatio,

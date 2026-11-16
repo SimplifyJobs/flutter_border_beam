@@ -37,11 +37,13 @@ class DistortionWaveController extends ChangeNotifier {
   /// Sends the wave out to the revealed side, from [source] if given.
   void reveal({WaveSource? source}) => _go(true, source);
 
-  /// Collapses the wave back into its source, onto the first side.
-  void collapse() => _go(false, null);
+  /// Collapses the wave back onto the first side: into [source] if given and
+  /// the wave is at rest, else into the source it opened from.
+  void collapse({WaveSource? source}) => _go(false, source);
 
-  /// Reveals when on the first side, collapses when revealed.
-  void toggle() => _go(!_revealed, null);
+  /// Reveals when on the first side, collapses when revealed; from [source]
+  /// if given and the wave is at rest.
+  void toggle({WaveSource? source}) => _go(!_revealed, source);
 
   /// Holds the wave at [progress], 0–1, stopping any run.
   void seek(double progress) {

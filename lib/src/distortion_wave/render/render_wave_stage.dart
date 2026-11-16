@@ -327,12 +327,23 @@ class RenderWaveStage extends RenderBox
 
   // ─── Hit testing and semantics ────────────────────────────────────────────
 
-  /// The side at rest, or null while the wave runs.
-  RenderBox? get _resting {
+  /// The side that takes touches: the one at rest; while the wave runs,
+  /// none — except the revealed side once a reveal no longer bends it, so
+  /// it answers while the colour lingers on the edges.
+  RenderBox? get _touchable {
     final p = _progress.value;
     if (p <= 0) return outgoing;
     if (p >= 1) return incoming;
-    return null;
+    if (!_revealing || _plain || !hasSize) return null;
+    final origin = _origin;
+    final frame = WaveFrame.at(
+      progress: p,
+      source: origin.rect,
+      size: size,
+      spec: _spec,
+      focus: origin.focus,
+    );
+    return frame.contentAtRest ? incoming : null;
   }
 
   @override
@@ -340,8 +351,7 @@ class RenderWaveStage extends RenderBox
 
   @override
   bool hitTestChildren(BoxHitTestResult result, {required Offset position}) {
-    // While the wave runs neither side takes a touch.
-    final side = _resting;
+    final side = _touchable;
     if (side == null) return false;
     return side.hitTest(result, position: position);
   }

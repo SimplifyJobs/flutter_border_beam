@@ -341,6 +341,96 @@ void main() {
     expect(origin.focus, const Offset(300, 720));
   });
 
+  testWidgets('once a reveal no longer bends it, the revealed side takes '
+      'touches while the colour lingers', (tester) async {
+    useWaveView(tester);
+    final taps = <String>[];
+    Widget build({bool revealed = false}) => waveHost(
+      wave(
+        revealed: revealed,
+        revealedChild: GestureDetector(
+          onTap: () => taps.add('in'),
+          child: flatSide(incomingColor, 'in'),
+        ),
+      ),
+    );
+    await tester.pumpWidget(build());
+    await tester.pumpWidget(build(revealed: true));
+    await tester.pump();
+    await tester.pump(seconds(vertical.anticipation + vertical.travel * 0.7));
+    expect(waveStage(tester).debugLastPhase, WavePhase.glowing);
+    expect(waveStage(tester).progress.value, lessThan(1));
+    await tester.tapAt(const Offset(195, 300));
+    expect(taps, ['in']);
+  });
+
+  testWidgets('a held wave opens from the anchor pressed last', (tester) async {
+    useWaveView(tester);
+    Widget screen() => Stack(
+      children: [
+        flatSide(outgoingColor, 'out'),
+        Positioned(
+          left: 40,
+          top: 700,
+          width: 300,
+          height: 60,
+          child: DistortionWaveAnchor(
+            child: GestureDetector(
+              onTap: () {},
+              child: const ColoredBox(color: Color(0xFF00FF00)),
+            ),
+          ),
+        ),
+      ],
+    );
+    await tester.pumpWidget(waveHost(wave(child: screen())));
+    await tester.tapAt(const Offset(100, 720));
+    await tester.pumpWidget(waveHost(wave(progress: 0.2, child: screen())));
+    final stage = waveStage(tester);
+    expect(
+      stage.source!.resolve(stage)!.rect,
+      const Rect.fromLTWH(40, 700, 300, 60),
+    );
+  });
+
+  testWidgets('letting go of a held wave plays on from where it was held', (
+    tester,
+  ) async {
+    useWaveView(tester);
+    var finished = 0;
+    await tester.pumpWidget(waveHost(wave(progress: 0.4)));
+    await tester.pumpWidget(
+      waveHost(wave(revealed: true, onFinish: () => finished++)),
+    );
+    expect(waveStage(tester).progress.value, 0.4, reason: 'no jump');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(waveStage(tester).progress.value, greaterThan(0.4));
+    await tester.pumpAndSettle();
+    expect(waveStage(tester).progress.value, 1);
+    expect(finished, 1);
+
+    await tester.pumpWidget(waveHost(wave(progress: 0.6)));
+    await tester.pumpWidget(waveHost(wave()));
+    expect(waveStage(tester).progress.value, 0.6, reason: 'no jump');
+    await tester.pumpAndSettle();
+    expect(waveStage(tester).progress.value, 0);
+  });
+
+  testWidgets('a controller collapses into the source it is given', (
+    tester,
+  ) async {
+    useWaveView(tester);
+    final controller = DistortionWaveController(revealed: true);
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(waveHost(wave(controller: controller)));
+    const back = WaveSource.rect(Rect.fromLTWH(10, 40, 60, 44));
+    controller.collapse(source: back);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(waveStage(tester).source, back);
+  });
+
   testWidgets('WaveSource.of measures the anchor and carries its touch', (
     tester,
   ) async {
