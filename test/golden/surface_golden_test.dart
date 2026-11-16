@@ -33,24 +33,16 @@ void main() {
     size: size,
   );
 
-  group('superellipse', () {
-    for (final effect in const [BeamEffect.rotate(), BeamEffect.spin()]) {
-      testWidgets(effect.name, (tester) async {
-        await captureGolden(
-          tester,
-          'surface_${effect.name}_squircle',
-          beam(
-            effect,
-            const BeamShape.all(28, superellipse: true),
-            surface: mockSurface(
-              Brightness.dark,
-              radius: 28,
-              superellipse: true,
-            ),
-          ),
-        );
-      });
-    }
+  testWidgets('superellipse', (tester) async {
+    await captureGolden(
+      tester,
+      'surface_rotate_squircle',
+      beam(
+        const BeamEffect.rotate(),
+        const BeamShape.all(28, superellipse: true),
+        surface: mockSurface(Brightness.dark, radius: 28, superellipse: true),
+      ),
+    );
   });
 
   testWidgets('per-corner radii', (tester) async {
@@ -85,9 +77,9 @@ void main() {
   testWidgets('stadium circle', (tester) async {
     await captureGolden(
       tester,
-      'surface_spin_stadium_circle',
+      'surface_pulse_stadium_circle',
       beam(
-        const BeamEffect.spin(),
+        const BeamEffect.pulse(),
         const BeamShape.stadium(),
         surface: mockSurface(Brightness.dark, radius: 60),
         size: const Size(120, 120),
@@ -114,7 +106,6 @@ void main() {
     final scenes = <String, (BeamEffect, BeamSegment)>{
       'rotate_bottom_half': (const BeamEffect.rotate(), BeamSegment.bottomHalf),
       'pulse_top_half': (const BeamEffect.pulse(), BeamSegment.topHalf),
-      'spin_right_edge': (const BeamEffect.spin(), BeamSegment.rightEdge),
       'rotate_hard_cut': (
         const BeamEffect.rotate(),
         const BeamSegment(
@@ -134,31 +125,14 @@ void main() {
         );
       });
     }
-
-    // A charge fills its segment, not the whole border.
-    testWidgets('charge in the bottom half', (tester) async {
-      await captureGolden(
-        tester,
-        'surface_segment_charge_bottom_half_0_6',
-        beam(
-          const BeamEffect.charge(),
-          const BeamShape(segment: BeamSegment.bottomHalf),
-          progress: 0.6,
-        ),
-      );
-    });
   });
 
-  group('dashes', () {
-    for (final effect in const [BeamEffect.spin(), BeamEffect.rotate()]) {
-      testWidgets(effect.name, (tester) async {
-        await captureGolden(
-          tester,
-          'surface_${effect.name}_dashes_12',
-          beam(effect, const BeamShape(dashes: 12)),
-        );
-      });
-    }
+  testWidgets('dashes', (tester) async {
+    await captureGolden(
+      tester,
+      'surface_rotate_dashes_12',
+      beam(const BeamEffect.rotate(), const BeamShape(dashes: 12)),
+    );
   });
 
   testWidgets('border width', (tester) async {

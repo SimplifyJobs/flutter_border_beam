@@ -18,12 +18,12 @@ git clone https://github.com/SimplifyJobs/flutter_border_beam.git
 cd flutter_border_beam
 flutter pub get
 
-# The demo gallery + interactive playground. It consumes the package by path,
-# so it picks up your edits with a hot reload — shader edits included.
+# The one-screen showcase. It consumes the package by path, so it picks up
+# your edits with a hot reload — shader edits included.
 cd example && flutter pub get && flutter run
 ```
 
-The gallery is also live at
+The showcase is also live at
 <https://simplifyjobs.github.io/flutter_border_beam/> — useful for comparing
 your build against `main`.
 
@@ -36,7 +36,7 @@ flutter test                                 # everything, goldens included
 flutter test --exclude-tags golden           # everything but goldens (non-macOS)
 flutter test --tags golden                   # goldens only (macOS)
 dart pub publish --dry-run                   # archive validation
-cd example && flutter analyze && flutter test # the gallery is a CI gate too
+cd example && flutter analyze                 # the example is a CI gate too
 ```
 
 `flutter analyze` must report **zero** issues, infos included. The lint set
@@ -78,7 +78,7 @@ nothing else: no `saveLayer`, no clip, no `ImageFilter`, no `MaskFilter`.
 `test/render/frame_budget_test.dart` records every effect across themes,
 palettes, shape families, options, and instants through a counting canvas and
 asserts exactly that. A new look is new shader maths or new data in
-`BeamEmission` — never a layer, a blur, or a second draw. If something truly
+`BeamFrameData` — never a layer, a blur, or a second draw. If something truly
 cannot be expressed that way, open an issue before writing it.
 
 ### The uniform contract
@@ -111,7 +111,7 @@ Two pieces of shader maths also run in Dart, and must match exactly:
   shape it jumps across the medial axis and shows a seam.
 - Emitters are **pure** (a function of config, phases, outline, and colours)
   and **allocation-free per frame**: they write into the renderer's reused
-  `BeamEmission`, and anything that depends only on the outline is cached per
+  `BeamFrameData`, and anything that depends only on the outline is cached per
   outline.
 
 ## Where things go
@@ -140,8 +140,8 @@ effect goes on that effect's class instead (`BeamEffect.rotate(length:)`).
 **Adding a palette** — a `const BeamPalette` in
 `lib/src/models/beam_presets.dart` (at most 8 stops, ascending, in `[0, 1)`),
 exposed as a `static const BeamColors` on `BeamColors` and added to
-`BeamColors.presets`, plus a palette golden and a playground entry
-(`example/lib/src/playground/`). Presets are design data: edit freely, and
+`BeamColors.presets`, plus a palette golden (the example's swatch row picks
+it up from `BeamColors.presets`). Presets are design data: edit freely, and
 check the result on both dark and light surfaces.
 
 Anything public also needs a doc comment, a `CHANGELOG.md` entry, and a README

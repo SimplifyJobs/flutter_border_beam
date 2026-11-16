@@ -51,7 +51,7 @@ void main() {
       expect(config.hueBase, 40, reason: 'the theme fills the rest');
     });
 
-    testWidgets('a null shorthand leaves style.colors in charge', (
+    testWidgets('a null shorthand leaves style.colors in control', (
       tester,
     ) async {
       await tester.pumpWidget(

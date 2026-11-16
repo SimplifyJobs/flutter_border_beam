@@ -28,7 +28,7 @@ Ticker ─► BeamClock ─► BeamPhaseResolver ─► effect emitter ─► Be
 
 The look is the reference design's own construction, evaluated per pixel. A beam is up to three layers, composited bottom to top:
 
-| Layer | rotate / line / pulse / spin / shimmer / charge | halo |
+| Layer | rotate / line / pulse | halo |
 | --- | --- | --- |
 | 0 | the inner glow | the wide bloom wash |
 | 1 | the 1px stroke | the 1px stroke |
@@ -37,10 +37,10 @@ The look is the reference design's own construction, evaluated per pixel. A beam
 A layer is:
 
 - **A stack of blobs** — soft radial ellipses, each with a centre, two radii, a straight colour, and a piecewise-linear alpha falloff (`a0` at the centre through two mid stops to 0 at the rim). They composite premultiplied source-over in painting order, each over the ones before. A blob is placed in the plane, or in **path space** (arc length along the outline × depth in), where a streak bends around a corner with the border.
-- **An overlay** — a conic table drawn in white or black under the blobs (the travelling beam's head highlight, the bloom band) or, for the colour-ring effects, over them.
+- **An overlay** — a conic table drawn in white or black under the blobs: the travelling beam's head highlight, the bloom band.
 - **An inset shadow** — solid to a depth inside the outline, then blurred.
 - **A geometry** — the 1px **ring** just inside the outline (anti-aliased over one device pixel, which is what keeps it a hairline), the **filled** shape, a **blurred ring** clipped to the shape, the space **outside** the shape (a glow behind the child), or a **fading glow** outside it.
-- **A window** — a **conic** table (rotating with the beam: `tw = fract(angle − start)`, repeated `count` times round the turn), a **radial** ellipse riding an edge, or a **linear** band sweeping across the box.
+- **A window** — a **conic** table (rotating with the beam: `tw = fract(angle − start)`, repeated `count` times round the turn) or a **radial** ellipse riding an edge.
 - **An edge fade** — opaque at the edge, transparent 28 px in (the two axes screened), or by depth in path space.
 - **A colour filter** — CSS `hue-rotate → brightness → saturate` as a 3 × 3 matrix. The renderer folds it into each colour of the layer on the CPU, before compositing, which keeps overlapping colours saturated; the halo's glows instead filter their composite in the shader, as their design does.
 - **An opacity** — the family preset × fade × strength × the mono halving × `glow`, clamped to 1.
@@ -110,7 +110,7 @@ That is 672 floats, `beamUniformFloats` — inside the GLES budget. `test/render
 
 | File | Contents |
 | --- | --- |
-| `lib/flutter_border_beam.dart` | The barrel. It exports `BorderBeam`, `BorderBeamController`, `BorderBeamTheme` / `BorderBeamThemeData`, `BeamSync`, `BeamEffect` and its eight subclasses, `BeamColors` / `BeamSeedHarmony`, the option types (`BeamDirection`, `BeamEdge`, `BeamHueMode`, `BeamReducedMotion`, `BeamRepeat`), `BeamAnchor` / `BeamCorner` / `BeamSegment`, `BeamTheme`, the four value objects, and the four widgets. Nothing under `render/` is public. |
+| `lib/flutter_border_beam.dart` | The barrel. It exports `BorderBeam`, `BorderBeamController`, `BorderBeamTheme` / `BorderBeamThemeData`, `BeamSync`, `BeamEffect` and its four subclasses, `BeamColors` / `BeamSeedHarmony`, the option types (`BeamDirection`, `BeamEdge`, `BeamHueMode`, `BeamReducedMotion`, `BeamRepeat`), `BeamAnchor` / `BeamCorner` / `BeamSegment`, `BeamTheme`, the four value objects, and the four widgets. Nothing under `render/` is public. |
 | `lib/src/border_beam.dart` | The widget: `BorderBeam` and `BorderBeam.overlay`, the three shorthands (`colors`, `active`, `borderRadius`), the driven inputs (`progress`, `follow`, `strengthListenable`, `speedListenable`), `BorderBeam.precache()`, and all scheduling and lifecycle. A controller attached ⇒ it owns playback. |
 | `lib/src/border_beam_controller.dart` | `BorderBeamController`, a `ChangeNotifier` over one clock. |
 | `lib/src/border_beam_theme.dart` | `BorderBeamTheme` (an `InheritedWidget`) and `BorderBeamThemeData`, with an `effect` slot and one per value object. `of` walks every enclosing scope, depends on each, and merges them outside-in. |
@@ -120,7 +120,7 @@ That is 672 floats, `beamUniformFloats` — inside the GLES budget. `test/render
 
 | File | Contents |
 | --- | --- |
-| `beam_effect.dart` | The sealed `BeamEffect` and its eight `final` subclasses. Each knows its name, whether it travels, and its default cycle, cycle gap, hue mode, and hue period. Value-equal. |
+| `beam_effect.dart` | The sealed `BeamEffect` and its four `final` subclasses. Each knows its name, whether it travels, and its default cycle, cycle gap, hue mode, and hue period. Value-equal. |
 | `effect_emitters.dart` | `emitEffect` and one private emitter per effect; `BeamFrame` (what an emitter reads); `applyTrack` / `segmentTrack` (the visible track); `conicFraction` (the conic angle of a point, shared with `follow`). |
 
 ### `lib/src/look/`
@@ -164,7 +164,7 @@ The four public value objects (`beam_style.dart`, `beam_shape.dart`, `beam_timin
 
 ## Invariants
 
-**One draw per lit frame, and nothing that forces an offscreen pass.** A frame issues exactly one `drawRect` or `drawDRRect` with the beam shader — or none, when the fade, a cycle gap, or an empty charge leaves no layer lit — and no `saveLayer`, no clip, no `ImageFilter`, no `MaskFilter`, with saves and restores balanced. `test/render/frame_budget_test.dart` asserts this for every effect × theme × palette subset × shape family × several instants, plus effect options and driven progress. A blur in the design becomes analytic maths in the shader, never a layer.
+**One draw per lit frame, and nothing that forces an offscreen pass.** A frame issues exactly one `drawRect` or `drawDRRect` with the beam shader — or none, when the fade or a cycle gap leaves no layer lit — and no `saveLayer`, no clip, no `ImageFilter`, no `MaskFilter`, with saves and restores balanced. `test/render/frame_budget_test.dart` asserts this for every effect × theme × palette subset × shape family × several instants, plus effect options and driven progress. A blur in the design becomes analytic maths in the shader, never a layer.
 
 **The uniform contract moves as one.** The shader's uniform block and `beam_frame.dart`'s offsets and slot counts change in the same commit (see above).
 

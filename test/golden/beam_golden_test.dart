@@ -18,13 +18,10 @@ void main() {
   setUpAll(BorderBeam.precache);
 
   // Where the second capture of each travelling effect lands: late in a
-  // rotate's turn and a line's sweep, halfway through a shimmer's second
-  // sweep (its first is leaving the box at 1.3s), and a charge nearly full.
+  // rotate's turn and a line's sweep.
   const late = {
     'rotate': Duration(milliseconds: 2000),
     'line': Duration(milliseconds: 2000),
-    'shimmer': Duration(milliseconds: 3700),
-    'charge': Duration(milliseconds: 2200),
   };
 
   BeamTheme themeFor(Brightness b) =>
@@ -135,15 +132,6 @@ void main() {
           style: const BeamStyle(glow: 2),
         ),
       ),
-    );
-  });
-
-  testWidgets('shimmer dark steep', (tester) async {
-    await captureGolden(
-      tester,
-      'shimmer_dark_angle_60',
-      goldenScene(beam(const BeamEffect.shimmer(angle: 60), Brightness.dark)),
-      freeze: late['shimmer']!,
     );
   });
 }

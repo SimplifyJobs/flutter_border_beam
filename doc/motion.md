@@ -12,7 +12,7 @@ The clock ticks on every frame the engine produces. Nothing is capped, so a beam
 
 ## Cycle and retiming
 
-`cycle` is one sweep of a travelling effect, one breath of `pulse` and `halo`, one turn of `spin`, and half a turn of `flow`'s colours. Each effect has its own default — see [effects](effects.md#defaults).
+`cycle` is one sweep of a travelling effect and one breath of `pulse` and `halo`. Each effect has its own default — see [effects](effects.md#defaults).
 
 Changing `cycle` on a live beam **retimes it in place**: the travel keeps the position it was at, so the beam speeds up or slows down instead of jumping to the new cycle's start.
 
@@ -42,7 +42,7 @@ BorderBeam(
 
 The sweep still takes `cycle`; the gap is added after it. The beam fades out and back in over `min(0.25s, gap / 2)` at each end of the rest, so it reads as breathing rather than blinking off. The hue drift keeps running through the gap.
 
-`shimmer` (1.6s) and `charge` (0.6s) rest by default; the other travelling effects do not. Changing the gap needs no retime: the current sweep keeps its position and the rest appears at the next cycle end. Ambient effects ignore it — their motion has no cycle boundary to rest at.
+No effect rests by default. Changing the gap needs no retime: the current sweep keeps its position and the rest appears at the next cycle end. Ambient effects ignore it — their motion has no cycle boundary to rest at.
 
 ## Direction, offset, and count
 
@@ -57,8 +57,8 @@ BorderBeam(
 );
 ```
 
-- **`direction`** — `forward` (clockwise; reading order for `line`), `reverse` (the mirror), or `bounce` (alternating each cycle). It applies to the travelling effects; `flow` and `spin` also stream counter-clockwise under `reverse`.
-- **`phaseOffset`** — the fraction of a cycle, 0–1, the timeline starts at. Two beams on the same cycle with different offsets run out of step — a travelling beam sits further along its sweep, an ambient one breathes or streams out of phase.
+- **`direction`** — `forward` (clockwise; reading order for `line`), `reverse` (the mirror), or `bounce` (alternating each cycle). It applies to the travelling effects; `pulse` and `halo` have no direction.
+- **`phaseOffset`** — the fraction of a cycle, 0–1, the timeline starts at. Two beams on the same cycle with different offsets run out of step — a travelling beam sits further along its sweep, an ambient one breathes out of phase.
 - **`BeamEffect.rotate(count:)`** — how many beams lap the border at once, 1–4, spaced evenly. They share one clock and one draw, so the count costs nothing extra.
 
 `count` with `bounce` is worth trying on a wide card: the beams meet and part rather than chasing each other.
@@ -90,9 +90,9 @@ The hue is a separate track from the travel, on its own period (`huePeriod`):
 | --- | --- | --- |
 | `pingPong` | Swings ±`hueShift` degrees (30 by default) and back, eased at each end. | `rotate` (12s), `line` (8s) |
 | `continuous` | Turns a full 360° per period, never reversing. | `pulse` (16s), `halo` (14s) |
-| `none` | No drift. | `flow`, `spin`, `shimmer`, `charge` |
+| `none` | No drift. | — (`mono` and `gold` force it) |
 
-Any effect accepts any mode: `continuous` on `rotate` turns a subtle shimmer into a full rainbow, and `pingPong` on `pulse` calms it. `mono` and `gold` never drift. `hueBase` shifts the whole palette by a fixed number of degrees, independent of the drift.
+Any effect accepts any mode: `continuous` on `rotate` turns a subtle swing into a full rainbow, and `pingPong` on `pulse` calms it. `mono` and `gold` never drift. `hueBase` shifts the whole palette by a fixed number of degrees, independent of the drift.
 
 Changing `huePeriod` mid-run re-phases the drift: the colours jump once to where the new period puts them, then continue smoothly.
 
@@ -131,10 +131,10 @@ Two inputs take the travel off the clock without stopping the clock.
 ### `progress`
 
 ```dart
-BorderBeam(effect: const BeamEffect.charge(), progress: received / total, child: card);
+BorderBeam(progress: received / total, child: card);
 ```
 
-The travel sits where the value says: `charge` fills to it, `rotate` becomes a glowing progress ring, `line` a progress bar, `shimmer` a band held at that point. A driven value maps linearly — no easing — and keeps the beam fully lit. The clock keeps running underneath, so the fade, the hue drift, and `line`'s spikes stay alive. Changing it repaints without re-resolving the configuration, so driving it from an `AnimationController` every frame is cheap.
+The travel sits where the value says: `rotate` becomes a glowing progress ring, `line` a progress bar. A driven value maps linearly — no easing — and keeps the beam fully lit. The clock keeps running underneath, so the fade, the hue drift, and `line`'s spikes stay alive. Changing it repaints without re-resolving the configuration, so driving it from an `AnimationController` every frame is cheap.
 
 ### `follow`
 
@@ -161,7 +161,7 @@ Widget build(BuildContext context) {
 }
 ```
 
-The travel leaves its schedule and eases toward the given normalized point — critically damped, about 150ms, so a jittery pointer is smoothed without a lag you can feel. `rotate` and `charge` go to the border point nearest it, the shortest way round; `line` follows the coordinate along its edge; `shimmer` moves its band to it. Setting it back to null hands the travel back to the clock from wherever it is, without a snap.
+The travel leaves its schedule and eases toward the given normalized point — critically damped, about 150ms, so a jittery pointer is smoothed without a lag you can feel. `rotate` turns its head toward it, the shortest way round (on a segment, to the border point nearest it); `line` follows the coordinate along its edge. Setting it back to null hands the travel back to the clock from wherever it is, without a snap.
 
 `progress` wins over `follow`, and the ambient effects ignore both. `BeamHover` is this wired up for you.
 

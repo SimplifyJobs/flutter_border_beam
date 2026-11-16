@@ -53,21 +53,12 @@ design data rather than transcriptions.
 
 - `BeamEffect`, a sealed value type chosen with `effect:` on `BorderBeam`,
   `BorderBeam.overlay`, `BeamDecoration`, `BeamFocusRing`, `BeamHover`, and
-  `BeamPress`, and as a default with `BorderBeamThemeData.effect`. Eight
+  `BeamPress`, and as a default with `BorderBeamThemeData.effect`. Four
   effects:
   - `BeamEffect.rotate({length, count, comet})` — a beam laps the border.
   - `BeamEffect.line({edge})` — a streak rides one edge with spikes of light.
   - `BeamEffect.pulse()` — colour breathes inward from the border.
   - `BeamEffect.halo()` — light breathes outward around the widget.
-  - **New:** `BeamEffect.flow()` — colours stream round the border with an
-    inner glow that swells and ebbs.
-  - **New:** `BeamEffect.spin()` — a full gradient ring spins around the
-    border.
-  - **New:** `BeamEffect.shimmer({angle})` — a glint sweeps across, then
-    rests.
-  - **New:** `BeamEffect.charge()` — the border fills clockwise with a hot
-    leading edge; drive it with `BorderBeam.progress` for determinate
-    progress.
 - `BeamEffect.values`, and per effect `travels`, `defaultCycle`,
   `defaultCycleGap`, `defaultHueMode`, and `defaultHuePeriod`.
 
@@ -141,8 +132,9 @@ design data rather than transcriptions.
   gone.
 - **Superellipse corners** are computed in the shader, from a p-norm curve
   fitted to Flutter's `RSuperellipse`.
-- **`BeamFocusRing`** defaults to `BeamEffect.spin()` (was `small`);
-  **`BeamPress`** defaults to `BeamEffect.pulse()` (was `pulseInside`).
+- **`BeamFocusRing`** defaults to `BeamEffect.rotate()` (was `small`, whose
+  compact look `rotate` takes on small controls); **`BeamPress`** defaults to
+  `BeamEffect.pulse()` (was `pulseInside`).
 
 ### Removed
 

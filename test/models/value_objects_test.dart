@@ -533,7 +533,7 @@ void main() {
       expect(data, isNot(const BorderBeamThemeData()));
       expect(
         const BorderBeamThemeData(effect: BeamEffect.halo()),
-        isNot(const BorderBeamThemeData(effect: BeamEffect.flow())),
+        isNot(const BorderBeamThemeData(effect: BeamEffect.pulse())),
       );
     });
   });

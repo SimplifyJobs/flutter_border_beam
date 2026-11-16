@@ -157,7 +157,7 @@ void main() {
   ) async {
     await tester.pumpWidget(
       beamHost(
-        TickerMode(enabled: false, child: beam(const BeamEffect.flow())),
+        TickerMode(enabled: false, child: beam(const BeamEffect.pulse())),
       ),
     );
     await tester.pump(const Duration(milliseconds: 300));

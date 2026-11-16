@@ -202,18 +202,6 @@ void main() {
       expect(r.sample(2.1, 0.5).fadeOpacity, closeTo(full * 0.5, 1e-12));
     });
 
-    test('shimmer and charge rest by default', () {
-      for (final effect in const [BeamEffect.shimmer(), BeamEffect.charge()]) {
-        final r = _resolver(effect: effect, cycleGap: null);
-        final cycle = r.config.cycleSeconds;
-        final rest = r.config.gapSeconds;
-        expect(rest, greaterThan(0));
-        final mid = r.sample(cycle + rest / 2, 1);
-        expect(mid.fadeOpacity, closeTo(0, 1e-9), reason: effect.name);
-        expect(mid.travelProgress, 1, reason: effect.name);
-      }
-    });
-
     test('ambient effects never rest', () {
       for (final effect in ambient) {
         final r = _resolver(effect: effect, cycleGap: gap);

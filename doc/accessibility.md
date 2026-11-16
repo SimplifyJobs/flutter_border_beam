@@ -76,6 +76,6 @@ Because it only flips `BorderBeam`'s `active`, focus arrives and leaves on the b
 The beam paints around content and only a short way into it, so it does not change text contrast directly. Two things still deserve a look:
 
 - **A bright beam next to small text** raises the luminance around it and can make a thin label feel lower-contrast than it measures. `style.strength` is the dial; 0.6–0.8 often sits better on dense UI than the full 1.0.
-- **Inward glows** (`pulse`, `flow`, `line`'s spikes) reach into the child. Keep important content clear of the border by the child's own padding, or turn the reach down with `style.glow`.
+- **Inward glows** (`pulse`, `line`'s spikes) reach into the child. Keep important content clear of the border by the child's own padding, or turn the reach down with `style.glow`.
 
 For anyone sensitive to flicker, the relevant settings are the same: prefer longer cycles, and honour reduced motion with `staticFrame` or `hide`. At the default timings nothing in the package repeats faster than about once a second, but a very short `cycle` combined with `BorderBeamController.flash()` can, so treat sub-second cycles as a deliberate choice.

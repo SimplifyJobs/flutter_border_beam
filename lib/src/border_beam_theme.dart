@@ -91,7 +91,7 @@ class BorderBeamThemeData {
 /// ```dart
 /// BorderBeamTheme(
 ///   data: const BorderBeamThemeData(
-///     effect: BeamEffect.flow(),
+///     effect: BeamEffect.pulse(),
 ///     style: BeamStyle(colors: BeamColors.ocean),
 ///     shape: BeamShape.all(20, superellipse: true),
 ///   ),

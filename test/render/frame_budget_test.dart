@@ -27,12 +27,11 @@ void main() {
     );
   });
 
-  // Mid-sweep, the golden instant, late in a gap-carrying period, and several
-  // cycles in.
+  // Early, the golden instant, late in a sweep, and several cycles in.
   const instants = [0.3, 1.3, 2.05, 7.9];
 
   // Whether the frame had light to draw: the fade and strength let some
-  // through, and the effect lit a layer (an empty charge lights none).
+  // through, and the effect lit a layer.
   bool litFrame(BeamRenderer renderer, BeamConfig config, double fade) {
     if (fade * config.strength <= 0) return false;
     final d = renderer.debugFrame;
@@ -130,7 +129,6 @@ void main() {
       'rotate long tail': const BeamEffect.rotate(length: 2),
       'line top': const BeamEffect.line(edge: BeamEdge.top),
       'line left': const BeamEffect.line(edge: BeamEdge.left),
-      'shimmer 75°': const BeamEffect.shimmer(angle: 75),
     };
     final renderer = BeamRenderer();
     addTearDown(renderer.dispose);
@@ -148,6 +146,40 @@ void main() {
           );
         }
       }
+    }
+  });
+
+  test('a cycle gap keeps the budget, and its rest draws nothing', () {
+    final renderer = BeamRenderer();
+    addTearDown(renderer.dispose);
+    const gap = Duration(seconds: 1);
+    for (final effect in BeamEffect.values.where((e) => e.travels)) {
+      final config = configFor(effect, timing: const BeamTiming(cycleGap: gap));
+      final cycle = config.cycleSeconds;
+      final rest = config.gapSeconds;
+      // Mid-sweep, easing out, mid-rest, and easing back in.
+      for (final t in [
+        cycle / 2,
+        cycle + rest * 0.1,
+        cycle + rest / 2,
+        cycle + rest * 0.9,
+      ]) {
+        final phases = phasesAt(config, t);
+        final canvas = recordFrame(renderer, config, phases);
+        expectBudget(
+          canvas,
+          config,
+          phases.fadeOpacity,
+          '${effect.name} with a gap at ${t}s',
+          lit: litFrame(renderer, config, phases.fadeOpacity),
+        );
+      }
+      final resting = phasesAt(config, cycle + rest / 2);
+      expect(
+        recordFrame(renderer, config, resting).draws,
+        isEmpty,
+        reason: '${effect.name}: mid-rest',
+      );
     }
   });
 

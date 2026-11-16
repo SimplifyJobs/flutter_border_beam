@@ -145,8 +145,7 @@ BorderBeam(
 
 - **`rotate`** travels the segment: in forward travel it appears at the start and moves clockwise to the end, then begins again.
 - **`line`** rides the segment instead of its `edge`, in border space — `bottomEdge` carries the streak around both bottom corners; `bottomHalf` takes it down the right side, along the bottom, and up the left.
-- **`charge`** fills the segment from its start (from its end under `reverse`).
-- **`shimmer`** and the ambient effects light only the part of the border inside the segment, and their inner glows fade near its ends.
+- **`pulse`** and **`halo`** light only the part of the border inside the segment, and their glows fade near its ends.
 
 `BeamTiming.direction` changes which way a traveller crosses the segment, not which span the segment selects. Stack a forward beam and a `reverse` one on the same segment for two arcs sweeping toward each other. `ringOffset` moves the outline before positions are measured, so a segment follows an offset ring.
 
@@ -156,13 +155,12 @@ BorderBeam(
 
 ```dart
 BorderBeam(
-  effect: const BeamEffect.spin(),
   shape: const BeamShape.all(16, dashes: 12),
   child: badge,
 );
 ```
 
-Dashes combine with segments and with every effect; `spin` with dashes reads as a marching ring.
+Dashes combine with segments and with every effect.
 
 ## Light outside the bounds
 

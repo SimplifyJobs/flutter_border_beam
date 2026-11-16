@@ -77,8 +77,8 @@ BeamConfig configFor(
 
 /// An instant at which [effect] (with default timing) is fully faded in and
 /// lit: halfway through its second sweep for a travelling effect, the golden
-/// 1.3s for an ambient one. A fixed instant would catch a shimmer as its
-/// glint leaves the box, or a charge resting in its gap.
+/// 1.3s for an ambient one. Measured from the effect's own cycle and gap, so
+/// a travelling effect is never caught resting between sweeps.
 double litSeconds(BeamEffect effect) {
   if (!effect.travels) return 1.3;
   double s(Duration d) => d.inMicroseconds / Duration.microsecondsPerSecond;

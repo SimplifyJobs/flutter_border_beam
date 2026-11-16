@@ -73,16 +73,6 @@ void main() {
         expect(config.hueMode, BeamHueMode.continuous);
       });
     }
-
-    test('an explicit zero gap overrides a resting default', () {
-      const shimmer = BeamEffect.shimmer();
-      expect(shimmer.defaultCycleGap, greaterThan(Duration.zero));
-      final config = _resolve(
-        effect: shimmer,
-        timing: const BeamTiming(cycleGap: Duration.zero),
-      );
-      expect(config.gapSeconds, 0);
-    });
   });
 
   group('hue', () {

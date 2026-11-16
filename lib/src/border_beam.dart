@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -28,8 +27,7 @@ import 'render/beam_renderer.dart';
 /// An animated glow around [child]'s border.
 ///
 /// Pick what the light does with [effect] — a travelling beam, a streak on
-/// one edge, a breathing pulse or halo, colours flowing round the border, a
-/// spinning gradient ring, a shimmer, or a charge-up:
+/// one edge, or a breathing pulse or halo:
 ///
 /// ```dart
 /// BorderBeam(
@@ -192,11 +190,10 @@ class BorderBeam extends StatefulWidget {
   /// Drives the beam's travel from a value instead of the clock, 0–1.
   ///
   /// The sweep sits where this says rather than running with time, which
-  /// turns the travelling effects into readouts: [BeamEffect.charge] fills
-  /// the border to it, [BeamEffect.rotate] becomes a glowing progress ring,
-  /// [BeamEffect.line] a progress bar. The clock keeps running underneath —
-  /// the fade, the hue drift, and the line's spikes are all still alive, so
-  /// the beam looks lit rather than frozen.
+  /// turns the travelling effects into readouts: [BeamEffect.rotate] becomes
+  /// a glowing progress ring, [BeamEffect.line] a progress bar. The clock
+  /// keeps running underneath — the fade, the hue drift, and the line's
+  /// spikes are all still alive, so the beam looks lit rather than frozen.
   ///
   /// Changing it repaints without re-resolving the beam's configuration, so
   /// it is cheap to drive from an animation. Null hands the travel back to
@@ -912,22 +909,20 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     final size = box.size;
     final point = Offset(follow.dx * size.width, follow.dy * size.height);
     switch (config.effect) {
-      case RotateEffect() || ChargeEffect():
+      case RotateEffect():
         final rect = (Offset.zero & size).inflate(config.ringOffset);
         final outline = BeamOutline(
           rect,
           config.borderRadius,
           superellipse: config.superellipse,
         );
-        final u = outline.nearestFraction(point);
         final segment = config.segment?.resolve(outline);
         if (segment == null) {
           // A rotating beam sweeps around the centre: its travel is the
-          // pointer's angle. A charge fills the border by length.
-          return config.effect is RotateEffect
-              ? conicFraction(point, rect.center)
-              : u;
+          // pointer's angle.
+          return conicFraction(point, rect.center);
         }
+        final u = outline.nearestFraction(point);
         final span = BeamOutline.wrapFraction(segment.to - segment.from);
         if (span <= 0) return u;
         final along = BeamOutline.wrapFraction(u - segment.from);
@@ -939,14 +934,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
           BeamEdge.top || BeamEdge.bottom => follow.dx,
           BeamEdge.left || BeamEdge.right => follow.dy,
         }.clamp(0.0, 1.0);
-      case ShimmerEffect(:final angle):
-        final a = angle * math.pi / 180;
-        final dx = math.cos(a);
-        final dy = math.sin(a);
-        final extent = (dx.abs() + dy.abs()) / 2 + 0.16;
-        final x = (follow.dx - 0.5) * dx + (follow.dy - 0.5) * dy + 0.5;
-        return ((x - (0.5 - extent)) / (2 * extent)).clamp(0.0, 1.0);
-      case PulseEffect() || HaloEffect() || FlowEffect() || SpinEffect():
+      case PulseEffect() || HaloEffect():
         // Ambient light has no travel to steer.
         return null;
     }

@@ -33,19 +33,9 @@ BeamFramePhases _now(WidgetTester tester) {
   return painter.resolver.sample(painter.clock.elapsedSeconds, 1);
 }
 
-const _travelling = <BeamEffect>[
-  BeamEffect.rotate(),
-  BeamEffect.line(),
-  BeamEffect.shimmer(),
-  BeamEffect.charge(),
-];
+const _travelling = <BeamEffect>[BeamEffect.rotate(), BeamEffect.line()];
 
-const _ambient = <BeamEffect>[
-  BeamEffect.pulse(),
-  BeamEffect.halo(),
-  BeamEffect.flow(),
-  BeamEffect.spin(),
-];
+const _ambient = <BeamEffect>[BeamEffect.pulse(), BeamEffect.halo()];
 
 /// `BeamTiming.cycleGap` rests a travelling effect between sweeps: the sweep
 /// still takes `cycle`, then the beam parks at the end of its travel while
@@ -187,39 +177,6 @@ void main() {
   });
 
   group('defaults', () {
-    for (final (effect, gap) in const [
-      (BeamEffect.shimmer(), 1.6),
-      (BeamEffect.charge(), 0.6),
-    ]) {
-      testWidgets('${effect.name} rests by default', (tester) async {
-        await tester.pumpWidget(
-          _host(BorderBeam(effect: effect, child: const SizedBox.expand())),
-        );
-        final config = _painter(tester).config;
-        expect(config.gapSeconds, closeTo(gap, 1e-9));
-        final resting = _at(tester, config.cycleSeconds + gap / 2);
-        expect(resting.fadeOpacity, 0);
-        expect(resting.travelProgress, 1);
-      });
-
-      testWidgets('an explicit zero gap removes the ${effect.name} rest', (
-        tester,
-      ) async {
-        await tester.pumpWidget(
-          _host(
-            BorderBeam(
-              effect: effect,
-              timing: const BeamTiming(cycleGap: Duration.zero),
-              child: const SizedBox.expand(),
-            ),
-          ),
-        );
-        final config = _painter(tester).config;
-        expect(config.gapSeconds, 0);
-        expect(_at(tester, config.cycleSeconds * 1.5).fadeOpacity, 1);
-      });
-    }
-
     for (final effect in const [BeamEffect.rotate(), BeamEffect.line()]) {
       testWidgets('${effect.name} runs without a rest by default', (
         tester,

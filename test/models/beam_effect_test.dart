@@ -1,38 +1,34 @@
 import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// `BeamEffect` is the sealed "what the beam does" value: eight effects in
+/// `BeamEffect` is the sealed "what the beam does" value: four effects in
 /// two families, each carrying its own defaults, and the parameterised ones
 /// compare by value so a rebuilt-inline effect never re-resolves a config.
 void main() {
-  const travelling = {'rotate', 'line', 'shimmer', 'charge'};
-  const ambient = {'pulse', 'halo', 'flow', 'spin'};
+  const travelling = {'rotate', 'line'};
+  const ambient = {'pulse', 'halo'};
 
   group('values', () {
-    test('lists all eight effects in gallery order', () {
+    test('lists all four effects in gallery order', () {
       expect(BeamEffect.values.map((e) => e.name), [
         'rotate',
         'line',
         'pulse',
         'halo',
-        'flow',
-        'spin',
-        'shimmer',
-        'charge',
       ]);
     });
 
     test('every entry is a distinct effect with a distinct name', () {
-      expect(BeamEffect.values.map((e) => e.name).toSet(), hasLength(8));
-      expect(BeamEffect.values.map((e) => e.runtimeType).toSet(), hasLength(8));
-      expect(BeamEffect.values.toSet(), hasLength(8));
+      expect(BeamEffect.values.map((e) => e.name).toSet(), hasLength(4));
+      expect(BeamEffect.values.map((e) => e.runtimeType).toSet(), hasLength(4));
+      expect(BeamEffect.values.toSet(), hasLength(4));
     });
 
     test('carries each effect with its default parameters', () {
       expect(BeamEffect.values, contains(const BeamEffect.rotate()));
       expect(BeamEffect.values, contains(const BeamEffect.line()));
-      expect(BeamEffect.values, contains(const BeamEffect.shimmer()));
-      expect(BeamEffect.values, contains(const BeamEffect.charge()));
+      expect(BeamEffect.values, contains(const BeamEffect.pulse()));
+      expect(BeamEffect.values, contains(const BeamEffect.halo()));
     });
   });
 
@@ -45,7 +41,7 @@ void main() {
     }
 
     test('the two families partition the effects', () {
-      expect({...travelling, ...ambient}, hasLength(8));
+      expect({...travelling, ...ambient}, hasLength(4));
       expect(
         BeamEffect.values.where((e) => e.travels).map((e) => e.name).toSet(),
         travelling,
@@ -55,7 +51,6 @@ void main() {
     test('parameters do not change the family', () {
       expect(const BeamEffect.rotate(count: 3, comet: true).travels, isTrue);
       expect(const BeamEffect.line(edge: BeamEdge.top).travels, isTrue);
-      expect(const BeamEffect.shimmer(angle: 45).travels, isTrue);
     });
   });
 
@@ -68,15 +63,10 @@ void main() {
       });
     }
 
-    test('shimmer and charge rest between sweeps by default', () {
-      expect(
-        const BeamEffect.shimmer().defaultCycleGap,
-        greaterThan(Duration.zero),
-      );
-      expect(
-        const BeamEffect.charge().defaultCycleGap,
-        greaterThan(Duration.zero),
-      );
+    test('no effect rests between sweeps by default', () {
+      for (final effect in BeamEffect.values) {
+        expect(effect.defaultCycleGap, Duration.zero, reason: effect.name);
+      }
     });
 
     test('parameters do not change the defaults', () {
@@ -86,10 +76,12 @@ void main() {
       expect(b.defaultCycleGap, a.defaultCycleGap);
       expect(b.defaultHueMode, a.defaultHueMode);
       expect(b.defaultHuePeriod, a.defaultHuePeriod);
-      expect(
-        const BeamEffect.shimmer(angle: 70).defaultCycleGap,
-        const BeamEffect.shimmer().defaultCycleGap,
-      );
+      const c = BeamEffect.line();
+      const d = BeamEffect.line(edge: BeamEdge.left);
+      expect(d.defaultCycle, c.defaultCycle);
+      expect(d.defaultCycleGap, c.defaultCycleGap);
+      expect(d.defaultHueMode, c.defaultHueMode);
+      expect(d.defaultHuePeriod, c.defaultHuePeriod);
     });
 
     test('rotate defaults to one plain beam of unit length', () {
@@ -113,12 +105,8 @@ void main() {
           RotateEffect(length: 1.5, count: 2, comet: true),
         ),
         (BeamEffect.line(edge: BeamEdge.left), LineEffect(edge: BeamEdge.left)),
-        (BeamEffect.shimmer(angle: 30), ShimmerEffect(angle: 30)),
         (BeamEffect.pulse(), PulseEffect()),
         (BeamEffect.halo(), HaloEffect()),
-        (BeamEffect.flow(), FlowEffect()),
-        (BeamEffect.spin(), SpinEffect()),
-        (BeamEffect.charge(), ChargeEffect()),
       ];
       for (final (a, b) in pairs) {
         expect(a, b);
@@ -139,10 +127,6 @@ void main() {
       expect(
         const BeamEffect.line(edge: BeamEdge.top),
         isNot(const BeamEffect.line()),
-      );
-      expect(
-        const BeamEffect.shimmer(angle: 0),
-        isNot(const BeamEffect.shimmer(angle: 45)),
       );
     });
 
@@ -167,20 +151,10 @@ void main() {
         const BeamEffect.line(edge: BeamEdge.top).toString(),
         'BeamEffect.line(edge: top)',
       );
-      expect(
-        const BeamEffect.shimmer(angle: 35).toString(),
-        'BeamEffect.shimmer(angle: 35.0)',
-      );
     });
 
     test('a parameterless effect prints empty parentheses', () {
-      for (final effect in const [
-        BeamEffect.pulse(),
-        BeamEffect.halo(),
-        BeamEffect.flow(),
-        BeamEffect.spin(),
-        BeamEffect.charge(),
-      ]) {
+      for (final effect in const [BeamEffect.pulse(), BeamEffect.halo()]) {
         expect(effect.toString(), 'BeamEffect.${effect.name}()');
       }
     });

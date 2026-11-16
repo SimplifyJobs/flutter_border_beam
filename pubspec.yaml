@@ -1,6 +1,6 @@
 name: flutter_border_beam
 description: >-
-  Animated light around any widget's border: eight effects drawn by a single-pass
+  Animated light around any widget's border: four effects drawn by a single-pass
   fragment shader at the display rate, 19 palettes, squircle corners, and theming.
 version: 0.2.0
 repository: https://github.com/SimplifyJobs/flutter_border_beam

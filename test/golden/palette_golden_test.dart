@@ -10,19 +10,22 @@ import 'golden_scene.dart';
 /// The palette family: every preset, and every way of building or
 /// transforming colours, on one effect.
 ///
-/// The spin effect shows the whole ring of stops at once and holds its hue
-/// still by default, so each image is the palette itself rather than a
-/// glimpse of it. Dark theme, t = 1.3s.
+/// The pulse lights the whole border at once, and with the hue drift off
+/// each image is the palette itself rather than a glimpse of it. Dark theme,
+/// t = 1.3s.
 void main() {
   setUpAll(BorderBeam.precache);
 
   Widget ring(BeamColors colors, {BeamStyle style = const BeamStyle()}) =>
       goldenScene(
         BorderBeam(
-          effect: const BeamEffect.spin(),
+          effect: const BeamEffect.pulse(),
           colors: colors,
           borderRadius: 16,
-          style: style.copyWith(theme: BeamTheme.dark),
+          style: style.copyWith(
+            theme: BeamTheme.dark,
+            hueMode: BeamHueMode.none,
+          ),
           child: mockSurface(Brightness.dark),
         ),
       );

@@ -46,7 +46,7 @@ class BeamFocusRing extends StatefulWidget {
     super.key,
     required this.child,
     this.focusNode,
-    this.effect = const BeamEffect.spin(),
+    this.effect = const BeamEffect.rotate(),
     this.colors = BeamColors.ocean,
     this.borderRadius,
     this.style,
@@ -62,8 +62,8 @@ class BeamFocusRing extends StatefulWidget {
   /// subtree through an inserted non-focusable [Focus].
   final FocusNode? focusNode;
 
-  /// Which effect the ring paints. Defaults to [BeamEffect.spin], a gradient
-  /// ring that reads as focus at any size.
+  /// Which effect the ring paints. Defaults to [BeamEffect.rotate], which
+  /// switches to its compact chip look on small controls.
   final BeamEffect effect;
 
   /// The ring's palette. Defaults to [BeamColors.ocean].

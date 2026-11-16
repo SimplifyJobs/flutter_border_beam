@@ -49,16 +49,6 @@ void main() {
     );
   });
 
-  // Ambient light has no travel, but the colours of a spin stream the other
-  // way.
-  testWidgets('spin reverse', (tester) async {
-    await captureGolden(
-      tester,
-      'motion_spin_reverse',
-      beam(const BeamEffect.spin(), timing: reverse),
-    );
-  });
-
   // Bounce runs its second cycle backwards: 0.4s into it.
   testWidgets('rotate bounce, second cycle', (tester) async {
     await captureGolden(
@@ -113,26 +103,12 @@ void main() {
     );
   });
 
-  for (final effect in const [
-    BeamEffect.rotate(),
-    BeamEffect.line(),
-    BeamEffect.shimmer(),
-  ]) {
+  for (final effect in const [BeamEffect.rotate(), BeamEffect.line()]) {
     testWidgets('${effect.name} progress 0.5', (tester) async {
       await captureGolden(
         tester,
         'motion_progress_${effect.name}_0_5',
         beam(effect, progress: 0.5),
-      );
-    });
-  }
-
-  for (final (label, progress) in [('0_25', 0.25), ('0_75', 0.75)]) {
-    testWidgets('charge at $progress', (tester) async {
-      await captureGolden(
-        tester,
-        'motion_charge_$label',
-        beam(const BeamEffect.charge(), progress: progress),
       );
     });
   }

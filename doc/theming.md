@@ -26,7 +26,7 @@ BorderBeam(
 ```dart
 BorderBeamTheme(
   data: const BorderBeamThemeData(
-    effect: BeamEffect.flow(),
+    effect: BeamEffect.pulse(),
     style: BeamStyle(colors: BeamColors.ocean, strength: 0.85),
     shape: BeamShape.all(20, superellipse: true),
     timing: BeamTiming(cycle: Duration(seconds: 3)),
@@ -35,7 +35,7 @@ BorderBeamTheme(
 );
 ```
 
-Every beam below now defaults to `flow` in the ocean palette at 85% strength, on a 20px squircle with a 3s cycle — and each can still override any single field. A beam that sets `effect:` replaces the theme's effect whole; effects do not merge.
+Every beam below now defaults to `pulse` in the ocean palette at 85% strength, on a 20px squircle with a 3s cycle — and each can still override any single field. A beam that sets `effect:` replaces the theme's effect whole; effects do not merge.
 
 ### Nesting and merge
 

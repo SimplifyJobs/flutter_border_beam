@@ -69,6 +69,7 @@ void main() {
     Offset? follow,
     double? progress,
     BeamTiming? timing,
+    BeamShape? shape,
     bool? active,
   }) => _host(
     BorderBeam(
@@ -76,6 +77,7 @@ void main() {
       follow: follow,
       progress: progress,
       timing: timing,
+      shape: shape,
       active: active,
       child: const SizedBox.expand(),
     ),
@@ -86,9 +88,10 @@ void main() {
     WidgetTester tester, {
     BeamEffect? effect,
     BeamTiming? timing,
+    BeamShape? shape,
     Duration lead = const Duration(milliseconds: 100),
   }) async {
-    await tester.pumpWidget(beam(effect: effect, timing: timing));
+    await tester.pumpWidget(beam(effect: effect, timing: timing, shape: shape));
     await tester.pump();
     await tester.pump(lead);
   }
@@ -163,13 +166,16 @@ void main() {
   });
 
   group('other travelling effects', () {
-    testWidgets('charge fills toward the nearest border point', (tester) async {
-      await start(tester, effect: const BeamEffect.charge());
-      await tester.pumpWidget(
-        beam(effect: const BeamEffect.charge(), follow: const Offset(1, 0.5)),
-      );
+    testWidgets('rotate on a segment follows the fraction along it', (
+      tester,
+    ) async {
+      // The right half runs top-centre → bottom-centre, so the right-edge
+      // centre sits halfway along it.
+      const shape = BeamShape(segment: BeamSegment.rightHalf);
+      await start(tester, shape: shape);
+      await tester.pumpWidget(beam(shape: shape, follow: const Offset(1, 0.5)));
       await _frames(tester, 40);
-      expect(_driven(tester), closeTo(0.25, 0.005));
+      expect(_driven(tester), closeTo(0.5, 0.005));
     });
 
     testWidgets('line follows the coordinate along its edge', (tester) async {
@@ -188,59 +194,40 @@ void main() {
       }
     });
 
-    testWidgets('shimmer follows the pointer across its sweep', (tester) async {
-      const effect = BeamEffect.shimmer(angle: 0);
-      Future<double> settleAt(Offset follow) async {
-        await tester.pumpWidget(beam(effect: effect, follow: follow));
-        await _frames(tester, 60);
-        return _driven(tester)!;
-      }
-
-      await start(tester, effect: effect);
-      final centre = await settleAt(const Offset(0.5, 0.5));
-      final left = await settleAt(const Offset(0, 0.5));
-      final right = await settleAt(const Offset(1, 0.5));
-      expect(centre, closeTo(0.5, 0.005));
-      expect(left, lessThan(centre));
-      expect(right, greaterThan(centre));
-      expect(left + right, closeTo(1, 0.01), reason: 'symmetric about centre');
-    });
-
-    for (final effect in const [
-      BeamEffect.line(),
-      BeamEffect.shimmer(angle: 0),
-      BeamEffect.charge(),
+    for (final (label, effect, shape, follow) in const [
+      ('line', BeamEffect.line(), null, Offset(0.95, 0.5)),
+      (
+        'rotate on a segment',
+        BeamEffect.rotate(),
+        BeamShape(segment: BeamSegment.rightHalf),
+        // On the bottom edge just short of its centre: near the segment's
+        // far end.
+        Offset(0.6, 1),
+      ),
     ]) {
-      testWidgets(
-        '${effect.name} eases along its travel without wrapping round',
-        (tester) async {
-          // Near the start of the sweep, a pointer at the far end is "closer"
-          // backwards through 0 on a loop, but these sweeps are not loops.
-          await start(tester, effect: effect);
-          final follow = effect is ChargeEffect
-              ? const Offset(0, 0.5)
-              : const Offset(0.95, 0.5);
-          await tester.pumpWidget(beam(effect: effect, follow: follow));
-          var previous = _timed(tester);
-          for (final now in await _frames(tester, 40)) {
-            expect(
-              (now - previous).abs(),
-              lessThan(0.2),
-              reason: 'the sweep jumped from $previous to $now',
-            );
-            previous = now;
-          }
-        },
-      );
+      testWidgets('$label eases along its travel without wrapping round', (
+        tester,
+      ) async {
+        // Near the start of the sweep, a pointer at the far end is "closer"
+        // backwards through 0 on a loop, but these sweeps are not loops.
+        await start(tester, effect: effect, shape: shape);
+        await tester.pumpWidget(
+          beam(effect: effect, shape: shape, follow: follow),
+        );
+        var previous = _timed(tester);
+        for (final now in await _frames(tester, 40)) {
+          expect(
+            (now - previous).abs(),
+            lessThan(0.2),
+            reason: 'the sweep jumped from $previous to $now',
+          );
+          previous = now;
+        }
+      });
     }
   });
 
-  for (final effect in const [
-    BeamEffect.pulse(),
-    BeamEffect.halo(),
-    BeamEffect.flow(),
-    BeamEffect.spin(),
-  ]) {
+  for (final effect in const [BeamEffect.pulse(), BeamEffect.halo()]) {
     testWidgets('${effect.name} has no travel for it to steer', (tester) async {
       await start(tester, effect: effect);
       await tester.pumpWidget(
@@ -259,7 +246,7 @@ void main() {
       expect(now, 0.5);
     }
 
-    // Dropping the progress leaves the pointer in charge, where it points.
+    // Dropping the progress hands the sweep back to the pointer.
     await tester.pumpWidget(beam(follow: const Offset(1, 0.5)));
     await _frames(tester, 2);
     expect(_driven(tester), closeTo(0.25, 0.005));

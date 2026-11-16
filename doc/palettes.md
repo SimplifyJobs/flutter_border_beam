@@ -9,8 +9,7 @@ Effects draw a palette as soft blobs of colour placed around the border — the 
 
 How the colours are shown depends on the effect:
 
-- `rotate`, `pulse`, `halo`, `shimmer`, and `charge` hold the colours still and reveal them wherever their light falls — a rotating beam changes colour as it laps the border.
-- `flow` and `spin` move the colours themselves, so they stream round the border.
+- `rotate`, `pulse`, and `halo` hold the colours still and reveal them wherever their light falls — a rotating beam changes colour as it laps the border.
 - `line` spreads the palette across its streak, so every colour shows at once.
 
 ## Presets

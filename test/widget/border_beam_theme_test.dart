@@ -10,7 +10,7 @@ import 'test_utils.dart';
 void main() {
   group('BorderBeamThemeData', () {
     const full = BorderBeamThemeData(
-      effect: BeamEffect.flow(),
+      effect: BeamEffect.pulse(),
       style: BeamStyle(colors: BeamColors.ocean, strength: 0.5),
       shape: BeamShape(borderWidth: 2),
       timing: BeamTiming(cycle: Duration(seconds: 3)),
@@ -19,10 +19,10 @@ void main() {
 
     test('copyWith replaces the given slots and keeps the rest', () {
       final copy = full.copyWith(
-        effect: const BeamEffect.spin(),
+        effect: const BeamEffect.halo(),
         shape: const BeamShape(superellipse: true),
       );
-      expect(copy.effect, const BeamEffect.spin());
+      expect(copy.effect, const BeamEffect.halo());
       expect(copy.shape, const BeamShape(superellipse: true));
       expect(copy.style, full.style);
       expect(copy.timing, full.timing);
@@ -36,7 +36,7 @@ void main() {
         shape: BeamShape(superellipse: true),
       );
       final merged = full.merge(over);
-      expect(merged.effect, const BeamEffect.flow(), reason: 'not set over');
+      expect(merged.effect, const BeamEffect.pulse(), reason: 'not set over');
       expect(
         merged.style,
         const BeamStyle(colors: BeamColors.ocean, strength: 0.9),
@@ -65,7 +65,7 @@ void main() {
 
     test('== and hashCode follow the slots', () {
       const same = BorderBeamThemeData(
-        effect: BeamEffect.flow(),
+        effect: BeamEffect.pulse(),
         style: BeamStyle(colors: BeamColors.ocean, strength: 0.5),
         shape: BeamShape(borderWidth: 2),
         timing: BeamTiming(cycle: Duration(seconds: 3)),
@@ -86,7 +86,7 @@ void main() {
       for (final slot in ['effect', 'style', 'shape', 'timing', 'playback']) {
         expect(text, contains('$slot:'));
       }
-      expect(text, contains('flow'));
+      expect(text, contains('pulse'));
     });
   });
 
@@ -243,21 +243,21 @@ void main() {
       await tester.pumpWidget(
         beamHost(
           const BorderBeamTheme(
-            data: BorderBeamThemeData(effect: BeamEffect.flow()),
+            data: BorderBeamThemeData(effect: BeamEffect.halo()),
             child: BorderBeam(child: SizedBox.expand()),
           ),
         ),
       );
-      expect(beamPainterOf(tester).config.effect, const BeamEffect.flow());
+      expect(beamPainterOf(tester).config.effect, const BeamEffect.halo());
     });
 
     testWidgets('a beam effect wins over the theme', (tester) async {
       await tester.pumpWidget(
         beamHost(
           const BorderBeamTheme(
-            data: BorderBeamThemeData(effect: BeamEffect.flow()),
+            data: BorderBeamThemeData(effect: BeamEffect.halo()),
             child: BorderBeam(
-              effect: BeamEffect.shimmer(angle: 45),
+              effect: BeamEffect.line(edge: BeamEdge.top),
               child: SizedBox.expand(),
             ),
           ),
@@ -265,7 +265,7 @@ void main() {
       );
       expect(
         beamPainterOf(tester).config.effect,
-        const BeamEffect.shimmer(angle: 45),
+        const BeamEffect.line(edge: BeamEdge.top),
       );
     });
 
@@ -285,8 +285,8 @@ void main() {
         ),
       );
 
-      await tester.pumpWidget(build(inner: const BeamEffect.spin()));
-      expect(beamPainterOf(tester).config.effect, const BeamEffect.spin());
+      await tester.pumpWidget(build(inner: const BeamEffect.halo()));
+      expect(beamPainterOf(tester).config.effect, const BeamEffect.halo());
 
       await tester.pumpWidget(build());
       expect(beamPainterOf(tester).config.effect, const BeamEffect.pulse());
@@ -307,14 +307,14 @@ void main() {
       final before = beamPainterOf(tester);
       expect(before.config.effect, const BeamEffect.rotate());
 
-      await tester.pumpWidget(build(const BeamEffect.charge()));
+      await tester.pumpWidget(build(const BeamEffect.line()));
       await tester.pump(const Duration(milliseconds: 100));
       final after = beamPainterOf(tester);
-      expect(after.config.effect, const BeamEffect.charge());
+      expect(after.config.effect, const BeamEffect.line());
       expect(
         after.config.cycleSeconds,
         closeTo(
-          const BeamEffect.charge().defaultCycle.inMicroseconds / 1e6,
+          const BeamEffect.line().defaultCycle.inMicroseconds / 1e6,
           1e-9,
         ),
         reason: 'the timing defaults follow the new effect',

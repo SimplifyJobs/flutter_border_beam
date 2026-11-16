@@ -263,7 +263,7 @@ void main() {
           home: Scaffold(
             body: Center(
               child: BeamHover(
-                effect: BeamEffect.shimmer(angle: 30),
+                effect: BeamEffect.rotate(count: 2, comet: true),
                 colors: BeamColors.sunset,
                 borderRadius: 18,
                 style: BeamStyle(strength: 0.7),
@@ -277,7 +277,7 @@ void main() {
       );
 
       final beam = beamOf(tester);
-      expect(beam.effect, const BeamEffect.shimmer(angle: 30));
+      expect(beam.effect, const BeamEffect.rotate(count: 2, comet: true));
       expect(beam.colors, BeamColors.sunset);
       expect(beam.borderRadius, 18);
       expect(beam.style, const BeamStyle(strength: 0.7));

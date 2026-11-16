@@ -6,7 +6,7 @@ A beam is meant to be something you can leave running on a card while the user s
 
 **One draw call.** Every frame of every effect is a single `drawRect` or `drawDRRect` whose paint carries the beam's fragment shader. There is no `saveLayer` (no offscreen render target to allocate, fill, and composite back), no clip, and no `ImageFilter` or `MaskFilter` (no blur pass). The design is built from layers — an inner glow, a hairline stroke, a bloom — and several of them are blurred in the reference look; here the shader evaluates every layer per pixel and replaces each blur with its closed form: a blurred hairline is a gaussian across the distance to the ring, a blurred colour blob is a gaussian blob with the same energy, a blurred glow outside the box is a smooth step across its edge.
 
-`test/render/frame_budget_test.dart` asserts this for every effect, on both surface tunings, across a palette subset, every shape family (rounded, per-corner, superellipse, stadium, segment, dashes, inward and outward ring offset, a thick border), the effect options, driven progress, and several instants: exactly one draw with the beam shader, zero `saveLayer`s, zero clips, no image or mask filter, and balanced saves and restores. A frame the fade, a cycle gap, or an empty charge has blacked out draws nothing at all.
+`test/render/frame_budget_test.dart` asserts this for every effect, on both surface tunings, across a palette subset, every shape family (rounded, per-corner, superellipse, stadium, segment, dashes, inward and outward ring offset, a thick border), the effect options, driven progress, and several instants: exactly one draw with the beam shader, zero `saveLayer`s, zero clips, no image or mask filter, and balanced saves and restores. A frame the fade or a cycle gap has blacked out draws nothing at all.
 
 **Pixels only where light can land.** The draw covers the box grown by the furthest outward glow, minus the interior beyond the furthest inward one — a ring, not the whole box. The inner glows fade out 28 px in, so a card's beam shades a band around its edge; the line's bloom rises through the box, and the halo's wash reaches well outside it.
 
@@ -85,4 +85,4 @@ To fade a beam, use `style.strength` (static), `strengthListenable` (per frame, 
 
 ## Web
 
-The package compiles and runs on web — the [playground](https://simplifyjobs.github.io/flutter_border_beam/) is a web build of the example app, and CI builds it on every commit. The renderer is the same single shader draw there.
+The package compiles and runs on web — the [live demo](https://simplifyjobs.github.io/flutter_border_beam/) is a web build of the example app, and CI builds it on every commit. The renderer is the same single shader draw there.

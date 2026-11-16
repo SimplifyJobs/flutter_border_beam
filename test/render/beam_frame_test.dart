@@ -73,9 +73,6 @@ void main() {
         'rotate long tail': const BeamEffect.rotate(length: 2),
         for (final edge in BeamEdge.values)
           'line ${edge.name}': BeamEffect.line(edge: edge),
-        'shimmer 0°': const BeamEffect.shimmer(angle: 0),
-        'shimmer 90°': const BeamEffect.shimmer(angle: 90),
-        'shimmer -45°': const BeamEffect.shimmer(angle: -45),
       };
       final r = renderer();
       for (final MapEntry(key: label, value: effect) in options.entries) {
@@ -112,10 +109,6 @@ void main() {
             config,
             phasesAt(config, 1.3, progress: progress),
           );
-          if (effect is ChargeEffect && progress == 0) {
-            expect(canvas.draws, isEmpty, reason: 'an empty charge');
-            continue;
-          }
           expect(canvas.draws, hasLength(1));
           expectSaneFrame(
             r.debugFrame,
@@ -315,49 +308,6 @@ void main() {
     });
   });
 
-  group('charge', () {
-    test('the fill grows with progress from the top, clockwise', () {
-      final r = renderer();
-      final config = configFor(const BeamEffect.charge());
-      var previous = 0.0;
-      for (var i = 1; i <= 10; i++) {
-        recordFrame(r, config, phasesAt(config, 1.3, progress: i / 10));
-        final d = r.debugFrame;
-        expect(d.trackStart, closeTo(0, 1e-9), reason: 'starts top-centre');
-        expect(d.trackSpan, closeTo(i / 10, 1e-6));
-        expect(d.trackSpan, greaterThan(previous));
-        previous = d.trackSpan;
-      }
-    });
-
-    test('an empty charge draws nothing', () {
-      final r = renderer();
-      final config = configFor(const BeamEffect.charge());
-      final canvas = recordFrame(r, config, phasesAt(config, 1.3, progress: 0));
-      expect(canvas.draws, isEmpty);
-      expect(litLayers(r.debugFrame), 0);
-    });
-  });
-
-  group('shimmer', () {
-    test('the glint crosses the whole box over one sweep', () {
-      final r = renderer();
-      for (final angle in [0.0, 20.0, 75.0]) {
-        final config = configFor(BeamEffect.shimmer(angle: angle));
-        final positions = <double>[];
-        for (final p in [0.0, 0.5, 1.0]) {
-          recordFrame(r, config, phasesAt(config, 1.3, progress: p));
-          expect(r.debugFrame.windowOf(1), BeamWindow.linear);
-          positions.add(r.debugFrame.windowParamsOf(1)[2]);
-        }
-        final half = r.debugFrame.windowParamsOf(1)[3];
-        expect(positions.first + half, lessThanOrEqualTo(1e-6));
-        expect(positions.last - half, greaterThanOrEqualTo(1 - 1e-6));
-        expect(positions[1], closeTo(0.5, 1e-6));
-      }
-    });
-  });
-
   group('ambient effects', () {
     test('light the whole border, so a segment is the only mask', () {
       final r = renderer();
@@ -366,33 +316,6 @@ void main() {
         recordFrame(r, config, phasesAt(config, 1.3));
         expect(litLayers(r.debugFrame), 3, reason: effect.name);
         expect(r.debugFrame.trackSpan, 0, reason: '${effect.name}: own mask');
-      }
-    });
-
-    test('flow and spin stream their colours the way they are told', () {
-      final r = renderer();
-      final outline = BeamOutline(
-        box,
-        const BorderRadius.all(Radius.circular(16)),
-      );
-      for (final effect in [const BeamEffect.flow(), const BeamEffect.spin()]) {
-        double at(BeamDirection direction, double t) {
-          final config = configFor(
-            effect,
-            timing: BeamTiming(direction: direction),
-          );
-          recordFrame(r, config, phasesAt(config, t));
-          final b = r.debugFrame.blob(1, 0);
-          return outline.nearestFraction(Offset(b.cx, b.cy));
-        }
-
-        double moved(BeamDirection d) {
-          final delta = at(d, 1.35) - at(d, 1.3);
-          return delta - delta.roundToDouble();
-        }
-
-        expect(moved(BeamDirection.forward), greaterThan(0), reason: '$effect');
-        expect(moved(BeamDirection.reverse), lessThan(0), reason: '$effect');
       }
     });
 

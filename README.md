@@ -16,17 +16,17 @@
 </p>
 
 <div align="center">
-  <img width="600" src="https://raw.githubusercontent.com/SimplifyJobs/flutter_border_beam/main/assets/showcase/showcase.gif" alt="Border beams animating in the example gallery">
+  <img width="600" src="https://raw.githubusercontent.com/SimplifyJobs/flutter_border_beam/main/assets/showcase/showcase.gif" alt="Border beams animating in the demo reel">
 </div>
 
 
 ## Overview
 
-`flutter_border_beam` draws light that travels, breathes, or flows around a widget's border. Wrap a widget in `BorderBeam`, pick an effect, and the beam paints over it — matched to its corner radius, adapted to a dark or light surface, and animated by one ticker.
+`flutter_border_beam` draws light that travels or breathes around a widget's border. Wrap a widget in `BorderBeam`, pick an effect, and the beam paints over it — matched to its corner radius, adapted to a dark or light surface, and animated by one ticker.
 
 The whole beam is **one fragment shader drawn in one pass**: no `saveLayer`, no blur filters, no clips, and no offscreen render targets. It runs at the display's refresh rate, 120Hz included, and is cheap enough to leave on a card while the user scrolls.
 
-**Eight effects**, chosen with `effect:`:
+**Four effects**, chosen with `effect:`:
 
 | Effect | Family | Default cycle | Use it for |
 | --- | --- | --- | --- |
@@ -34,10 +34,6 @@ The whole beam is **one fragment shader drawn in one pass**: no `saveLayer`, no 
 | `BeamEffect.line()` | travelling | 3.1s | A streak rides one edge with light spiking up from it. Inputs, search bars, composers. |
 | `BeamEffect.pulse()` | ambient | 2.3s | Colour breathes inward from the whole border, strongest at the corners. A contained "thinking" state. |
 | `BeamEffect.halo()` | ambient | 2.3s | A halo breathes outward around the widget. Needs room around it. |
-| `BeamEffect.flow()` | ambient | 6s | Colours stream round the border with an inner glow that swells and ebbs. "Listening". |
-| `BeamEffect.spin()` | ambient | 3s | A full gradient ring spins around the border. Buttons, badges, focus. |
-| `BeamEffect.shimmer()` | travelling | 1.4s + 1.6s rest | A glint sweeps across the border, then rests. Calls to action, new items. |
-| `BeamEffect.charge()` | travelling | 2.6s + 0.6s rest | The border fills clockwise with a hot leading edge. Progress. |
 
 <table>
   <tr>
@@ -72,9 +68,9 @@ Around the effects:
 - **Surfaces and interactions** — `BorderBeam.overlay`, `BeamDecoration` for an existing `Container`, and `BeamFocusRing` / `BeamHover` / `BeamPress`.
 - **Accessible** — four reduced-motion behaviours; beams add no semantics and never intercept a pointer.
 
-### Live playground
+### Live demo
 
-**<https://simplifyjobs.github.io/flutter_border_beam/>** — the example app built for web, with live controls, the matching Dart snippet, and a shareable link. Built from [`example/`](example).
+**<https://simplifyjobs.github.io/flutter_border_beam/>** — the example app built for web: each effect on the kind of widget it is made for, recoloured with any preset, in either theme. Built from [`example/`](example).
 
 
 ## Installation
@@ -149,10 +145,6 @@ BorderBeam(effect: const BeamEffect.rotate(length: 1.5, count: 2, comet: true), 
 BorderBeam(effect: const BeamEffect.line(edge: BeamEdge.top), child: searchBar);
 BorderBeam(effect: const BeamEffect.pulse(), child: card);
 BorderBeam(effect: const BeamEffect.halo(), child: card);
-BorderBeam(effect: const BeamEffect.flow(), child: composer);
-BorderBeam(effect: const BeamEffect.spin(), child: button);
-BorderBeam(effect: const BeamEffect.shimmer(angle: 30), child: cta);
-BorderBeam(effect: const BeamEffect.charge(), progress: uploaded, child: card);
 ```
 
 | Effect | Parameters | Default hue drift |
@@ -161,16 +153,12 @@ BorderBeam(effect: const BeamEffect.charge(), progress: uploaded, child: card);
 | `line` | `edge` (default `BeamEdge.bottom`) | ping-pong, 8s |
 | `pulse` | — | continuous, 16s |
 | `halo` | — | continuous, 14s |
-| `flow` | — | none |
-| `spin` | — | none |
-| `shimmer` | `angle` (degrees from vertical, default 20) | none |
-| `charge` | — | none |
 
-The two families take different inputs. **Travelling** effects (`rotate`, `line`, `shimmer`, `charge`) move a position along the border once per cycle; they respond to `direction`, `cycleGap`, `progress`, and `follow`. **Ambient** effects (`pulse`, `halo`, `flow`, `spin`) light the whole border at once and ignore those inputs — except that `flow` and `spin` stream the other way under `BeamDirection.reverse`. `phaseOffset` applies to both families.
+The two families take different inputs. **Travelling** effects (`rotate`, `line`) move a position along the border once per cycle; they respond to `direction`, `cycleGap`, `progress`, and `follow`. **Ambient** effects (`pulse`, `halo`) light the whole border at once and ignore those inputs. `phaseOffset` applies to both families.
 
 Every effect is drawn by the same shader in the same single draw, so they cost the same order of GPU time. Pick for the look.
 
-`BeamEffect.values` lists all eight with their defaults, and each effect is a value type, so `BorderBeam(effect: someEffect)` picked at runtime needs no switch.
+`BeamEffect.values` lists all four with their defaults, and each effect is a value type, so `BorderBeam(effect: someEffect)` picked at runtime needs no switch.
 
 [Full documentation →](doc/effects.md)
 
@@ -221,7 +209,7 @@ BorderBeam(
 BorderBeam(colors: BeamColors.ember.scaleAlpha(0.6), child: card);
 ```
 
-A palette is a ring of 1–8 colour stops around the border: position 0 is top-centre and positions increase clockwise. Neighbouring stops blend, and the last blends back into the first. Travelling effects reveal the colours where the beam passes; `flow` and `spin` move the ring itself; `line` spreads the palette across its streak.
+A palette is a ring of 1–8 colour stops around the border: position 0 is top-centre and positions increase clockwise. Neighbouring stops blend, and the last blends back into the first. `rotate`, `pulse`, and `halo` reveal the colours wherever their light falls; `line` spreads the palette across its streak.
 
 | Preset | Colours | Notes |
 | --- | --- | --- |
@@ -264,7 +252,7 @@ BorderBeam(
 );
 
 // A pill (a circle on a square box) that tracks the box as it resizes
-BorderBeam(effect: const BeamEffect.spin(), shape: const BeamShape.stadium(), child: chip);
+BorderBeam(shape: const BeamShape.stadium(), child: chip);
 
 // The outline 8px outside the child, with a 2px stroke
 BorderBeam(
@@ -301,13 +289,12 @@ Positions are arc-length fractions from top-centre, clockwise. Build endpoints w
 | `leftHalf` / `rightHalf` | The left / right half between the top and bottom centres |
 | `bottomEdge` / `topEdge` / `leftEdge` / `rightEdge` | The named straight run plus both adjacent corner curves |
 
-`rotate` appears at `start` and travels to `end`; `line` rides the segment instead of its `edge`, around corners included; `charge` fills the segment; the ambient effects light only the part inside it.
+`rotate` appears at `start` and travels to `end`; `line` rides the segment instead of its `edge`, around corners included; the ambient effects light only the part inside it.
 
 `BeamShape.dashes` breaks the border into that many evenly spaced dashes (2 or more; 0 and 1 keep it solid):
 
 ```dart
 BorderBeam(
-  effect: const BeamEffect.spin(),
   shape: const BeamShape.all(16, dashes: 12),
   child: badge,
 );
@@ -397,7 +384,7 @@ BorderBeam(
 ```dart
 BorderBeamTheme(
   data: const BorderBeamThemeData(
-    effect: BeamEffect.flow(),
+    effect: BeamEffect.pulse(),
     style: BeamStyle(colors: BeamColors.ocean, strength: 0.8),
     shape: BeamShape.all(20, superellipse: true),
     timing: BeamTiming(cycle: Duration(seconds: 3)),
@@ -435,7 +422,7 @@ controller.stop();                       // fade out, halt
 ### Driving the beam yourself
 
 ```dart
-// A glowing progress ring; with BeamEffect.charge() the border fills.
+// A glowing progress ring; with BeamEffect.line() a progress bar.
 BorderBeam(progress: downloaded / total, child: card);
 
 // The sweep gravitates to a point in the box (normalized 0–1).
@@ -451,7 +438,7 @@ BorderBeam(
 
 | Input | Type | What it does |
 | --- | --- | --- |
-| `progress` | `double?` (0–1) | Places the travel instead of the clock: `rotate` becomes a progress ring, `line` a progress bar, `charge` fills to it, `shimmer` sits at it. The clock keeps running underneath, so the fade and hue stay alive. Cheap to drive every frame. |
+| `progress` | `double?` (0–1) | Places the travel instead of the clock: `rotate` becomes a progress ring, `line` a progress bar. The clock keeps running underneath, so the fade and hue stay alive. Cheap to drive every frame. |
 | `follow` | `Offset?` (normalized) | Eases the travel to the border point nearest a point in the box — critically damped, about 150ms. Null hands it back to the clock without a snap. `progress` wins over it. |
 | `strengthListenable` | `ValueListenable<double>?` | Scales the beam's opacity each frame, without a rebuild. |
 | `speedListenable` | `ValueListenable<double>?` | Sets the playback rate each frame; wins over `timing.speed` and a controller's rate. |
@@ -522,7 +509,7 @@ BeamPress(borderRadius: 20, onTap: submit, child: card);
 
 | Widget | Lights when | Default effect | Notable options |
 | --- | --- | --- | --- |
-| `BeamFocusRing` | `child`'s subtree (or `focusNode`) holds focus | `spin`, `ocean` palette | `alwaysShow` lights it under touch focus too |
+| `BeamFocusRing` | `child`'s subtree (or `focusNode`) holds focus | `rotate` (compact on small controls), `ocean` palette | `alwaysShow` lights it under touch focus too |
 | `BeamHover` | the cursor is over `child`, pulling the travel toward it | `rotate` | `followPointer`, `holdAfterExit` (300ms) |
 | `BeamPress` | a finger is down on `child` | `pulse` | `minimumDuration` (600ms), `onTap` |
 
@@ -561,7 +548,7 @@ Every field is nullable and null means *inherit*; the defaults below are what yo
 | Field | Type | Default |
 | --- | --- | --- |
 | `cycle` | `Duration?` | per effect (see [Overview](#overview)) |
-| `cycleGap` | `Duration?` | 1.6s `shimmer` · 0.6s `charge` · zero otherwise; travelling effects only |
+| `cycleGap` | `Duration?` | zero; travelling effects only |
 | `speed` | `double?` | `1` (a controller's `speed` replaces it) |
 | `direction` | `BeamDirection?` | `forward` |
 | `phaseOffset` | `double?` | `0` (fraction of a cycle, 0–1) |
@@ -644,7 +631,7 @@ No. Like every effect, `halo` paints in one pass over the child: a thin stroke o
 Segments always run clockwise from `start` to `end`, wrapping through top-centre. Swap the anchors for the other side of the border.
 
 **Does it work on web?**
-Yes — the [live playground](https://simplifyjobs.github.io/flutter_border_beam/) is a web build of the example app, and CI builds it on every commit.
+Yes — the [live demo](https://simplifyjobs.github.io/flutter_border_beam/) is a web build of the example app, and CI builds it on every commit.
 
 **Can I animate between two configurations?**
 With `BorderBeam`, yes: changing `cycle` retimes in place, and `BeamColors.lerp` driven by an animation crossfades palettes. `BeamDecoration` does not interpolate, so an `AnimatedContainer` snaps.
@@ -652,7 +639,7 @@ With `BorderBeam`, yes: changing `cycle` retimes in place, and `BeamColors.lerp`
 
 ## Example app
 
-[`example/`](example) is the gallery behind the [live playground](https://simplifyjobs.github.io/flutter_border_beam/): mock chat inputs, task cards, and search bars, plus an interactive playground with live code snippets and shareable URLs.
+[`example/`](example) is the one-screen showcase behind the [live demo](https://simplifyjobs.github.io/flutter_border_beam/): swipe between the four effects, each on the kind of widget it is made for — a task card, a chat composer, a "thinking" card, a call-to-action pill — and recolour them with any preset in either theme.
 
 ```console
 cd example && flutter run
@@ -674,7 +661,7 @@ Issues and pull requests are welcome — start with [CONTRIBUTING.md](CONTRIBUTI
 
 ## Credits
 
-This package was originally ported from, and remains inspired by, **[border-beam](https://github.com/Jakubantalik/Libraries/tree/main/packages/border-beam)** by **[Jakub Antalik](https://x.com/jakubantalik)** ([live demo](https://beam.jakubantalik.com), [Jakubantalik/border-beam](https://github.com/Jakubantalik/border-beam)), released under the MIT license. The effects that came from it (`rotate`, `line`, `pulse`, `halo`), the four original palettes, and the timings they started from are his design — if you like the look, go star the original.
+This package was originally ported from, and remains inspired by, **[border-beam](https://github.com/Jakubantalik/Libraries/tree/main/packages/border-beam)** by **[Jakub Antalik](https://x.com/jakubantalik)** ([live demo](https://beam.jakubantalik.com), [Jakubantalik/border-beam](https://github.com/Jakubantalik/border-beam)), released under the MIT license. The four effects (`rotate`, `line`, `pulse`, `halo`), the four original palettes, and the timings they started from are his design — if you like the look, go star the original.
 
 Version 0.2.0 replaced the port with an independent native renderer: a single fragment shader written for Flutter, which no longer tracks the original's source.
 

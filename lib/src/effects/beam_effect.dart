@@ -10,12 +10,11 @@ import '../models/beam_options.dart';
 ///
 /// Effects fall into two families:
 ///
-/// * **Travelling** — [rotate], [line], [shimmer], [charge]. A position runs
-///   along the border once per cycle; these respond to
-///   `BeamTiming.direction`, `BeamTiming.cycleGap`, `BorderBeam.progress`,
-///   and `BorderBeam.follow`.
-/// * **Ambient** — [pulse], [halo], [flow], [spin]. Light breathes or
-///   streams around the whole border; the travel inputs are ignored.
+/// * **Travelling** — [rotate], [line]. A position runs along the border
+///   once per cycle; these respond to `BeamTiming.direction`,
+///   `BeamTiming.cycleGap`, `BorderBeam.progress`, and `BorderBeam.follow`.
+/// * **Ambient** — [pulse], [halo]. Light breathes around the whole border;
+///   the travel inputs are ignored.
 @immutable
 sealed class BeamEffect {
   const BeamEffect._();
@@ -41,33 +40,12 @@ sealed class BeamEffect {
   /// light is painted outside the widget's bounds.
   const factory BeamEffect.halo() = HaloEffect;
 
-  /// Colours streaming continuously around the whole border, with an inner
-  /// glow that swells and ebbs — an assistant-is-listening look.
-  const factory BeamEffect.flow() = FlowEffect;
-
-  /// A full gradient ring that spins around the border. The classic animated
-  /// gradient border, for buttons and badges.
-  const factory BeamEffect.spin() = SpinEffect;
-
-  /// A glint that sweeps across the border at [angle] degrees from vertical,
-  /// then rests for `BeamTiming.cycleGap`. Calls to action, new items.
-  const factory BeamEffect.shimmer({double angle}) = ShimmerEffect;
-
-  /// The border fills clockwise from the top with a hot leading edge.
-  /// Drive it with `BorderBeam.progress` for determinate progress; without
-  /// one it fills once per cycle.
-  const factory BeamEffect.charge() = ChargeEffect;
-
   /// Every effect with its default parameters, in gallery order.
   static const List<BeamEffect> values = [
     BeamEffect.rotate(),
     BeamEffect.line(),
     BeamEffect.pulse(),
     BeamEffect.halo(),
-    BeamEffect.flow(),
-    BeamEffect.spin(),
-    BeamEffect.shimmer(),
-    BeamEffect.charge(),
   ];
 
   /// A short identifier, e.g. `rotate`.
@@ -215,113 +193,4 @@ final class HaloEffect extends BeamEffect {
 
   @override
   int get hashCode => (HaloEffect).hashCode;
-}
-
-/// See [BeamEffect.flow].
-final class FlowEffect extends BeamEffect {
-  /// Creates a flow.
-  const FlowEffect() : super._();
-
-  @override
-  String get name => 'flow';
-
-  @override
-  bool get travels => false;
-
-  @override
-  Duration get defaultCycle => const Duration(seconds: 6);
-
-  @override
-  BeamHueMode get defaultHueMode => BeamHueMode.none;
-
-  @override
-  bool operator ==(Object other) => other is FlowEffect;
-
-  @override
-  int get hashCode => (FlowEffect).hashCode;
-}
-
-/// See [BeamEffect.spin].
-final class SpinEffect extends BeamEffect {
-  /// Creates a spinning gradient ring.
-  const SpinEffect() : super._();
-
-  @override
-  String get name => 'spin';
-
-  @override
-  bool get travels => false;
-
-  @override
-  Duration get defaultCycle => const Duration(seconds: 3);
-
-  @override
-  BeamHueMode get defaultHueMode => BeamHueMode.none;
-
-  @override
-  bool operator ==(Object other) => other is SpinEffect;
-
-  @override
-  int get hashCode => (SpinEffect).hashCode;
-}
-
-/// See [BeamEffect.shimmer].
-final class ShimmerEffect extends BeamEffect {
-  /// Creates a shimmer sweeping at [angle] degrees from vertical.
-  const ShimmerEffect({this.angle = 20}) : super._();
-
-  /// The sweep's tilt, in degrees from vertical (0 sweeps left to right).
-  final double angle;
-
-  @override
-  String get name => 'shimmer';
-
-  @override
-  bool get travels => true;
-
-  @override
-  Duration get defaultCycle => const Duration(milliseconds: 1400);
-
-  @override
-  Duration get defaultCycleGap => const Duration(milliseconds: 1600);
-
-  @override
-  BeamHueMode get defaultHueMode => BeamHueMode.none;
-
-  @override
-  bool operator ==(Object other) =>
-      other is ShimmerEffect && other.angle == angle;
-
-  @override
-  int get hashCode => Object.hash(ShimmerEffect, angle);
-
-  @override
-  String toString() => 'BeamEffect.shimmer(angle: $angle)';
-}
-
-/// See [BeamEffect.charge].
-final class ChargeEffect extends BeamEffect {
-  /// Creates a charge.
-  const ChargeEffect() : super._();
-
-  @override
-  String get name => 'charge';
-
-  @override
-  bool get travels => true;
-
-  @override
-  Duration get defaultCycle => const Duration(milliseconds: 2600);
-
-  @override
-  Duration get defaultCycleGap => const Duration(milliseconds: 600);
-
-  @override
-  BeamHueMode get defaultHueMode => BeamHueMode.none;
-
-  @override
-  bool operator ==(Object other) => other is ChargeEffect;
-
-  @override
-  int get hashCode => (ChargeEffect).hashCode;
 }

@@ -49,8 +49,8 @@ class BeamTiming {
 
   /// Rest between sweeps: after each cycle a travelling effect parks at the
   /// end of its travel and fades away for this long before the next sweep
-  /// starts. The default depends on the effect (`BeamEffect.defaultCycleGap`)
-  /// — zero for most, so one sweep runs straight into the next.
+  /// starts. Defaults to the effect's `BeamEffect.defaultCycleGap` — zero,
+  /// so one sweep runs straight into the next.
   ///
   /// The colour drift keeps running through the gap. Ambient effects ignore
   /// it: their motion has no cycle boundary to rest at. Changing it needs no

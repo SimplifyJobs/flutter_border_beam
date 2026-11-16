@@ -319,8 +319,8 @@ void main() {
 
       for (final effect in [
         const BeamEffect.line(),
-        const BeamEffect.flow(),
-        const BeamEffect.charge(),
+        const BeamEffect.pulse(),
+        const BeamEffect.halo(),
       ]) {
         await tester.pumpWidget(
           scene(
@@ -413,7 +413,7 @@ void main() {
           brightness: Brightness.dark,
           colors: BeamColors.ocean,
           borderRadius: 16,
-          theme: BorderBeamThemeData(effect: BeamEffect.flow()),
+          theme: BorderBeamThemeData(effect: BeamEffect.pulse()),
         ),
         'style': BeamDecoration(
           effect: BeamEffect.rotate(),
@@ -562,13 +562,13 @@ void main() {
     });
 
     test('the theme\'s effect is inherited; the decoration\'s own wins', () {
-      const theme = BorderBeamThemeData(effect: BeamEffect.flow());
+      const theme = BorderBeamThemeData(effect: BeamEffect.pulse());
       expect(
         resolved<BeamEffect>(
           const BeamDecoration(brightness: Brightness.dark, theme: theme),
           'effect',
         ),
-        const BeamEffect.flow(),
+        const BeamEffect.pulse(),
       );
       expect(
         resolved<BeamEffect>(

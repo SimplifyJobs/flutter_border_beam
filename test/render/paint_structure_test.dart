@@ -197,9 +197,11 @@ void main() {
   });
 
   group('dashes', () {
-    // The straight run of the top edge, one pixel row inside the stroke.
+    // The straight run of the top edge, one pixel row inside the stroke,
+    // under a halo — lit along much of the edge, so dashes have light to
+    // cut.
     Future<List<int>> topRow(BeamShape shape) async {
-      final config = configFor(const BeamEffect.spin(), shape: shape);
+      final config = configFor(const BeamEffect.halo(), shape: shape);
       final frame = await renderFrame(config, phasesAt(config, 1.3));
       final y = box.top.toInt();
       return [
@@ -208,17 +210,31 @@ void main() {
       ];
     }
 
-    test('a solid ring lights the whole edge', () async {
-      final row = await topRow(const BeamShape());
-      expect(row.where((level) => level <= 2), isEmpty);
+    test('dashes only take light away', () async {
+      final solid = await topRow(const BeamShape());
+      final dashed = await topRow(const BeamShape(dashes: 12));
+      for (var i = 0; i < solid.length; i++) {
+        expect(dashed[i], lessThanOrEqualTo(solid[i] + 1), reason: 'x+$i');
+      }
     });
 
-    test('dashes cut gaps into it', () async {
-      final row = await topRow(const BeamShape(dashes: 12));
-      final dark = row.where((level) => level <= 2).length;
-      final lit = row.where((level) => level > 16).length;
-      expect(dark, greaterThan(0), reason: 'no gap between dashes');
-      expect(lit, greaterThan(0), reason: 'no dash');
+    test('dashes cut gaps into a lit ring', () async {
+      final solid = await topRow(const BeamShape());
+      final dashed = await topRow(const BeamShape(dashes: 12));
+      // A gap is a run the solid ring lights and the dashes leave dark.
+      var gaps = 0;
+      var inGap = false;
+      for (var i = 0; i < solid.length; i++) {
+        final cut = solid[i] > 16 && dashed[i] <= 2;
+        if (cut && !inGap) gaps++;
+        inGap = cut;
+      }
+      expect(gaps, greaterThan(1), reason: 'no gaps between dashes');
+      expect(
+        dashed.where((level) => level > 16),
+        isNotEmpty,
+        reason: 'no dash',
+      );
     });
   });
 

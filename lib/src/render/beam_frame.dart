@@ -92,9 +92,6 @@ enum BeamWindow {
 
   /// A radial ellipse.
   radial,
-
-  /// A linear band across the box.
-  linear,
 }
 
 /// The four conic tables.
@@ -352,19 +349,6 @@ final class BeamFrameData {
     data[_h(k, 3) + 1] = midAlpha;
   }
 
-  /// Shows layer [k] through a smooth band across the box: the coordinate
-  /// `p · direction + 0.5` (p box-normalised, centre 0) within [halfWidth]
-  /// of [position].
-  void setLinearWindow(
-    int k,
-    Offset direction,
-    double position,
-    double halfWidth,
-  ) {
-    data[_h(k, 1) + 1] = BeamWindow.linear.index.toDouble();
-    _v4(_h(k, 2), direction.dx, direction.dy, position, halfWidth);
-  }
-
   /// Layer [k]'s window.
   BeamWindow windowOf(int k) => BeamWindow.values[data[_h(k, 1) + 1].round()];
 
@@ -373,18 +357,11 @@ final class BeamFrameData {
     for (var i = 0; i < 4; i++) data[_h(k, 2) + i],
   ];
 
-  /// Lays an overlay table under layer [k]'s blobs — or, with [above],
-  /// over them — in white or black.
-  void setOverlay(
-    int k,
-    BeamTable table, {
-    required bool white,
-    bool above = false,
-  }) {
+  /// Lays an overlay table under layer [k]'s blobs, in white or black.
+  void setOverlay(int k, BeamTable table, {required bool white}) {
     assert(table == BeamTable.overlayA || table == BeamTable.overlayB);
     data[_h(k, 1) + 2] = table == BeamTable.overlayA ? 1 : 2;
     data[_h(k, 1) + 3] = white ? 1 : 0;
-    data[_h(k, 5) + 3] = above ? 1 : 0;
   }
 
   /// How layer [k]'s blobs are placed; [blur] (px) blurs them in the

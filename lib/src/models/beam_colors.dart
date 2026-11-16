@@ -39,7 +39,7 @@ enum BeamSeedHarmony {
 /// Stops sit at perimeter positions in `[0, 1)` — 0 at top-centre,
 /// increasing clockwise — and blend into each other, the last back into the
 /// first, so the ring is seamless. Effects that travel reveal the colors
-/// where the beam passes; effects that flow move the ring itself.
+/// where the beam passes; ambient effects breathe them in place.
 ///
 /// Use one of the [presets]:
 ///

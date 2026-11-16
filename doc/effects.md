@@ -3,14 +3,14 @@
 An effect decides where light sits along the border and how it moves. Pick one with `effect:` on `BorderBeam`, `BorderBeam.overlay`, `BeamDecoration`, or any of the interaction wrappers, or set a default for a subtree with `BorderBeamThemeData.effect`. With nothing set, a beam uses `BeamEffect.rotate()`.
 
 ```dart
-BorderBeam(effect: const BeamEffect.flow(), child: composer);
+BorderBeam(effect: const BeamEffect.line(), child: composer);
 ```
 
-All eight are drawn by the same shader in the same single draw call, so they cost the same order of GPU time. Choose for the look and the meaning.
+All four are drawn by the same shader in the same single draw call, so they cost the same order of GPU time. Choose for the look and the meaning.
 
 ## The two families
 
-**Travelling** — `rotate`, `line`, `shimmer`, `charge`. A position runs along the border (or, for `shimmer`, across the box) once per `cycle`. These respond to:
+**Travelling** — `rotate`, `line`. A position runs along the border once per `cycle`. These respond to:
 
 - `BeamTiming.direction` — `forward`, `reverse`, or `bounce` (alternating each cycle);
 - `BeamTiming.cycleGap` — a rest after each sweep;
@@ -18,7 +18,7 @@ All eight are drawn by the same shader in the same single draw call, so they cos
 - `BorderBeam.progress` — the position from a value instead of the clock;
 - `BorderBeam.follow` — the position eased toward a point in the box.
 
-**Ambient** — `pulse`, `halo`, `flow`, `spin`. Light breathes or streams around the whole border at once. They ignore `cycleGap`, `progress`, and `follow`; `phaseOffset` puts their breathing out of step. `flow` and `spin` stream counter-clockwise under `BeamDirection.reverse`; `bounce` does not alternate them, and `pulse` and `halo` have no direction.
+**Ambient** — `pulse`, `halo`. Light breathes around the whole border at once. They have no direction and ignore `cycleGap`, `progress`, and `follow`; `phaseOffset` puts their breathing out of step.
 
 `BeamEffect.travels` answers the question in code.
 
@@ -30,10 +30,6 @@ All eight are drawn by the same shader in the same single draw call, so they cos
 | `line` | travelling | 3.1s | 0 | `pingPong` | 8s |
 | `pulse` | ambient | 2.3s | — | `continuous` | 16s |
 | `halo` | ambient | 2.3s | — | `continuous` | 14s |
-| `flow` | ambient | 6s | — | `none` | — |
-| `spin` | ambient | 3s | — | `none` | — |
-| `shimmer` | travelling | 1.4s | 1.6s | `none` | — |
-| `charge` | travelling | 2.6s | 0.6s | `none` | — |
 
 Every one of these is a fallback: `BeamTiming` and `BeamStyle` override them field by field. `BeamEffect.defaultCycle`, `defaultCycleGap`, `defaultHueMode`, and `defaultHuePeriod` expose them in code.
 
@@ -103,57 +99,9 @@ Padding(
 
 `halo` paints in the same single pass over the child as every other effect, and only outside the widget, so the child does not need to be opaque.
 
-## `flow` — listening
-
-`pulse`'s breathing colour field — patches of colour on the hairline and washing inward, each swelling and ebbing on its own beat — streaming around the whole border, half a turn per cycle. The look of an assistant that is listening.
-
-```dart
-BorderBeam(effect: const BeamEffect.flow(), colors: BeamColors.aurora, child: composer);
-```
-
-Because the colours already move, the hue drift is off by default.
-
-## `spin` — the animated gradient border
-
-A full gradient ring of the palette on the hairline, turning around the border once per cycle with a bright head and a soft inner glow behind it. The classic animated gradient border, for buttons, badges, and focus — `BeamFocusRing` uses it by default.
-
-```dart
-BorderBeam(
-  effect: const BeamEffect.spin(),
-  shape: const BeamShape.stadium(),
-  child: button,
-);
-```
-
-It pairs well with `BeamShape.dashes` for a "marching" ring.
-
-## `shimmer` — a glint
-
-A narrow band sweeps across the box at an angle, lighting the hairline in the palette's colours where it crosses the border, with a bright glint and a soft inner glow at each crossing, then rests for the cycle gap (1.6s by default). For calls to action and new items.
-
-```dart
-BorderBeam(effect: const BeamEffect.shimmer(angle: 30), child: cta);
-```
-
-| Parameter | Default | Meaning |
-| --- | --- | --- |
-| `angle` | 20 | The sweep's tilt in degrees from vertical; 0 sweeps straight left to right. The angle is kept true in pixels on any aspect ratio. |
-
-`reverse` sweeps the other way. `progress` places the band at that fraction of its sweep.
-
-## `charge` — progress
-
-The hairline fills with the palette's colours clockwise from top-centre, with a hot head — a bright highlight and a glow just behind it. Without a driven value it fills once per cycle and rests for the cycle gap (0.6s by default) before starting again.
-
-```dart
-BorderBeam(effect: const BeamEffect.charge(), progress: uploaded / total, child: card);
-```
-
-Drive it with `BorderBeam.progress` for determinate progress. With a segment it fills the segment from its start; `BeamDirection.reverse` fills from the other end.
-
 ## Choosing at runtime
 
-Effects are values: two `BeamEffect.rotate(count: 2)` are equal, and `BeamEffect.values` lists all eight with their default parameters. Store one in state and hand it to the widget — no switch needed:
+Effects are values: two `BeamEffect.rotate(count: 2)` are equal, and `BeamEffect.values` lists all four with their default parameters. Store one in state and hand it to the widget — no switch needed:
 
 ```dart
 BorderBeam(effect: _effect, child: card);

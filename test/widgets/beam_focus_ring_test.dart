@@ -401,11 +401,11 @@ void main() {
   });
 
   group('pass-through', () {
-    testWidgets('defaults to an ocean spin ring', (tester) async {
+    testWidgets('defaults to an ocean rotating beam', (tester) async {
       await tester.pumpWidget(scene(BeamFocusRing(child: box())));
 
       final beam = beamOf(tester);
-      expect(beam.effect, const BeamEffect.spin());
+      expect(beam.effect, const BeamEffect.rotate());
       expect(beam.colors, BeamColors.ocean);
     });
 
@@ -445,7 +445,7 @@ void main() {
           .toDiagnosticsNode()
           .toStringDeep();
       expect(description, contains('alwaysShow'));
-      expect(description, contains('effect: BeamEffect.spin()'));
+      expect(description, contains('effect: ${const BeamEffect.rotate()}'));
     });
   });
 }

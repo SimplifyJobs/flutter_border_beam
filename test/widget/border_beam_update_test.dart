@@ -211,11 +211,7 @@ void main() {
       expect(_frame(tester).phases.travelProgress, closeTo(0.55, 1e-9));
     });
 
-    for (final effect in [
-      const BeamEffect.line(),
-      const BeamEffect.shimmer(),
-      const BeamEffect.charge(),
-    ]) {
+    for (final effect in const [BeamEffect.line()]) {
       testWidgets('retimes ${effect.name} without snapping the sweep', (
         tester,
       ) async {

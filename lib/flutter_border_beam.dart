@@ -1,7 +1,7 @@
 /// Animated border beam effects for Flutter.
 ///
-/// Travelling, breathing, and flowing light around any widget's border —
-/// eight effects, a gallery of palettes plus your own, superellipse corners,
+/// Travelling and breathing light around any widget's border — four
+/// effects, a gallery of palettes plus your own, superellipse corners,
 /// theming, and playback control — drawn by one fragment shader in a single
 /// pass, with no offscreen layers or blurs.
 library;
@@ -11,16 +11,7 @@ export 'src/border_beam.dart' show BorderBeam;
 export 'src/border_beam_controller.dart' show BorderBeamController;
 export 'src/border_beam_theme.dart' show BorderBeamTheme, BorderBeamThemeData;
 export 'src/effects/beam_effect.dart'
-    show
-        BeamEffect,
-        ChargeEffect,
-        FlowEffect,
-        HaloEffect,
-        LineEffect,
-        PulseEffect,
-        RotateEffect,
-        ShimmerEffect,
-        SpinEffect;
+    show BeamEffect, HaloEffect, LineEffect, PulseEffect, RotateEffect;
 export 'src/models/beam_colors.dart' show BeamColors, BeamSeedHarmony;
 export 'src/models/beam_options.dart'
     show BeamDirection, BeamEdge, BeamHueMode, BeamReducedMotion, BeamRepeat;

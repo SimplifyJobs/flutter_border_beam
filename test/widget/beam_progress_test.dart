@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_border_beam/src/animation/beam_phases.dart';
+import 'package:flutter_border_beam/src/look/rotate_look.dart';
 import 'package:flutter_border_beam/src/render/beam_frame.dart';
 import 'package:flutter_border_beam/src/render/beam_painter.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -40,24 +41,20 @@ BeamFramePhases _now(WidgetTester tester) {
 BeamFrameData _frame(WidgetTester tester) =>
     _painter(tester).renderer.debugFrame;
 
+// How far the painted rotate head sits from [progress] round the ring.
+double _headOffset(WidgetTester tester, double progress) {
+  final head = _frame(tester).conicStart + rotateHeadStop;
+  return ((head - progress) + 0.5) % 1.0 - 0.5;
+}
+
 Future<void> _settle(WidgetTester tester) async {
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 700));
 }
 
-const _travelling = <BeamEffect>[
-  BeamEffect.rotate(),
-  BeamEffect.line(),
-  BeamEffect.shimmer(),
-  BeamEffect.charge(),
-];
+const _travelling = <BeamEffect>[BeamEffect.rotate(), BeamEffect.line()];
 
-const _ambient = <BeamEffect>[
-  BeamEffect.pulse(),
-  BeamEffect.halo(),
-  BeamEffect.flow(),
-  BeamEffect.spin(),
-];
+const _ambient = <BeamEffect>[BeamEffect.pulse(), BeamEffect.halo()];
 
 /// `BorderBeam.progress`: a value, not the clock, places the sweep of a
 /// travelling effect, while the fade and the hue keep running underneath.
@@ -135,11 +132,14 @@ void main() {
   testWidgets('the rest between sweeps does not dim a driven sweep', (
     tester,
   ) async {
-    // Shimmer rests 1.6s after each 1.4s sweep by default.
+    // A 1.4s sweep that rests 1.6s after each pass.
     await tester.pumpWidget(
       _host(
         const BorderBeam(
-          effect: BeamEffect.shimmer(),
+          timing: BeamTiming(
+            cycle: Duration(milliseconds: 1400),
+            cycleGap: Duration(milliseconds: 1600),
+          ),
           progress: 0.5,
           child: SizedBox.expand(),
         ),
@@ -165,7 +165,7 @@ void main() {
     // Frozen: the clock never ticks, so only the progress itself can repaint.
     Widget build(double progress) => _host(
       BorderBeam(
-        effect: const BeamEffect.charge(),
+        effect: const BeamEffect.rotate(),
         progress: progress,
         playback: const BeamPlayback(
           debugFrozenAt: Duration(milliseconds: 1300),
@@ -177,8 +177,7 @@ void main() {
     await tester.pumpWidget(build(0.2));
     await tester.pump();
     final before = _painter(tester);
-    final low = _frame(tester).trackSpan;
-    expect(low, greaterThan(0));
+    expect(_headOffset(tester, 0.2), closeTo(0, 1e-6));
 
     await tester.pumpWidget(build(0.8));
     final after = _painter(tester);
@@ -187,8 +186,8 @@ void main() {
     expect(after.shouldRepaint(before), isFalse);
     expect(after.progress?.value, 0.8);
     expect(
-      _frame(tester).trackSpan,
-      greaterThan(low),
+      _headOffset(tester, 0.8),
+      closeTo(0, 1e-6),
       reason: 'the new value reached the painted frame',
     );
     expect(tester.binding.transientCallbackCount, 0);
@@ -240,53 +239,30 @@ void main() {
     });
   }
 
-  group('charge', () {
-    testWidgets('fills the border as far as the progress', (tester) async {
-      Widget build(double progress) => _host(
-        BorderBeam(
-          effect: const BeamEffect.charge(),
-          progress: progress,
-          child: const SizedBox.expand(),
+  testWidgets('a reduced-motion static frame still reads the value', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _host(
+        disableAnimations: true,
+        const BorderBeam(
+          effect: BeamEffect.rotate(),
+          progress: 0.6,
+          child: SizedBox.expand(),
         ),
-      );
+      ),
+    );
+    await tester.pump(const Duration(seconds: 1));
+    final painter = _painter(tester);
+    expect(painter.staticMode, isTrue);
+    expect(tester.binding.transientCallbackCount, 0);
 
-      final spans = <double>[];
-      for (final progress in [0.25, 0.5, 0.9]) {
-        await tester.pumpWidget(build(progress));
-        await _settle(tester);
-        final span = _frame(tester).trackSpan;
-        expect(span, closeTo(progress, 0.05), reason: 'progress $progress');
-        spans.add(span);
-      }
-      expect(spans[0], lessThan(spans[1]));
-      expect(spans[1], lessThan(spans[2]));
-    });
-
-    testWidgets('a reduced-motion static frame still reads the value', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        _host(
-          disableAnimations: true,
-          const BorderBeam(
-            effect: BeamEffect.charge(),
-            progress: 0.6,
-            child: SizedBox.expand(),
-          ),
-        ),
-      );
-      await tester.pump(const Duration(seconds: 1));
-      final painter = _painter(tester);
-      expect(painter.staticMode, isTrue);
-      expect(tester.binding.transientCallbackCount, 0);
-
-      final phases = painter.resolver.staticFrame(
-        progress: painter.progress?.value,
-      );
-      expect(phases.travelProgress, 0.6);
-      expect(phases.driven, isTrue);
-      expect(_frame(tester).trackSpan, closeTo(0.6, 0.05));
-    });
+    final phases = painter.resolver.staticFrame(
+      progress: painter.progress?.value,
+    );
+    expect(phases.travelProgress, 0.6);
+    expect(phases.driven, isTrue);
+    expect(_headOffset(tester, 0.6), closeTo(0, 1e-6));
   });
 
   testWidgets('BorderBeam.overlay takes it too', (tester) async {
