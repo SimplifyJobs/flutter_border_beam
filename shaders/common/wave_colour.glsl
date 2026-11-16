@@ -74,7 +74,7 @@ float waveRimThickness(float s, float P) {
 // The view's outline at p: signed distance, arc length, normal.
 vec4 waveOutline(vec2 p) {
   vec2 hs = uRect.zw * 0.5;
-  return outline(p - hs, hs, vec4(uBand.w), true, uQuads, uView.z);
+  return outline(p - hs, hs, uRadii, true, uQuads, uView.z);
 }
 
 // Whether p is close enough to the edges for the rim or the hairline to

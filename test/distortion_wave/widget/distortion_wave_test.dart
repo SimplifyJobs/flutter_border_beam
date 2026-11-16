@@ -481,11 +481,17 @@ void main() {
     tester,
   ) async {
     useWaveView(tester);
-    const display = BorderRadius.all(Radius.circular(55));
+    // Each corner its own, as some displays have.
+    const display = BorderRadius.only(
+      topLeft: Radius.circular(55),
+      topRight: Radius.circular(55),
+      bottomRight: Radius.circular(42),
+      bottomLeft: Radius.circular(42),
+    );
     await tester.pumpWidget(
       waveHost(wave(progress: 0.5), displayCornerRadii: display),
     );
-    expect(waveStage(tester).debugCornerRadius, 55);
+    expect(waveStage(tester).debugCorners, display);
 
     // A radius set on the style wins.
     await tester.pumpWidget(
@@ -497,7 +503,7 @@ void main() {
         displayCornerRadii: display,
       ),
     );
-    expect(waveStage(tester).debugCornerRadius, 30);
+    expect(waveStage(tester).debugCorners, BorderRadius.circular(30));
 
     // A wave that does not fill the view keeps its own radius.
     await tester.pumpWidget(
@@ -506,7 +512,10 @@ void main() {
         displayCornerRadii: display,
       ),
     );
-    expect(waveStage(tester).debugCornerRadius, vertical.cornerRadius);
+    expect(
+      waveStage(tester).debugCorners,
+      BorderRadius.circular(vertical.cornerRadius),
+    );
   });
 
   testWidgets('starts no ticker until it runs, and stops when it arrives', (

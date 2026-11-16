@@ -166,31 +166,26 @@ class RenderWaveStage extends RenderBox
     markNeedsPaint();
   }
 
-  /// The corner radius the edges follow this frame: the display's, while
-  /// the stage fills the view and the display reports one; else the spec's.
-  double get _cornerRadius {
+  /// The corners the edges follow this frame: the display's — each corner
+  /// its own — while the stage fills the view and the display reports them;
+  /// else the spec's radius on all four.
+  BorderRadius get _corners {
     final radii = _displayRadii;
     final view = _viewSize;
-    if (radii == null || view == null || !attached || !hasSize) {
-      return _spec.cornerRadius;
+    if (radii != null && view != null && attached && hasSize) {
+      final origin = localToGlobal(Offset.zero);
+      final fills =
+          origin.distance < 0.5 &&
+          (size.width - view.width).abs() < 0.5 &&
+          (size.height - view.height).abs() < 0.5;
+      if (fills) return radii;
     }
-    final origin = localToGlobal(Offset.zero);
-    final fills =
-        origin.distance < 0.5 &&
-        (size.width - view.width).abs() < 0.5 &&
-        (size.height - view.height).abs() < 0.5;
-    if (!fills) return _spec.cornerRadius;
-    // The shader draws one radius; a display's corners are equal or nearly.
-    return (radii.topLeft.x +
-            radii.topRight.x +
-            radii.bottomRight.x +
-            radii.bottomLeft.x) /
-        4;
+    return BorderRadius.circular(_spec.cornerRadius);
   }
 
-  /// The corner radius the last frame used; for tests.
+  /// The corners the edges follow; for tests.
   @visibleForTesting
-  double get debugCornerRadius => _cornerRadius;
+  BorderRadius get debugCorners => _corners;
 
   bool _revealing;
 
@@ -416,16 +411,12 @@ class RenderWaveStage extends RenderBox
 
   // ─── Painting ─────────────────────────────────────────────────────────────
 
-  double? _outlineRadius;
+  BorderRadius? _outlineCorners;
 
-  BeamOutline _stageOutline(double radius) {
-    if (_outline == null || _outlineRadius != radius) {
-      _outlineRadius = radius;
-      _outline = BeamOutline(
-        Offset.zero & size,
-        BorderRadius.circular(radius),
-        superellipse: true,
-      );
+  BeamOutline _stageOutline(BorderRadius corners) {
+    if (_outline == null || _outlineCorners != corners) {
+      _outlineCorners = corners;
+      _outline = BeamOutline(Offset.zero & size, corners, superellipse: true);
       _specWritten = false;
     }
     return _outline!;
@@ -553,10 +544,11 @@ class RenderWaveStage extends RenderBox
   }
 
   void _writeUniforms(Offset offset, WaveFrame frame) {
-    final radius = _cornerRadius;
-    final outline = _stageOutline(radius);
+    final outline = _stageOutline(_corners);
     if (!_specWritten) {
-      _data.setSpec(_spec, cornerRadius: radius);
+      // The largest corner bounds where the edges' colour can reach.
+      final largest = outline.radii.reduce(math.max);
+      _data.setSpec(_spec, cornerRadius: largest);
       _specWritten = true;
     }
     _data

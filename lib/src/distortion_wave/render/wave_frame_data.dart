@@ -10,7 +10,7 @@ import '../timeline/wave_frame.dart';
 import '../timeline/wave_rim.dart';
 
 /// Floats in the wave shaders' uniform block (`shaders/common/wave_uniforms.glsl`).
-const int waveUniformFloats = 120;
+const int waveUniformFloats = 124;
 
 /// Palette slots in the uniform block (`uStops`).
 const int wavePaletteSlots = maxWavePaletteColors;
@@ -47,6 +47,7 @@ final class WaveFrameData {
   static const int _stops = 52;
   static const int _fringe = _stops + wavePaletteSlots * 4;
   static const int _lumps = _fringe + 8;
+  static const int _radii = _lumps + 28;
 
   final Float32List _lumpScratch = Float32List(WaveRim.count * 3);
 
@@ -58,7 +59,8 @@ final class WaveFrameData {
   }
 
   /// The stage: where it sits in the canvas, the size of a device pixel in
-  /// logical pixels, whether to dither, and the outline its edges follow.
+  /// logical pixels, whether to dither, and the outline its edges follow —
+  /// each of its corners with its own radius.
   void setStage(
     ui.Rect rect,
     double px,
@@ -74,11 +76,18 @@ final class WaveFrameData {
       outline.quadStarts[2],
       outline.quadStarts[3],
     );
+    _v4(
+      _radii,
+      outline.radii[0],
+      outline.radii[1],
+      outline.radii[2],
+      outline.radii[3],
+    );
   }
 
   /// The settled look: lens, blur levels, band, rim, hairline and palette.
-  /// [cornerRadius] overrides the spec's (the display's, for a wave that
-  /// fills it).
+  /// [cornerRadius] overrides the spec's: the largest of the corners the
+  /// edges follow, which bounds where the colour can reach.
   void setSpec(WaveSpec spec, {double? cornerRadius}) {
     _v4(_lens, spec.amplitude, spec.lensWidth, spec.aberration, spec.blur);
     final near = math.min(waveNearBlur, spec.blur);

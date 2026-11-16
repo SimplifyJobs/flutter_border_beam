@@ -20,11 +20,12 @@ uniform vec4 uFront3;   // clearRadius, hairClearRadius, ring (0/1), hold
 uniform vec4 uFront4;   // launched (0/1), outgoing shown (0/1), incoming shown (0/1), unused
 uniform vec4 uLens;     // amplitude, lens width, aberration, blur
 uniform vec4 uBlur;     // blur ahead, blur behind, near blur level, far blur level
-uniform vec4 uBand;     // lead, tail, strength, corner radius
+uniform vec4 uBand;     // lead, tail, strength, largest corner radius
 uniform vec4 uRim;      // width, softness, unevenness, pulse
 uniform vec4 uHair;     // width, opacity, white, palette colour count
 uniform vec4 uStops[8]; // palette colours in OKLab (L, a, b, unused)
 uniform vec4 uFringe[2];// the fringe ahead, the fringe behind, in OKLab
 uniform vec4 uLumps[7]; // rim lumps: centre along the perimeter, length, depth, unused
+uniform vec4 uRadii;    // corner radii: top-left, top-right, bottom-right, bottom-left
 
 #endif

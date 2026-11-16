@@ -123,12 +123,17 @@ void main() {
     // Distinct values throughout, so a value read from a neighbour fails.
     final outline = BeamOutline(
       const Rect.fromLTWH(0, 0, 390, 844),
-      BorderRadius.circular(48),
+      const BorderRadius.only(
+        topLeft: Radius.circular(40),
+        topRight: Radius.circular(44),
+        bottomRight: Radius.circular(52),
+        bottomLeft: Radius.circular(56),
+      ),
       superellipse: true,
     );
     void stage(WaveFrameData d) =>
         d.setStage(const Rect.fromLTWH(3, 5, 390, 844), 0.5, outline);
-    const stageUniforms = {'uRect', 'uView', 'uQuads'};
+    const stageUniforms = {'uRect', 'uView', 'uQuads', 'uRadii'};
     expectWrite('uRect', stage, [3, 5, 390, 844], touches: stageUniforms);
     expectWrite('uView', stage, [
       0.5,
@@ -137,6 +142,7 @@ void main() {
       0,
     ], touches: stageUniforms);
     expectWrite('uQuads', stage, outline.quadStarts, touches: stageUniforms);
+    expectWrite('uRadii', stage, outline.radii, touches: stageUniforms);
 
     const palette = WavePalette(
       colors: [Color(0xFFFF0000), Color(0xFF00FF00), Color(0xFF0000FF)],
