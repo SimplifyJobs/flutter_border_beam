@@ -229,7 +229,9 @@ class PaletteRow extends StatelessWidget {
   }
 
   // The palette's ring as a sweep from 12 o'clock, clockwise — where the
-  // beam itself places the stops.
+  // beam itself places the stops. The ring wraps: past the last stop it
+  // blends back into the first across 12 o'clock, so both ends of the sweep
+  // carry the palette's own colour there.
   static Gradient _ringGradient(BeamColors colors) {
     final palette = colors.resolve();
     final stops = palette.stops;
@@ -237,10 +239,11 @@ class PaletteRow extends StatelessWidget {
     if (opaque.length == 1) {
       return SweepGradient(colors: [opaque.first, opaque.first]);
     }
+    final wrap = palette.sample(0).withValues(alpha: 1);
     return SweepGradient(
       transform: const GradientRotation(-math.pi / 2),
-      colors: [...opaque, opaque.first],
-      stops: [...stops, 1],
+      colors: [wrap, ...opaque, wrap],
+      stops: [0, ...stops, 1],
     );
   }
 }
