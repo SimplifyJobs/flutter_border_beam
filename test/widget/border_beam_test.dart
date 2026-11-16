@@ -291,6 +291,42 @@ void main() {
       expect(tester.binding.transientCallbackCount, 0);
     });
 
+    testWidgets('start resumes a paused beam from its held frame', (
+      tester,
+    ) async {
+      final controller = BorderBeamController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        beamHost(
+          BorderBeam(controller: controller, child: const SizedBox.expand()),
+        ),
+      );
+      controller.start();
+      await tester.pump();
+      await tester.pump(pastFadeIn);
+      controller.pause();
+      final clock = beamPainterOf(tester).clock;
+      final held = clock.elapsedSeconds;
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(controller.isRunning, isFalse);
+
+      controller.start();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(controller.isRunning, isTrue);
+      expect(
+        clock.elapsedSeconds,
+        closeTo(held + 0.1, 1e-9),
+        reason: 'the timeline carries on rather than restarting',
+      );
+      expect(clock.fadeOpacity, 1, reason: 'no fade replays');
+
+      // On a running beam it changes nothing.
+      controller.start();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(clock.elapsedSeconds, closeTo(held + 0.2, 1e-9));
+    });
+
     testWidgets('ignores the active shorthand', (tester) async {
       final controller = BorderBeamController();
       addTearDown(controller.dispose);

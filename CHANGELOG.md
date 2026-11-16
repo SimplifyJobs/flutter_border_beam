@@ -151,6 +151,10 @@ design data rather than transcriptions.
 - **`BeamFocusRing`** defaults to `BeamEffect.rotate()` (was `small`, whose
   compact look `rotate` takes on small controls); **`BeamPress`** defaults to
   `BeamEffect.pulse()` (was `pulseInside`).
+- **`BorderBeamController.start()` resumes a paused beam** from its held
+  frame, as `resume()` does (it was a no-op while the beam was showing). On a
+  hidden or fading-out beam it still fades in, and on a running one it still
+  does nothing.
 
 ### Removed
 

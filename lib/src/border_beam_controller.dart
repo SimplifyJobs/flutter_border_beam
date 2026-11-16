@@ -66,10 +66,18 @@ class BorderBeamController extends ChangeNotifier {
   /// Starts the beam: restarts its timeline from zero and fades it in.
   ///
   /// Called mid-fade-out, it reverses the fade from the opacity reached
-  /// instead, keeping the timeline. A no-op while the beam is already showing
-  /// — including while it is paused; [resume] continues a paused beam.
+  /// instead, keeping the timeline. On a paused beam that is still showing it
+  /// carries on from the held frame, as [resume] does; on a beam that is
+  /// already running it does nothing.
   void start() {
-    _clock?.activate();
+    final clock = _clock;
+    if (clock != null) {
+      if (clock.isVisible && clock.stage != BeamFadeStage.fadingOut) {
+        clock.resume();
+      } else {
+        clock.activate();
+      }
+    }
     notifyListeners();
   }
 

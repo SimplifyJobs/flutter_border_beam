@@ -404,7 +404,7 @@ final controller = BorderBeamController();
 
 BorderBeam(controller: controller, child: card);
 
-controller.start();                      // fade in, play
+controller.start();                      // fade in, play (or resume if paused)
 controller.pause();                      // freeze the current frame
 controller.resume();
 controller.speed = 2;                    // playback rate; must be positive
