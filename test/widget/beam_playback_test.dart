@@ -618,6 +618,37 @@ void main() {
       expect(tester.binding.transientCallbackCount, 0);
     });
 
+    testWidgets("leaves a controller's clock to the controller", (
+      tester,
+    ) async {
+      final controller = BorderBeamController();
+      addTearDown(controller.dispose);
+      Widget build({Duration? at}) => beamHost(
+        BorderBeam(
+          controller: controller,
+          playback: BeamPlayback(debugFrozenAt: at),
+          child: const SizedBox.expand(),
+        ),
+      );
+
+      await tester.pumpWidget(build());
+      controller.start();
+      await tester.pump();
+      await tester.pump(pastFadeIn);
+      expect(controller.isRunning, isTrue);
+
+      // Pinning the frame does not pause a clock the controller runs...
+      await tester.pumpWidget(build(at: const Duration(seconds: 1)));
+      expect(controller.isRunning, isTrue);
+      expect(beamPainterOf(tester).frozenAt, const Duration(seconds: 1));
+
+      // ...and unpinning does not resume one the controller paused.
+      controller.pause();
+      await tester.pumpWidget(build());
+      expect(controller.isRunning, isFalse, reason: 'the controller paused');
+      expect(controller.isActive, isTrue);
+    });
+
     testWidgets('a different instant is a different frame', (tester) async {
       await tester.pumpWidget(frozen(const Duration(milliseconds: 1300)));
       final early = await beamPixels(tester);
@@ -865,6 +896,38 @@ void main() {
       expect(clock.stage, isNot(BeamFadeStage.fadingOut));
       await tester.pump(const Duration(milliseconds: 200));
       expect(clock.stage, BeamFadeStage.fadingOut);
+    });
+
+    testWidgets("pinning a controller's offscreen beam lifts its own pause", (
+      tester,
+    ) async {
+      final controller = BorderBeamController();
+      addTearDown(controller.dispose);
+      Widget rows({Duration? at}) => list(
+        row: (index) => index == 6
+            ? BorderBeam(
+                key: const ValueKey(6),
+                controller: controller,
+                playback: BeamPlayback(debugFrozenAt: at),
+                child: const SizedBox.expand(),
+              )
+            : const SizedBox.expand(),
+      );
+
+      await tester.pumpWidget(rows());
+      controller.start();
+      await tester.pump();
+      // A small scroll re-runs the visibility check on the running beam.
+      await tester.drag(find.byType(ListView), const Offset(0, -10));
+      await tester.pump();
+      await tester.pump();
+      expect(controller.isRunning, isFalse, reason: 'paused offscreen');
+
+      // A pinned beam stops watching the scroll, so the pause the beam took
+      // for it is lifted — not handed to the pin, which holds nothing of a
+      // controller's.
+      await tester.pumpWidget(rows(at: const Duration(seconds: 1)));
+      expect(controller.isRunning, isTrue);
     });
 
     testWidgets('a beam outside any scrollable is never paused', (

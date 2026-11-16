@@ -417,6 +417,10 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
   // is never started at all.
   bool get _frozen => _playback.debugFrozenAt != null;
 
+  // Whether the pinned frame holds the clock still. Only on a beam that owns
+  // its playback: a controller's clock runs on the controller's say alone.
+  bool get _frozenHoldsClock => _frozen && widget.controller == null;
+
   bool _autoPlayScheduled = false;
   bool _hasStarted = false;
   BeamReducedMotion? _reducedApplied;
@@ -622,8 +626,18 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
   // would spend every frame on pixels nobody sees. Unpinning hands the beam
   // back to its schedule: what pinning paused resumes, and a beam that never
   // got to start starts now.
+  //
+  // A controller's clock is the controller's alone: pinning changes what is
+  // painted, never whether that clock runs, so it neither pauses a running
+  // one nor resumes one the controller paused.
   void _applyFrozenChange({required bool wasFrozen}) {
     if (wasFrozen == _frozen || _synced) return;
+    if (widget.controller != null) {
+      // A pause pinning put on before the controller took over is the
+      // controller's to lift now.
+      _pausedForFrozen = false;
+      return;
+    }
     if (_frozen) {
       _startTimer?.cancel();
       _startTimer = null;
@@ -714,7 +728,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     if (_pausedForReducedMotion) {
       _pausedForReducedMotion = false;
       if (_clock.isVisible) {
-        if (_frozen) {
+        if (_frozenHoldsClock) {
           // The pinned frame holds the clock now; unpinning resumes it.
           _pausedForFrozen = true;
           return;
@@ -1129,7 +1143,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     // Reduced motion outranks visibility: a beam that must not move stays
     // still whether or not it is on screen.
     if (_motionFrozen || _pausedForReducedMotion || !_clock.isVisible) return;
-    if (_frozen) {
+    if (_frozenHoldsClock) {
       // The pinned frame holds the clock now; unpinning resumes it.
       _pausedForFrozen = true;
       return;

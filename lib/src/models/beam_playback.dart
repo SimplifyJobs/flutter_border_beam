@@ -105,7 +105,9 @@ class BeamPlayback {
   /// and a strength of 0 paints nothing.
   ///
   /// Setting it on a running beam stops its clock; clearing it again resumes
-  /// the clock, or starts a beam that never got to.
+  /// the clock, or starts a beam that never got to. A beam driven by a
+  /// `BorderBeamController` is the exception: the frame is pinned, but its
+  /// clock runs, pauses, and resumes only when the controller says so.
   final Duration? debugFrozenAt;
 
   /// Returns a copy with the given fields replaced. A null argument keeps the
