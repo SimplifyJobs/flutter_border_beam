@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../widget/test_utils.dart' show beamPainterOf;
+
 /// [BeamFocusRing] is a thin composition: it only decides `active` on the
 /// [BorderBeam] it wraps, from focus plus [FocusManager.highlightMode]. Every
 /// assertion below reads that decision off the inner beam.
@@ -407,6 +409,57 @@ void main() {
       final beam = beamOf(tester);
       expect(beam.effect, const BeamEffect.rotate());
       expect(beam.colors, BeamColors.ocean);
+    });
+
+    testWidgets('style colours win over the ocean default', (tester) async {
+      await tester.pumpWidget(
+        scene(
+          BeamFocusRing(
+            alwaysShow: true,
+            style: const BeamStyle(colors: BeamColors.sunset),
+            child: box(),
+          ),
+        ),
+      );
+
+      expect(beamOf(tester).colors, isNull);
+      expect(beamPainterOf(tester).config.palette, BeamColors.sunset.resolve());
+    });
+
+    testWidgets('theme colours win over the ocean default', (tester) async {
+      await tester.pumpWidget(
+        scene(
+          BorderBeamTheme(
+            data: const BorderBeamThemeData(
+              style: BeamStyle(colors: BeamColors.sunset),
+            ),
+            child: BeamFocusRing(alwaysShow: true, child: box()),
+          ),
+        ),
+      );
+
+      expect(beamOf(tester).colors, isNull);
+      expect(beamPainterOf(tester).config.palette, BeamColors.sunset.resolve());
+    });
+
+    testWidgets('its own colors win over style and theme', (tester) async {
+      await tester.pumpWidget(
+        scene(
+          BorderBeamTheme(
+            data: const BorderBeamThemeData(
+              style: BeamStyle(colors: BeamColors.sunset),
+            ),
+            child: BeamFocusRing(
+              alwaysShow: true,
+              colors: BeamColors.forest,
+              style: const BeamStyle(colors: BeamColors.sunset),
+              child: box(),
+            ),
+          ),
+        ),
+      );
+
+      expect(beamPainterOf(tester).config.palette, BeamColors.forest.resolve());
     });
 
     testWidgets('hands its effect, style, shape and timing to the beam', (

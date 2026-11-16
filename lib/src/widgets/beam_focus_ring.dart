@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import '../border_beam.dart';
+import '../border_beam_theme.dart';
 import '../effects/beam_effect.dart';
 import '../models/beam_colors.dart';
 import '../models/beam_shape.dart';
@@ -47,7 +48,7 @@ class BeamFocusRing extends StatefulWidget {
     required this.child,
     this.focusNode,
     this.effect = const BeamEffect.rotate(),
-    this.colors = BeamColors.ocean,
+    this.colors,
     this.borderRadius,
     this.style,
     this.shape,
@@ -66,8 +67,12 @@ class BeamFocusRing extends StatefulWidget {
   /// switches to its compact chip look on small controls.
   final BeamEffect effect;
 
-  /// The ring's palette. Defaults to [BeamColors.ocean].
-  final BeamColors colors;
+  /// The ring's palette; a non-null value wins over `style.colors`.
+  ///
+  /// Null inherits `style.colors`, then the enclosing [BorderBeamTheme]'s
+  /// colours, and only when neither sets one falls back to the ring's own
+  /// default, [BeamColors.ocean].
+  final BeamColors? colors;
 
   /// Shorthand for a uniform corner radius in logical px. Match the focused
   /// widget's own radius.
@@ -96,7 +101,9 @@ class BeamFocusRing extends StatefulWidget {
     super.debugFillProperties(properties);
     properties
       ..add(DiagnosticsProperty<BeamEffect>('effect', effect))
-      ..add(DiagnosticsProperty<BeamColors>('colors', colors))
+      ..add(
+        DiagnosticsProperty<BeamColors>('colors', colors, defaultValue: null),
+      )
       ..add(DoubleProperty('borderRadius', borderRadius, defaultValue: null))
       ..add(
         DiagnosticsProperty<FocusNode>(
@@ -172,11 +179,20 @@ class _BeamFocusRingState extends State<BeamFocusRing> {
   bool get _showHighlight =>
       widget.alwaysShow || _highlightMode == FocusHighlightMode.traditional;
 
+  // BorderBeam's colors shorthand wins over style.colors and the theme, so
+  // the ring passes its ocean default only when nothing else names colours.
+  BeamColors? _colors(BuildContext context) {
+    if (widget.colors != null) return widget.colors;
+    if (widget.style?.colors != null) return null;
+    if (BorderBeamTheme.of(context).style?.colors != null) return null;
+    return BeamColors.ocean;
+  }
+
   @override
   Widget build(BuildContext context) {
     final beam = BorderBeam(
       effect: widget.effect,
-      colors: widget.colors,
+      colors: _colors(context),
       active: _focused && _showHighlight,
       borderRadius: widget.borderRadius,
       style: widget.style,

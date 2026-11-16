@@ -188,6 +188,9 @@ design data rather than transcriptions.
   does reduced motion's `slow`. Pausing still freezes the fade.
 - A `BorderBeamController` can move from one beam to another in the same
   frame.
+- `BeamFocusRing` no longer overrides `style.colors` and theme colours with
+  its `ocean` default. `colors` is now nullable: null inherits, and `ocean`
+  applies only when nothing else sets colours.
 - A NaN or infinite style or shape number is treated as unset (an infinite
   `strength` clamps instead), as are a NaN `progress` and a non-finite
   `follow`, so the shader is never handed one.

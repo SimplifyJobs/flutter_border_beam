@@ -506,7 +506,7 @@ BeamPress(borderRadius: 20, onTap: submit, child: card);
 
 | Widget | Lights when | Default effect | Notable options |
 | --- | --- | --- | --- |
-| `BeamFocusRing` | `child`'s subtree (or `focusNode`) holds focus | `rotate` (compact on small controls), `ocean` palette | `alwaysShow` lights it under touch focus too |
+| `BeamFocusRing` | `child`'s subtree (or `focusNode`) holds focus | `rotate` (compact on small controls), `ocean` palette unless `style` or a theme sets colours | `alwaysShow` lights it under touch focus too |
 | `BeamHover` | the cursor is over `child`, pulling the travel toward it | `rotate` | `followPointer`, `holdAfterExit` (300ms) |
 | `BeamPress` | a finger is down on `child` | `pulse` | `minimumDuration` (600ms), `onTap` |
 
