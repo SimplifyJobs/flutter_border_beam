@@ -48,6 +48,8 @@ for Flutter.
   keeps content in nested repaint boundaries moving too.
 - Reduced motion makes it a 0.3 s crossfade; a view holding a platform
   view crossfades too.
+- A wave that fills the view follows the display's corners
+  (`MediaQuery.displayCornerRadii`) unless `WaveGlow.cornerRadius` is set.
 - `DistortionWave.precache()` also draws the wave's shaders once out of
   sight, so the GPU has built their pipelines before the first wave.
 - While the wave bends the views neither takes a touch; once a reveal no

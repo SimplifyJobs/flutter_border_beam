@@ -686,7 +686,7 @@ DistortionWave(
 )
 ```
 
-Set `WaveGlow.cornerRadius` to the corners of the view the wave fills — a phone's screen, or a sheet's — so the colour on the edges and its hairline sit on them. The corners are Flutter's rounded superellipse, as a phone's screen is.
+A wave that fills the whole view follows the **display's own corners**, from `MediaQuery.displayCornerRadii`, so the colour on the edges and its hairline sit on the glass of every device. Android reports them to Flutter; on iOS, which does not, an app can supply them with `MediaQueryData.applyDisplayCornerRadii` (the example app shows one way). For a wave in a sheet or a card, or to override, set `WaveGlow.cornerRadius` to the corners of the view it fills. The corners are Flutter's rounded superellipse, as a phone's screen is.
 
 ### Control
 

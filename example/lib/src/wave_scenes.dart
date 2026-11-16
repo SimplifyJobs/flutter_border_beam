@@ -112,8 +112,14 @@ class DemoWave extends StatefulWidget {
     this.source,
     this.anchorKey,
     this.chain = true,
+    this.fullScreen = false,
     this.onFinish,
   });
+
+  /// Whether the demo fills the device's screen: no frame, the real status
+  /// bar and home indicator, and the wave's edge colour on the display's own
+  /// corners. Otherwise it is a framed mock phone (or sheet).
+  final bool fullScreen;
 
   /// Which demo.
   final WaveDemo demo;
@@ -212,24 +218,36 @@ class _DemoWaveState extends State<DemoWave>
       ),
     };
     final held = widget.progress;
+    final fills = widget.fullScreen && demo != WaveDemo.success;
+    final wave = DistortionWave(
+      controller: _wave,
+      type: demo.type,
+      palette: widget.palette,
+      // Filling the screen, the wave follows the display's corners by
+      // itself; framed, it follows the frame's.
+      style: fills
+          ? null
+          : WaveStyle(glow: WaveGlow(cornerRadius: demo.radius)),
+      progress: held,
+      // A held wave opens from the anchor pressed last; before anything has
+      // been pressed there is none, so hold it on the button.
+      source: widget.source ?? (held == null ? null : WaveSource.key(_anchor)),
+      onFinish: _arrived,
+      revealedChild: revealed,
+      child: rest,
+    );
     return MediaQuery.withNoTextScaling(
-      child: _Frame(
-        radius: demo.radius,
-        child: DistortionWave(
-          controller: _wave,
-          type: demo.type,
-          palette: widget.palette,
-          style: WaveStyle(glow: WaveGlow(cornerRadius: demo.radius)),
-          progress: held,
-          // A held wave opens from the anchor pressed last; before anything
-          // has been pressed there is none, so hold it on the button.
-          source:
-              widget.source ?? (held == null ? null : WaveSource.key(_anchor)),
-          onFinish: _arrived,
-          revealedChild: revealed,
-          child: rest,
-        ),
-      ),
+      child: fills
+          ? wave
+          // A framed mock draws its own status bar and spacing.
+          : MediaQuery.removePadding(
+              context: context,
+              removeTop: true,
+              removeBottom: true,
+              removeLeft: true,
+              removeRight: true,
+              child: _Frame(radius: demo.radius, child: wave),
+            ),
     );
   }
 }
@@ -306,7 +324,7 @@ class SendReview extends StatelessWidget {
           // Where the vertical wave opens from by default, too: 56 tall, 24
           // up from the bottom, 20 in from the sides.
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+            padding: EdgeInsets.fromLTRB(20, 0, 20, 24 + _bottomInset(context)),
             child: DistortionWaveAnchor(
               key: anchorKey,
               child: _WideButton(label: r'Send $248.00', onTap: onSend),
@@ -353,7 +371,7 @@ class SendReceipt extends StatelessWidget {
           ]),
           const Spacer(),
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+            padding: EdgeInsets.fromLTRB(20, 0, 20, 24 + _bottomInset(context)),
             child: _WideButton(label: 'Done', onTap: onDone, primary: false),
           ),
         ],
@@ -442,7 +460,12 @@ class StepScreen extends StatelessWidget {
                   ),
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(44, 4, 24, 24),
+                      padding: EdgeInsets.fromLTRB(
+                        44,
+                        4,
+                        24,
+                        24 + _bottomInset(context),
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -886,6 +909,11 @@ TextStyle _amount(Tokens t) => TextStyle(
   letterSpacing: -1.6,
 );
 
+/// The device's bottom safe-area inset: the home indicator's room, when a
+/// demo fills the screen; 0 in a framed mock.
+double _bottomInset(BuildContext context) =>
+    MediaQuery.paddingOf(context).bottom;
+
 /// A mock phone's status bar.
 class _StatusBar extends StatelessWidget {
   const _StatusBar();
@@ -893,6 +921,9 @@ class _StatusBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
+    // Full screen, the device's own status bar shows: leave room for it.
+    final top = MediaQuery.paddingOf(context).top;
+    if (top > 0) return SizedBox(height: top);
     return Padding(
       padding: const EdgeInsets.fromLTRB(30, 14, 26, 2),
       child: Row(

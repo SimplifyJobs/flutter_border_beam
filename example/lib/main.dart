@@ -3,6 +3,7 @@ import 'dart:ui' show PointerDeviceKind;
 import 'package:material_ui/material_ui.dart';
 import 'package:prismatic/prismatic.dart';
 
+import 'src/display_corners.dart';
 import 'src/home.dart';
 import 'src/tokens.dart';
 
@@ -10,7 +11,12 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Load the shaders before the first frame, so the first beam is lit and
   // the first wave bends.
-  await Future.wait([BorderBeam.precache(), DistortionWave.precache()]);
+  // …and learn the display's corner radius where Flutter is not told it.
+  await Future.wait([
+    BorderBeam.precache(),
+    DistortionWave.precache(),
+    DisplayCorners.load(),
+  ]);
   runApp(const ExampleApp());
 }
 
@@ -39,6 +45,7 @@ class _ExampleAppState extends State<ExampleApp> {
       dragDevices: PointerDeviceKind.values.toSet(),
       scrollbars: false,
     ),
+    builder: DisplayCorners.apply,
     home: Home(
       dark: _dark,
       onToggleTheme: () => setState(() => _dark = !_dark),
