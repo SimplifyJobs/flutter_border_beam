@@ -95,13 +95,24 @@ void main() {
   test('pop overshoots a little, once, and settles', () {
     final values = _samples(BeamSpringCurve.pop, 10000);
     final peak = values.reduce(math.max);
-    final peakAt = values.indexOf(peak) / 10000;
+    final peakIndex = values.indexOf(peak);
     expect(peak, greaterThan(1.01));
     expect(peak, lessThan(1.05));
-    expect(peakAt, lessThan(0.6));
-    // Everything after the peak stays below it and within the settle band.
-    for (var i = (peakAt * 10000).ceil() + 1; i < values.length; i++) {
-      expect(values[i], lessThan(peak));
+    expect(peakIndex / 10000, lessThan(0.6));
+    // One rise, straight up to the peak.
+    for (var i = 1; i <= peakIndex; i++) {
+      expect(values[i], greaterThanOrEqualTo(values[i - 1]), reason: '$i');
+    }
+    // Then back down through 1...
+    final back = values.indexWhere((v) => v <= 1, peakIndex);
+    expect(back, greaterThan(peakIndex), reason: 'never came back to 1');
+    for (var i = peakIndex + 1; i < back; i++) {
+      expect(values[i], lessThan(values[i - 1]), reason: '$i');
+    }
+    // ...and settled: never over 1 again, and any undershoot within the 1%
+    // a settled spring leaves.
+    for (var i = back; i < values.length; i++) {
+      expect(values[i], inInclusiveRange(0.99, 1 + 1e-9), reason: '$i');
     }
     expect(values.last, 1.0);
   });
