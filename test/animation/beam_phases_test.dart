@@ -411,6 +411,27 @@ void main() {
       expect(reversed.travelProgress, closeTo(0.65, 1e-12));
     });
 
+    test('a phase offset moves the ambient clock, as it does when running', () {
+      for (final effect in BeamEffect.values) {
+        final plain = _resolver(effect: effect);
+        final shifted = _resolver(effect: effect, phaseOffset: 0.5);
+        for (final progress in [null, 0.4]) {
+          expect(
+            shifted.staticFrame(progress: progress).cycles -
+                plain.staticFrame(progress: progress).cycles,
+            closeTo(0.5, 1e-12),
+            reason: '${effect.name}, progress $progress',
+          );
+        }
+        // The sweep stays where the frame is lit.
+        expect(
+          shifted.staticFrame().travelProgress,
+          plain.staticFrame().travelProgress,
+          reason: effect.name,
+        );
+      }
+    });
+
     test('honours a driven progress, clamped', () {
       final r = _resolver();
       final frame = r.staticFrame(progress: 0.25);

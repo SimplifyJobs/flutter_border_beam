@@ -228,6 +228,11 @@ class BeamPhaseResolver {
   /// travels: a reversed beam's head, its trail, and the beams behind it are
   /// mirrored exactly as they are when it runs.
   ///
+  /// The ambient clock ([BeamFramePhases.cycles]) carries the phase offset
+  /// as it does when the beam runs, so still beams on different offsets
+  /// breathe at different points rather than in lockstep. The sweep does
+  /// not: it stays where it is lit.
+  ///
   /// A driven [progress] is honored: a beam whose sweep is a progress
   /// readout still reads its value under reduced motion.
   BeamFramePhases staticFrame({double? progress}) {
@@ -235,7 +240,7 @@ class BeamPhaseResolver {
       return BeamFramePhases(
         fadeOpacity: 1,
         hueDegrees: 0,
-        cycles: 0.3,
+        cycles: _staticCycles,
         reversedNow: config.direction == BeamDirection.reverse,
       );
     }
@@ -246,7 +251,7 @@ class BeamPhaseResolver {
         hueDegrees: 0,
         travelProgress: head,
         travellers: _spread(head),
-        cycles: 0.3,
+        cycles: _staticCycles,
         driven: true,
       );
     }
@@ -258,12 +263,16 @@ class BeamPhaseResolver {
       travelProgress: head,
       travellers: _spread(head, reversed: reversed),
       reversedNow: reversed,
-      cycles: 0.3,
+      cycles: _staticCycles,
     );
   }
 
   // How far through its sweep a travelling effect's static frame sits.
   static const double _staticSweep = 0.35;
+
+  // The ambient clock of a static frame: a representative instant, moved by
+  // the phase offset the way `sample` moves it.
+  double get _staticCycles => 0.3 + config.phaseOffset;
 
   /// Travel progress through one sweep (0–1) and the gap envelope at [t].
   ///
