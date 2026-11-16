@@ -3,11 +3,11 @@ import 'package:flutter/foundation.dart';
 /// How a beam's colours drift over time.
 enum BeamHueMode {
   /// The hue swings from `-hueShift` to `+hueShift` and back over one hue
-  /// period — the default of most effects.
+  /// period — the default of `BeamEffect.rotate` and `BeamEffect.line`.
   pingPong,
 
   /// The hue advances through a full 360° revolution over one hue period,
-  /// never reversing — the default of the breathing effects.
+  /// never reversing — the default of `BeamEffect.pulse`.
   continuous,
 
   /// The colours never drift: the palette is painted as given (rotated by

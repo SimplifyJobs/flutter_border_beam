@@ -60,6 +60,13 @@ void main() {
       });
     }
 
+    // `BeamHueMode`'s docs name these; a change here belongs there too.
+    test('rotate and line ping-pong their hue; pulse revolves it', () {
+      expect(const BeamEffect.rotate().defaultHueMode, BeamHueMode.pingPong);
+      expect(const BeamEffect.line().defaultHueMode, BeamHueMode.pingPong);
+      expect(const BeamEffect.pulse().defaultHueMode, BeamHueMode.continuous);
+    });
+
     test('no effect rests between sweeps by default', () {
       for (final effect in BeamEffect.values) {
         expect(effect.defaultCycleGap, Duration.zero, reason: effect.name);
