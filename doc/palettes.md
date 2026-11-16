@@ -5,7 +5,7 @@ A palette is a **ring of colour stops around the border**. Each stop is a colour
 Effects draw a palette as soft blobs of colour placed around the border — the same blob tables the original design was tuned with:
 
 - The four originals (`colorful`, `mono`, `ocean`, `sunset`) carry their own hand-tuned tables; the seven extras that follow them cycle their colours over `colorful`'s tables.
-- Every other palette — the presets new in 0.2 and everything you build with `BeamColors(...)`, `.solid`, `.fromSeed`, `.fromScheme`, `.lerp` — keeps `colorful`'s blob geometry and takes each blob's colour from the ring of stops at the point of the border the blob sits on. `scaleAlpha` keeps a preset's own tables, dimmed. The tables are worked out once per palette.
+- Every other palette — the presets new in 0.2 and everything you build with `BeamColors(...)`, `.solid`, `.fromSeed`, `.fromScheme`, `.lerp` — keeps `colorful`'s blob geometry and takes each blob's colour from the ring of stops at the point of the border the blob sits on (`line`'s blobs, which travel with the streak, take it from their place across the streak). `scaleAlpha` keeps a preset's own tables, dimmed, and a `.lerp` at exactly 0 or 1 is its end palette, tables and all. The tables are worked out once per palette.
 
 How the colours are shown depends on the effect:
 
