@@ -477,6 +477,38 @@ void main() {
     );
   });
 
+  testWidgets("a wave that fills the view follows the display's corners", (
+    tester,
+  ) async {
+    useWaveView(tester);
+    const display = BorderRadius.all(Radius.circular(55));
+    await tester.pumpWidget(
+      waveHost(wave(progress: 0.5), displayCornerRadii: display),
+    );
+    expect(waveStage(tester).debugCornerRadius, 55);
+
+    // A radius set on the style wins.
+    await tester.pumpWidget(
+      waveHost(
+        wave(
+          progress: 0.5,
+          style: const WaveStyle(glow: WaveGlow(cornerRadius: 30)),
+        ),
+        displayCornerRadii: display,
+      ),
+    );
+    expect(waveStage(tester).debugCornerRadius, 30);
+
+    // A wave that does not fill the view keeps its own radius.
+    await tester.pumpWidget(
+      waveHost(
+        Padding(padding: const EdgeInsets.all(20), child: wave(progress: 0.5)),
+        displayCornerRadii: display,
+      ),
+    );
+    expect(waveStage(tester).debugCornerRadius, vertical.cornerRadius);
+  });
+
   testWidgets('starts no ticker until it runs, and stops when it arrives', (
     tester,
   ) async {

@@ -64,6 +64,8 @@ class RenderWaveStage extends RenderBox
     this._snapshots = WaveSnapshots.onChange,
     this._plain = false,
     this._revealing = false,
+    this._displayRadii,
+    this._viewSize,
   });
 
   ValueListenable<double> _progress;
@@ -141,6 +143,54 @@ class RenderWaveStage extends RenderBox
     _plain = value;
     markNeedsPaint();
   }
+
+  BorderRadius? _displayRadii;
+
+  /// The display's corner radii, when the edges should follow them: set when
+  /// nothing sets `WaveGlow.cornerRadius`. Used only while the stage fills
+  /// the whole view ([viewSize]); otherwise the spec's radius applies.
+  BorderRadius? get displayRadii => _displayRadii;
+  set displayRadii(BorderRadius? value) {
+    if (value == _displayRadii) return;
+    _displayRadii = value;
+    markNeedsPaint();
+  }
+
+  Size? _viewSize;
+
+  /// The size of the view the stage is in, logical pixels.
+  Size? get viewSize => _viewSize;
+  set viewSize(Size? value) {
+    if (value == _viewSize) return;
+    _viewSize = value;
+    markNeedsPaint();
+  }
+
+  /// The corner radius the edges follow this frame: the display's, while
+  /// the stage fills the view and the display reports one; else the spec's.
+  double get _cornerRadius {
+    final radii = _displayRadii;
+    final view = _viewSize;
+    if (radii == null || view == null || !attached || !hasSize) {
+      return _spec.cornerRadius;
+    }
+    final origin = localToGlobal(Offset.zero);
+    final fills =
+        origin.distance < 0.5 &&
+        (size.width - view.width).abs() < 0.5 &&
+        (size.height - view.height).abs() < 0.5;
+    if (!fills) return _spec.cornerRadius;
+    // The shader draws one radius; a display's corners are equal or nearly.
+    return (radii.topLeft.x +
+            radii.topRight.x +
+            radii.bottomRight.x +
+            radii.bottomLeft.x) /
+        4;
+  }
+
+  /// The corner radius the last frame used; for tests.
+  @visibleForTesting
+  double get debugCornerRadius => _cornerRadius;
 
   bool _revealing;
 
@@ -366,11 +416,20 @@ class RenderWaveStage extends RenderBox
 
   // ─── Painting ─────────────────────────────────────────────────────────────
 
-  BeamOutline get _stageOutline => _outline ??= BeamOutline(
-    Offset.zero & size,
-    BorderRadius.circular(_spec.cornerRadius),
-    superellipse: true,
-  );
+  double? _outlineRadius;
+
+  BeamOutline _stageOutline(double radius) {
+    if (_outline == null || _outlineRadius != radius) {
+      _outlineRadius = radius;
+      _outline = BeamOutline(
+        Offset.zero & size,
+        BorderRadius.circular(radius),
+        superellipse: true,
+      );
+      _specWritten = false;
+    }
+    return _outline!;
+  }
 
   @override
   void paint(PaintingContext context, Offset offset) {
@@ -494,11 +553,12 @@ class RenderWaveStage extends RenderBox
   }
 
   void _writeUniforms(Offset offset, WaveFrame frame) {
+    final radius = _cornerRadius;
+    final outline = _stageOutline(radius);
     if (!_specWritten) {
-      _data.setSpec(_spec);
+      _data.setSpec(_spec, cornerRadius: radius);
       _specWritten = true;
     }
-    final outline = _stageOutline;
     _data
       ..setStage(offset & size, 1 / _devicePixelRatio, outline)
       ..setFrame(frame)

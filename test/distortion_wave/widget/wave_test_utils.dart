@@ -14,18 +14,22 @@ void useWaveView(WidgetTester tester, {Size size = waveTestSize}) {
 }
 
 /// [child] with the ambient widgets a wave needs and nothing else.
-Widget waveHost(Widget child, {bool disableAnimations = false}) =>
-    Directionality(
-      textDirection: TextDirection.ltr,
-      child: MediaQuery(
-        data: MediaQueryData(
-          size: waveTestSize,
-          devicePixelRatio: 2,
-          disableAnimations: disableAnimations,
-        ),
-        child: child,
-      ),
-    );
+Widget waveHost(
+  Widget child, {
+  bool disableAnimations = false,
+  BorderRadius? displayCornerRadii,
+}) => Directionality(
+  textDirection: TextDirection.ltr,
+  child: MediaQuery(
+    data: MediaQueryData(
+      size: waveTestSize,
+      devicePixelRatio: 2,
+      disableAnimations: disableAnimations,
+      displayCornerRadii: displayCornerRadii,
+    ),
+    child: child,
+  ),
+);
 
 /// The wave's render object.
 RenderWaveStage waveStage(WidgetTester tester) =>

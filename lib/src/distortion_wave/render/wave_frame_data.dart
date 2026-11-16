@@ -77,11 +77,19 @@ final class WaveFrameData {
   }
 
   /// The settled look: lens, blur levels, band, rim, hairline and palette.
-  void setSpec(WaveSpec spec) {
+  /// [cornerRadius] overrides the spec's (the display's, for a wave that
+  /// fills it).
+  void setSpec(WaveSpec spec, {double? cornerRadius}) {
     _v4(_lens, spec.amplitude, spec.lensWidth, spec.aberration, spec.blur);
     final near = math.min(waveNearBlur, spec.blur);
     _v4(_blur, spec.blurAhead, spec.blurBehind, near, spec.blur);
-    _v4(_band, spec.lead, spec.tail, spec.strength, spec.cornerRadius);
+    _v4(
+      _band,
+      spec.lead,
+      spec.tail,
+      spec.strength,
+      cornerRadius ?? spec.cornerRadius,
+    );
     _v4(
       _rim,
       spec.rimWidth,

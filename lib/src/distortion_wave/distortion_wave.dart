@@ -158,6 +158,7 @@ class _DistortionWaveState extends State<DistortionWave>
   int _run = 0;
   WaveSpec? _spec;
   WaveSnapshots _snapshots = WaveSnapshots.onChange;
+  bool _followsDisplay = true;
 
   @override
   void initState() {
@@ -211,6 +212,11 @@ class _DistortionWaveState extends State<DistortionWave>
       WaveStyle(type: widget.type, palette: widget.palette),
     );
     _spec = WaveSpec.resolve(style, fallback: theme.style);
+    // Nothing sets the corners: a wave that fills the view follows the
+    // display's.
+    _followsDisplay =
+        style.glow?.cornerRadius == null &&
+        theme.style?.glow?.cornerRadius == null;
     _snapshots = widget.snapshots ?? theme.snapshots ?? WaveSnapshots.onChange;
   }
 
@@ -318,6 +324,10 @@ class _DistortionWaveState extends State<DistortionWave>
         snapshots: _snapshots,
         plain: _reducedMotion(),
         revealing: _revealing,
+        displayRadii: _followsDisplay
+            ? MediaQuery.maybeDisplayCornerRadiiOf(context)
+            : null,
+        viewSize: MediaQuery.maybeSizeOf(context),
         outgoing: side(WaveSlot.outgoing, widget.child, onOutgoing || !resting),
         incoming: side(
           WaveSlot.incoming,
@@ -342,6 +352,8 @@ class WaveStage
     this.snapshots = WaveSnapshots.onChange,
     this.plain = false,
     this.revealing = false,
+    this.displayRadii,
+    this.viewSize,
     this.outgoing,
     this.incoming,
   });
@@ -367,6 +379,13 @@ class WaveStage
   /// Whether the wave is heading for [incoming].
   final bool revealing;
 
+  /// The display's corner radii, for edges that follow them while the stage
+  /// fills the view; null when the style sets its own radius.
+  final BorderRadius? displayRadii;
+
+  /// The size of the view the stage is in.
+  final Size? viewSize;
+
   /// The side shown at progress 0.
   final Widget? outgoing;
 
@@ -391,6 +410,8 @@ class WaveStage
     snapshots: snapshots,
     plain: plain,
     revealing: revealing,
+    displayRadii: displayRadii,
+    viewSize: viewSize,
   );
 
   @override
@@ -402,7 +423,9 @@ class WaveStage
       ..devicePixelRatio = devicePixelRatio
       ..snapshots = snapshots
       ..plain = plain
-      ..revealing = revealing;
+      ..revealing = revealing
+      ..displayRadii = displayRadii
+      ..viewSize = viewSize;
   }
 }
 

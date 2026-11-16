@@ -229,6 +229,12 @@ class _WaveRouteTransition extends StatelessWidget {
         snapshots: route.snapshots ?? theme.snapshots ?? WaveSnapshots.onChange,
         plain: MediaQuery.maybeDisableAnimationsOf(context) ?? false,
         revealing: animation.status != AnimationStatus.reverse,
+        displayRadii:
+            route.style?.glow?.cornerRadius == null &&
+                theme.style?.glow?.cornerRadius == null
+            ? MediaQuery.maybeDisplayCornerRadiiOf(context)
+            : null,
+        viewSize: MediaQuery.maybeSizeOf(context),
         outgoing: WaveSide(
           slot: WaveSlot.outgoing,
           child: ValueListenableBuilder<ui.Image?>(
