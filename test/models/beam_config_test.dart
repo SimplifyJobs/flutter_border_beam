@@ -304,10 +304,8 @@ void main() {
 
     for (final MapEntry(key: name, value: build) in mutations.entries) {
       test('$name breaks equality', () {
-        final base = _resolve();
-        final changed = build();
-        expect(changed, isNot(base));
-        expect(changed.hashCode, isNot(base.hashCode));
+        // Only equality: unequal configs may share a hash code.
+        expect(build(), isNot(_resolve()));
       });
     }
 
