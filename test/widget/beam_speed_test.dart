@@ -143,6 +143,14 @@ void main() {
 
       controller.speed = 2;
       expect(clock.speed, 2, reason: 'a live controller change lands at once');
+
+      // Rejected outright, not only by a debug assertion, and the rate in
+      // force is left as it was.
+      for (final bad in [0.0, -1.0, double.nan, double.infinity]) {
+        expect(() => controller.speed = bad, throwsArgumentError);
+      }
+      expect(controller.speed, 2);
+      expect(clock.speed, 2);
     });
 
     testWidgets('a rebuild does not restore the timing speed over it', (

@@ -48,6 +48,18 @@ void validateBeamTiming(BeamTiming timing) {
   );
 }
 
+/// Returns [speed] when it is finite and positive, and throws otherwise,
+/// including in release builds. [name] labels the argument in the error.
+///
+/// A playback rate multiplies the timeline every frame, so a NaN, an
+/// infinity, or a non-positive rate would poison every phase it feeds.
+double validateSpeed(double speed, String name) {
+  if (!speed.isFinite || speed <= 0) {
+    throw ArgumentError.value(speed, name, 'must be finite and positive');
+  }
+  return speed;
+}
+
 /// Returns a valid repeat budget, including in release builds.
 int? validateRepeat(BeamRepeat? repeat) {
   final cycles = repeat?.cycles;

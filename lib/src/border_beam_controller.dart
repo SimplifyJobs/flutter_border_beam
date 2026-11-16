@@ -4,6 +4,7 @@ library;
 import 'package:flutter/foundation.dart';
 
 import 'animation/beam_clock.dart';
+import 'models/model_validation.dart';
 
 /// Programmatic playback control for a [BorderBeam].
 ///
@@ -53,10 +54,9 @@ class BorderBeamController extends ChangeNotifier {
   /// `BeamReducedMotion.slow` still quarters it.
   double get speed => _speed;
   set speed(double value) {
-    assert(
-      value > 0 && value.isFinite,
-      'BorderBeamController.speed must be finite and positive, got $value',
-    );
+    // Checked in release builds too: the rate multiplies the timeline every
+    // frame, so a NaN or infinity would reach every phase and the shader.
+    validateSpeed(value, 'BorderBeamController.speed');
     if (value == _speed) return;
     _speed = value;
     // The attached beam listens and works out the rate in force from this.

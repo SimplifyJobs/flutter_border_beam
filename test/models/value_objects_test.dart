@@ -503,6 +503,29 @@ void main() {
     });
   });
 
+  group('validateSpeed', () {
+    test('passes a finite positive rate through', () {
+      expect(validateSpeed(1, 'speed'), 1);
+      expect(validateSpeed(0.25, 'speed'), 0.25);
+    });
+
+    test('rejects zero, negative, NaN, and infinite rates', () {
+      for (final bad in [
+        0.0,
+        -1.0,
+        double.nan,
+        double.infinity,
+        double.negativeInfinity,
+      ]) {
+        expect(
+          () => validateSpeed(bad, 'speed'),
+          throwsArgumentError,
+          reason: '$bad',
+        );
+      }
+    });
+  });
+
   group('validateRepeat', () {
     // A count below one cannot be built in a debug run (the constructor
     // asserts first), so only the passing paths are reachable here.
