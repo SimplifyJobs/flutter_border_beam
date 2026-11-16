@@ -80,9 +80,38 @@ vec4 waveOutline(vec2 p) {
 // Whether p is close enough to the edges for the rim or the hairline to
 // reach it. Further in than this even the thickest lump has faded to
 // nothing, and the hairline is far behind.
+// How wide the crease where two edges meet is rounded, in rim widths.
+const float CORNER_POOL = 2.5;
+
+// How much nearer the rim's own depth can be than the outline's distance
+// (on a corner's diagonal; see waveRimInset).
+float wavePoolSlack() {
+  return 0.25 * CORNER_POOL * uRim.x;
+}
+
+// A smooth minimum: the smaller of a and b, eased where they are within k.
+float waveSmin(float a, float b, float k) {
+  float h = max(k - abs(a - b), 0.0) / k;
+  return min(a, b) - h * h * k * 0.25;
+}
+
+// How deep in from the edges the rim's colour is measured. The distance to
+// the outline creases along a corner's diagonal, where the nearest edge
+// changes: round a sharp corner the colour would turn along a mitre. Here
+// the distances to the two edges that meet there are eased into each other,
+// so the colour turns smoothly from one edge to the next, pooling a little
+// into the corner. Round a round corner the outline's own distance is the
+// smaller, and already smooth.
+float waveRimInset(vec2 p, float inset) {
+  vec2 hs = uRect.zw * 0.5;
+  vec2 e = hs - abs(p - hs);
+  return min(inset, max(waveSmin(e.x, e.y, CORNER_POOL * uRim.x), 0.0));
+}
+
 bool waveNearEdge(float inset) {
   return uFront2.w > 0.0 &&
-      inset < max(uRim.x * 2.2 * (1.0 + 1.9 * uRim.z), uHair.x * 0.5 + 0.75);
+      inset - wavePoolSlack() <
+          max(uRim.x * 2.2 * (1.0 + 1.9 * uRim.z), uHair.x * 0.5 + 0.75);
 }
 
 // Whether any colour can reach p, from the field alone and a lower bound on
@@ -97,7 +126,8 @@ bool waveColourReaches(vec2 p, float d) {
   vec2 cut = min(vec2(SQUIRCLE_REACH * uBand.w), hs);
   float chamfer = (e.x * cut.y + e.y * cut.x - cut.x * cut.y) * inversesqrt(max(dot(cut, cut), 1e-6));
   float lower = min(min(e.x, e.y), chamfer);
-  return lower < max(uRim.x * 2.2 * (1.0 + 1.9 * uRim.z), uHair.x * 0.5 + 0.75);
+  return lower - wavePoolSlack() <
+      max(uRim.x * 2.2 * (1.0 + 1.9 * uRim.z), uHair.x * 0.5 + 0.75);
 }
 
 // The premultiplied colour of the band, the rim and the hairline at p, given
@@ -153,7 +183,8 @@ float waveRimThicknessAt(float s) {
 // Whether, with the band gone, the rim has faded to nothing this far in and
 // the hairline is behind: exp(-2.76^2) is under the 0.0005 that is dropped.
 bool waveRimFaded(float inset, float thickness) {
-  return uFront2.z <= 0.0 && inset >= uRim.x * thickness * 2.76 &&
+  return uFront2.z <= 0.0 &&
+      inset - wavePoolSlack() >= uRim.x * thickness * 2.76 &&
       inset >= uHair.x * 0.5 + 0.75;
 }
 
@@ -192,7 +223,7 @@ vec4 waveGlowCore(vec2 p, vec4 o, float edge, float thickness, float d, vec2 q, 
   float shimmer = 0.5;
   float pulse = uRim.w;
   if (nearEdge) {
-    float hug = exp(-waveSq(inset / (uRim.x * thickness)));
+    float hug = exp(-waveSq(waveRimInset(p, inset) / (uRim.x * thickness)));
     float reached = 1.0 - smoothstep(-lead * 0.7, lead * 0.5, d);
     float kept = smoothstep(-uRim.y, uRim.y, d + (uFront0.w - uFront3.x) / g);
     // Two soft swells of brightness running round the edge.

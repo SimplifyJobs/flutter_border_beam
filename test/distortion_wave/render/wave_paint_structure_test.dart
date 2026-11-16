@@ -230,7 +230,7 @@ void main() {
         final sx = cx == 0 ? 1.0 : -1.0;
         final sy = cy == 0 ? 1.0 : -1.0;
         var lit = 0;
-        var steepest = 0;
+        final steps = <int>[];
         Color? last;
         // Inside the view only: from 1 pt in, across the diagonal at t = depth.
         for (var t = math.max(1.0, depth - 20); t <= depth + 20; t += 0.5) {
@@ -245,18 +245,23 @@ void main() {
               (ch(c.g) - ch(last.g)).abs(),
               (ch(c.b) - ch(last.b)).abs(),
             ].reduce((a, b) => a > b ? a : b);
-            if (step > steepest) steepest = step;
+            steps.add(step);
           }
           last = c;
         }
         if (lit > 10) {
           litWalks++;
-          if (steepest > worst) worst = steepest;
+          // A seam is a step far above its neighbours; a steep but smooth
+          // stretch (the edge of a lump) climbs to it and back.
+          for (var i = 1; i + 1 < steps.length; i++) {
+            final spike = steps[i] - (steps[i - 1] + steps[i + 1]) / 2;
+            if (spike > worst) worst = spike.round();
+          }
         }
       }
     }
     expect(litWalks, greaterThan(1), reason: 'the walks cross lit rim');
-    expect(worst, lessThan(10), reason: 'no seam on the diagonals');
+    expect(worst, lessThan(8), reason: 'no seam on the diagonals');
   });
 
   testWidgets('the center wave leaves its source untouched', (tester) async {
