@@ -224,6 +224,10 @@ class BeamPhaseResolver {
   /// A representative static frame for reduced motion: full opacity, the
   /// palette's own colours, travelling effects mid-sweep.
   ///
+  /// The sweep is the first cycle's, partway through, facing the way the beam
+  /// travels: a reversed beam's head, its trail, and the beams behind it are
+  /// mirrored exactly as they are when it runs.
+  ///
   /// A driven [progress] is honored: a beam whose sweep is a progress
   /// readout still reads its value under reduced motion.
   BeamFramePhases staticFrame({double? progress}) {
@@ -235,16 +239,31 @@ class BeamPhaseResolver {
         reversedNow: config.direction == BeamDirection.reverse,
       );
     }
-    final head = progress?.clamp(0.0, 1.0) ?? 0.35;
+    if (progress != null) {
+      final head = progress.clamp(0.0, 1.0);
+      return BeamFramePhases(
+        fadeOpacity: 1,
+        hueDegrees: 0,
+        travelProgress: head,
+        travellers: _spread(head),
+        cycles: 0.3,
+        driven: true,
+      );
+    }
+    final reversed = _reversedIn(0);
+    final head = reversed ? 1 - _staticSweep : _staticSweep;
     return BeamFramePhases(
       fadeOpacity: 1,
       hueDegrees: 0,
       travelProgress: head,
-      travellers: _spread(head),
+      travellers: _spread(head, reversed: reversed),
+      reversedNow: reversed,
       cycles: 0.3,
-      driven: progress != null,
     );
   }
+
+  // How far through its sweep a travelling effect's static frame sits.
+  static const double _staticSweep = 0.35;
 
   /// Travel progress through one sweep (0–1) and the gap envelope at [t].
   ///

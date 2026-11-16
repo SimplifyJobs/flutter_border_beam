@@ -16,6 +16,7 @@ BeamConfig _config({
   Duration? cycleGap,
   Duration? huePeriod,
   double? phaseOffset,
+  BeamDirection? direction,
 }) => BeamConfig.resolve(
   effect: effect,
   palette: palette ?? BeamColors.colorful.resolve(),
@@ -26,6 +27,7 @@ BeamConfig _config({
     cycleGap: cycleGap,
     huePeriod: huePeriod,
     phaseOffset: phaseOffset,
+    direction: direction,
   ),
 );
 
@@ -38,6 +40,7 @@ BeamPhaseResolver _resolver({
   Duration? cycleGap,
   Duration? huePeriod,
   double? phaseOffset,
+  BeamDirection? direction,
 }) => BeamPhaseResolver(
   _config(
     effect: effect,
@@ -48,6 +51,7 @@ BeamPhaseResolver _resolver({
     cycleGap: cycleGap,
     huePeriod: huePeriod,
     phaseOffset: phaseOffset,
+    direction: direction,
   ),
 );
 
@@ -374,6 +378,37 @@ void main() {
       ).staticFrame();
       expect(three.travellers, hasLength(3));
       expect(three.travellers.first, three.travelProgress);
+    });
+
+    test('travels the way the beam does: partway through the first sweep', () {
+      // Every direction, including a mirrored one, against the frame the
+      // running beam paints at the same point of its first cycle: the head,
+      // the order of the beams behind it, and which way it is facing.
+      for (final effect in [
+        ...BeamEffect.values.where((e) => e.travels),
+        const BeamEffect.rotate(count: 3),
+      ]) {
+        for (final direction in BeamDirection.values) {
+          final r = _resolver(effect: effect, direction: direction);
+          final still = r.staticFrame();
+          final timed = r.sample(0.35 * r.config.cycleSeconds, 1);
+          final reason = '${effect.name} ${direction.name}';
+          expect(still.reversedNow, timed.reversedNow, reason: reason);
+          expect(still.travellers, hasLength(timed.travellers.length));
+          for (var i = 0; i < timed.travellers.length; i++) {
+            expect(
+              still.travellers[i],
+              closeTo(timed.travellers[i], 1e-9),
+              reason: '$reason, beam $i',
+            );
+          }
+        }
+      }
+      final reversed = _resolver(
+        direction: BeamDirection.reverse,
+      ).staticFrame();
+      expect(reversed.reversedNow, isTrue);
+      expect(reversed.travelProgress, closeTo(0.65, 1e-12));
     });
 
     test('honours a driven progress, clamped', () {
