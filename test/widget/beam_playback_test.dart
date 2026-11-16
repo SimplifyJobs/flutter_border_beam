@@ -683,6 +683,12 @@ void main() {
   });
 
   group('fadeCurve', () {
+    // Points along each fade, from the clock's own lengths.
+    Duration seconds(double s) => Duration(microseconds: (s * 1e6).round());
+    final halfIn = seconds(BeamClock.fadeInSeconds / 2);
+    final quarterIn = seconds(BeamClock.fadeInSeconds / 4);
+    final halfOut = seconds(BeamClock.fadeOutSeconds / 2);
+
     testWidgets('the widget hands its curve to the clock', (tester) async {
       await tester.pumpWidget(
         beamHost(
@@ -693,7 +699,7 @@ void main() {
         ),
       );
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(halfIn);
       final clock = beamPainterOf(tester).clock;
       expect(clock.fadeCurve, BeamPlayback.cssEase);
       expect(
@@ -713,13 +719,13 @@ void main() {
 
       await tester.pumpWidget(build(true));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(halfIn);
       final clock = beamPainterOf(tester).clock;
       expect(clock.fadeOpacity, closeTo(0.5, 1e-9), reason: 'half way in');
 
-      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(halfIn + const Duration(milliseconds: 100));
       await tester.pumpWidget(build(false));
-      await tester.pump(const Duration(milliseconds: 250));
+      await tester.pump(halfOut);
       expect(clock.fadeOpacity, closeTo(0.5, 1e-9), reason: 'half way out');
     });
 
@@ -730,7 +736,7 @@ void main() {
         beamHost(const BorderBeam(child: SizedBox.expand())),
       );
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(halfIn);
       final clock = beamPainterOf(tester).clock;
       expect(clock.fadeCurve, isNull);
       expect(clock.fadeOpacity, inInclusiveRange(0, 1));
@@ -753,9 +759,9 @@ void main() {
 
       await tester.pumpWidget(build(null));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 150));
+      await tester.pump(quarterIn);
       await tester.pumpWidget(build(Curves.linear));
-      await tester.pump(const Duration(milliseconds: 150));
+      await tester.pump(halfIn - quarterIn);
       final clock = beamPainterOf(tester).clock;
       expect(clock.fadeCurve, Curves.linear);
       expect(clock.fadeOpacity, closeTo(0.5, 1e-9));

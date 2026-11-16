@@ -58,8 +58,8 @@ class BeamSync extends StatefulWidget {
   /// The subtree whose beams share the clock.
   final Widget child;
 
-  /// Whether the group is playing. Toggling fades every beam in (0.6s) or
-  /// out (0.5s) together.
+  /// Whether the group is playing. Toggling fades every beam in (about 0.5s)
+  /// or out (about 0.6s) together.
   final bool active;
 
   /// Playback rate for the group; must be positive.

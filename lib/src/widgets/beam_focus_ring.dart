@@ -23,8 +23,8 @@ import '../models/beam_timing.dart';
 /// form wrapped in one ring should do. Pass [focusNode] to follow one
 /// specific node instead — including a node that lives outside this subtree.
 ///
-/// Focus comes and goes with the beam's own fades (0.6s in, 0.5s out) rather
-/// than a cut, because the ring only flips `BorderBeam`'s `active`.
+/// Focus comes and goes with the beam's own fades (about 0.5s in, 0.6s out)
+/// rather than a cut, because the ring only flips `BorderBeam`'s `active`.
 ///
 /// ## Highlight mode
 ///

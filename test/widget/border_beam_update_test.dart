@@ -289,9 +289,12 @@ void main() {
       expect(clock.fadeOpacity, closeTo(opacity, 1e-9));
       expect(clock.stage, BeamFadeStage.fadingIn);
 
-      // The remaining fade time is unchanged too: 0.45s left of the 0.6s
-      // fade-in, not 0.45s scaled by the cycle ratio.
-      await tester.pump(const Duration(milliseconds: 400));
+      // The remaining fade time is unchanged too: the rest of the fade-in,
+      // not that rest scaled by the cycle ratio.
+      final left = Duration(
+        microseconds: ((BeamClock.fadeInSeconds - 0.15) * 1e6).round(),
+      );
+      await tester.pump(left - const Duration(milliseconds: 50));
       expect(activated, 0);
       await tester.pump(const Duration(milliseconds: 100));
       expect(activated, 1);

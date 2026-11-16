@@ -9,10 +9,10 @@ enum BeamFadeStage {
   /// Not animating a fade (either idle or fully visible).
   none,
 
-  /// Fading in (0.6s).
+  /// Fading in ([BeamClock.fadeInSeconds]).
   fadingIn,
 
-  /// Fading out (0.5s).
+  /// Fading out ([BeamClock.fadeOutSeconds]).
   fadingOut,
 }
 
@@ -21,8 +21,9 @@ enum BeamFadeStage {
 /// Every animated value is a pure function of elapsed time, driven by ONE
 /// [Ticker]. The clock integrates scaled
 /// deltas so [speed] changes and pauses keep continuity, and runs the
-/// fade-in/fade-out envelope (spring-eased via [FadeSpringCurve] unless
-/// [fadeCurve] replaces it). It notifies on every display frame — the beam is
+/// fade-in/fade-out envelope (critically damped springs —
+/// [BeamSpringCurve.fadeIn] and [BeamSpringCurve.fadeOut] — unless
+/// [fadeCurve] replaces them). It notifies on every display frame — the beam is
 /// cheap enough to run at the panel's full rate, 120Hz included.
 class BeamClock extends ChangeNotifier {
   /// Creates a clock. [createTicker] is typically
@@ -35,11 +36,13 @@ class BeamClock extends ChangeNotifier {
     this.fadeCurve,
   }) : _createTicker = createTicker;
 
-  /// Fade-in duration in seconds.
-  static const double fadeInSeconds = 0.6;
+  /// Fade-in duration in seconds: [BeamSpringCurve.fadeIn]'s settling time,
+  /// so the spring plays in real time.
+  static const double fadeInSeconds = 0.475;
 
-  /// Fade-out duration in seconds.
-  static const double fadeOutSeconds = 0.5;
+  /// Fade-out duration in seconds: [BeamSpringCurve.fadeOut]'s settling
+  /// time.
+  static const double fadeOutSeconds = 0.581;
 
   /// How far [pulse] lifts [boost] at its peak.
   static const double pulsePeak = 2;
@@ -50,24 +53,19 @@ class BeamClock extends ChangeNotifier {
   /// makes the blink read as a flash.
   static const double flashPeak = 4;
 
-  // Spring-eased fade, isolated here so the curve is trivially replaceable.
-  static const _defaultFadeCurve = FadeSpringCurve.instance;
-
   final Ticker Function(TickerCallback) _createTicker;
 
   /// Fired when a fade completes; the argument is whether the beam is now
   /// active (`true` after fade-in, `false` after fade-out).
   final ValueChanged<bool>? onFadeComplete;
 
-  /// The easing both fades run on; null uses the spring
-  /// ([FadeSpringCurve]).
+  /// The easing both fades run on; null uses the springs
+  /// ([BeamSpringCurve.fadeIn], [BeamSpringCurve.fadeOut]).
   ///
   /// Settable so a beam can pick up `BeamPlayback.fadeCurve` after its clock
   /// exists. It is read per frame, so a change lands on the next one — and
   /// mid-fade, since both stages read the curve from where they already are.
   Curve? fadeCurve;
-
-  Curve get _fadeCurve => fadeCurve ?? _defaultFadeCurve;
 
   Ticker? _ticker;
   Duration _lastRaw = Duration.zero;
@@ -147,21 +145,21 @@ class BeamClock extends ChangeNotifier {
 
   /// The current fade envelope value (0–1).
   ///
-  /// The spring curve is lightly under-damped and overshoots its target by
-  /// up to ~3%; the result is clamped so it is always a valid opacity.
+  /// The default springs are critically damped and never leave 0–1; the
+  /// result is clamped anyway, since a custom [fadeCurve] may overshoot.
   double get fadeOpacity {
     final raw = switch (_stage) {
       BeamFadeStage.none => _visible ? 1.0 : 0.0,
       BeamFadeStage.fadingIn =>
         _fadeFromOpacity +
             (1 - _fadeFromOpacity) *
-                _fadeCurve.transform(
+                (fadeCurve ?? BeamSpringCurve.fadeIn).transform(
                   ((_elapsed - _fadeStart) / fadeInSeconds).clamp(0.0, 1.0),
                 ),
       BeamFadeStage.fadingOut =>
         _fadeFromOpacity *
             (1 -
-                _fadeCurve.transform(
+                (fadeCurve ?? BeamSpringCurve.fadeOut).transform(
                   ((_elapsed - _fadeStart) / fadeOutSeconds).clamp(0.0, 1.0),
                 )),
     };
@@ -324,7 +322,7 @@ class _Boost {
   /// The multiplier at the top of the envelope.
   final double peak;
 
-  /// Seconds spent climbing to [peak], spring-eased like the fade.
+  /// Seconds spent climbing to [peak], on [BeamSpringCurve.pop].
   final double rise;
 
   /// Seconds held at [peak].
@@ -356,7 +354,7 @@ class _Boost {
   double envelopeAt(double now) {
     var x = now - startedAt;
     if (x <= 0) return rise > 0 ? 0 : 1;
-    if (x < rise) return FadeSpringCurve.instance.transform(x / rise);
+    if (x < rise) return BeamSpringCurve.pop.transform(x / rise);
     x -= rise;
     if (x < hold) return 1;
     x -= hold;

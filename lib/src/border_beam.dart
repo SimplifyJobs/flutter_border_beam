@@ -64,7 +64,8 @@ import 'render/beam_renderer.dart';
 /// Without a [controller], the beam plays by itself: `playback.autoPlay`
 /// starts it (after `playback.startAfter`, if given) and `playback.duration`
 /// bounds the total play time (null loops forever). Toggling [active] fades
-/// the beam in (0.6s) and out (0.5s) with spring-eased envelopes;
+/// the beam in (about 0.5s) and out (about 0.6s) on critically damped
+/// springs;
 /// [onActivate]/[onDeactivate] fire when the fades complete.
 ///
 /// With a [BorderBeamController] attached, the controller owns playback

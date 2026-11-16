@@ -334,8 +334,11 @@ void main() {
       expect(clock.fadeOpacity, closeTo(opacity, 1e-9));
       expect(clock.stage, BeamFadeStage.fadingIn);
 
-      // 0.4s of the 0.6s fade remain, exactly as before the retime.
-      await tester.pump(const Duration(milliseconds: 350));
+      // The rest of the fade remains, exactly as before the retime.
+      final left = Duration(
+        microseconds: ((BeamClock.fadeInSeconds - 0.2) * 1e6).round(),
+      );
+      await tester.pump(left - const Duration(milliseconds: 50));
       expect(clock.stage, BeamFadeStage.fadingIn);
       await tester.pump(const Duration(milliseconds: 100));
       expect(clock.stage, BeamFadeStage.none);
