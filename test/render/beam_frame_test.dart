@@ -415,6 +415,36 @@ void main() {
       );
     });
 
+    test('custom palettes spread each line table across its own streak', () {
+      // Black to white once round the ring: a blob's grey level says where
+      // across the streak it sampled the palette.
+      final tables = BeamLook.tablesFor(
+        const BeamColors(
+          [Color(0xFF000000), Color(0xFFFFFFFF)],
+          stops: [0, 0.999],
+        ).resolve(),
+      );
+      for (final (name, blobs) in [
+        ('lineDark', tables.lineDark),
+        ('lineLight', tables.lineLight),
+        ('lineInner', tables.lineInner),
+      ]) {
+        final across = [...blobs]
+          ..sort((a, b) => a.offsetX.compareTo(b.offsetX));
+        expect(across.first.color.r, closeTo(0, 1e-3), reason: '$name: start');
+        expect(across.last.color.r, greaterThan(0.99), reason: '$name: end');
+        for (var i = 1; i < across.length; i++) {
+          expect(
+            across[i].color.r,
+            greaterThan(across[i - 1].color.r),
+            reason:
+                '$name: the blobs at ${across[i - 1].offsetX} and '
+                '${across[i].offsetX} px sampled the same point',
+          );
+        }
+      }
+    });
+
     test('scaleAlpha keeps a preset tables, scaled', () {
       final half = BeamLook.tablesFor(
         BeamColors.ocean.scaleAlpha(0.5).resolve(),

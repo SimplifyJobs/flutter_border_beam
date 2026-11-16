@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/painting.dart' show BorderRadius;
@@ -146,9 +147,21 @@ BeamLookTables sampleTables(BeamPalette palette) {
     b.color,
     _chip.nearestFraction(Offset(b.position.dx * 70, b.position.dy * 36)),
   );
-  // Across the streak: its blobs span ±66 px.
-  Color across(LineBlob b) =>
-      tint(b.color, ((b.offsetX + 66) / 132).clamp(0.0, 0.999));
+  // Across the streak, end to end: each table over its own width, since the
+  // light-surface streak is wider than the dark one and the inner glow.
+  List<LineBlob> across(List<LineBlob> blobs) {
+    final half = blobs.fold(0.0, (m, b) => math.max(m, b.offsetX.abs()));
+    return [
+      for (final b in blobs)
+        b.withColor(
+          tint(
+            b.color,
+            half > 0 ? ((b.offsetX + half) / (2 * half)).clamp(0.0, 0.999) : 0,
+          ),
+        ),
+    ];
+  }
+
   SpikePair spike(SpikePair s, double at) =>
       SpikePair(tint(s.color1, at), tint(s.color2, at));
 
@@ -164,9 +177,9 @@ BeamLookTables sampleTables(BeamPalette palette) {
     ),
     smallBorder: [for (final b in base.smallBorder) b.withColor(onChip(b))],
     smallInner: [for (final b in base.smallInner) b.withColor(onChip(b))],
-    lineDark: [for (final b in base.lineDark) b.withColor(across(b))],
-    lineLight: [for (final b in base.lineLight) b.withColor(across(b))],
-    lineInner: [for (final b in base.lineInner) b.withColor(across(b))],
+    lineDark: across(base.lineDark),
+    lineLight: across(base.lineLight),
+    lineInner: across(base.lineInner),
     lineBloomDark: [
       for (final (i, s) in base.lineBloomDark.indexed) spike(s, _spikeAt[i]),
     ],
