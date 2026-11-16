@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 
 import 'animation/beam_clock.dart';
 import 'models/beam_options.dart';
+import 'models/model_validation.dart';
 
 /// Runs every [BorderBeam] below it off one shared clock, so a group of
 /// beams animates in lockstep.
@@ -58,7 +59,10 @@ class BeamSync extends StatefulWidget {
     this.active = true,
     this.speed = 1,
     this.reducedMotion = BeamReducedMotion.staticFrame,
-  }) : assert(speed > 0, 'BeamSync.speed must be positive');
+  }) : assert(
+         speed > 0 && speed < double.infinity,
+         'BeamSync.speed must be finite and positive',
+       );
 
   /// The subtree whose beams share the clock.
   final Widget child;
@@ -67,7 +71,7 @@ class BeamSync extends StatefulWidget {
   /// or out (about 0.6s) together.
   final bool active;
 
-  /// Playback rate for the group; must be positive. Default 1.
+  /// Playback rate for the group; must be finite and positive. Default 1.
   final double speed;
 
   /// How the whole group responds to the platform reduced-motion request.
@@ -90,16 +94,18 @@ class BeamSync extends StatefulWidget {
 class _BeamSyncState extends State<BeamSync>
     with SingleTickerProviderStateMixin {
   late final BeamClock _clock = BeamClock(createTicker: createTicker)
-    ..speed = widget.speed;
+    ..speed = validateSpeed(widget.speed, 'BeamSync.speed');
 
   bool _started = false;
   bool _reduced = false;
 
+  // The constructor only asserts, so the rate is checked here as well, where
+  // release builds run it before it reaches the shared clock.
   void _applySpeed() {
     final factor = _reduced && widget.reducedMotion == BeamReducedMotion.slow
         ? slowMotionFactor
         : 1.0;
-    _clock.speed = widget.speed * factor;
+    _clock.speed = validateSpeed(widget.speed, 'BeamSync.speed') * factor;
   }
 
   // Puts the group's clock back in motion. A clock that is mid-fade-out is

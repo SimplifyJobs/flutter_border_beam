@@ -127,6 +127,16 @@ void main() {
   });
 
   group('group playback', () {
+    test('a non-finite or non-positive speed is rejected', () {
+      for (final bad in [0.0, -1.0, double.nan, double.infinity]) {
+        expect(
+          () => BeamSync(speed: bad, child: const SizedBox()),
+          throwsAssertionError,
+          reason: '$bad',
+        );
+      }
+    });
+
     testWidgets("a member's own playback is ignored", (tester) async {
       await tester.pumpWidget(
         _host(
