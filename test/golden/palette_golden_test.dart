@@ -1,92 +1,79 @@
 @Tags(['golden'])
 library;
 
-import 'package:flutter/material.dart';
 import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
-/// One scene per palette the Flutter port adds on top of the React source's
-/// four, plus the two derivation entry points ([BeamColors.fromSeed] and
-/// [BeamColors.lerp]).
+import 'golden_scene.dart';
+
+/// The palette family: every preset, and every way of building or
+/// transforming colours, on one effect.
 ///
-/// Every scene uses the same frame the variant goldens do — rotate, dark
-/// theme, clock frozen at 1.3s — so the only thing that varies between these
-/// images is the palette, which is what they are here to pin.
-///
-/// Regenerate with:
-///   flutter test --update-goldens --tags golden
+/// The pulse lights the whole border at once, and with the hue drift off
+/// each image is the palette itself rather than a glimpse of it. Dark theme,
+/// t = 1.3s.
 void main() {
-  Widget scene(Widget beam) => MaterialApp(
-    debugShowCheckedModeBanner: false,
-    theme: ThemeData(brightness: Brightness.dark),
-    home: ColoredBox(
-      // The demo backdrop of the source library.
-      color: const Color(0xFF070707),
-      child: Center(child: SizedBox(width: 350, height: 140, child: beam)),
-    ),
-  );
+  setUpAll(BorderBeam.precache);
 
-  Widget mockSurface() => DecoratedBox(
-    decoration: BoxDecoration(
-      color: const Color(0xFF1D1D1D),
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: const Color(0x14FFFFFF)),
-    ),
-  );
-
-  Future<void> capture(
-    WidgetTester tester,
-    String name,
-    BeamColors colors,
-  ) async {
-    await tester.pumpWidget(
-      scene(
-        BorderBeam.rotate(
+  Widget ring(BeamColors colors, {BeamStyle style = const BeamStyle()}) =>
+      goldenScene(
+        BorderBeam(
+          effect: const BeamEffect.pulse(),
           colors: colors,
-          style: const BeamStyle(theme: BeamTheme.dark),
-          child: mockSurface(),
+          borderRadius: 16,
+          style: style.copyWith(
+            theme: BeamTheme.dark,
+            hueMode: BeamHueMode.none,
+          ),
+          child: mockSurface(Brightness.dark),
         ),
-      ),
-    );
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 1300));
-    await expectLater(
-      find.byType(MaterialApp),
-      matchesGoldenFile('goldens/palette_$name.png'),
-    );
-  }
+      );
 
-  for (final MapEntry(key: name, value: colors) in const {
-    'aurora': BeamColors.aurora,
-    'neon': BeamColors.neon,
-    'candy': BeamColors.candy,
-    'ember': BeamColors.ember,
-    'ice': BeamColors.ice,
-    'gold': BeamColors.gold,
-    'holographic': BeamColors.holographic,
-  }.entries) {
-    testWidgets('rotate dark $name', (tester) async {
-      await capture(tester, name, colors);
+  for (final MapEntry(key: name, value: colors) in BeamColors.presets.entries) {
+    testWidgets('preset $name', (tester) async {
+      await captureGolden(tester, 'palette_$name', ring(colors));
     });
   }
 
-  // The brand blue of the package's own demo, spread by the default
-  // (analogous) harmony.
-  testWidgets('rotate dark fromSeed', (tester) async {
-    await capture(
-      tester,
-      'from_seed',
-      const BeamColors.fromSeed(Color(0xFF18A8F0)),
-    );
-  });
+  final built = <String, BeamColors>{
+    'custom': const BeamColors([
+      Color(0xFFFF2D95),
+      Color(0xFF00E5FF),
+      Color(0xFFFFC400),
+    ]),
+    'custom_stops': const BeamColors(
+      [Color(0xFFFF2D95), Color(0xFF00E5FF), Color(0xFFFFC400)],
+      stops: [0, 0.1, 0.5],
+    ),
+    'solid': const BeamColors.solid(Color(0xFF7C4DFF)),
+    for (final harmony in BeamSeedHarmony.values)
+      'seed_${harmony.name}': BeamColors.fromSeed(
+        const Color(0xFF18A8F0),
+        harmony: harmony,
+      ),
+    'scheme': BeamColors.fromScheme(
+      ColorScheme.fromSeed(seedColor: const Color(0xFF00897B)),
+    ),
+    'lerp_ocean_sunset': const BeamColors.lerp(
+      BeamColors.ocean,
+      BeamColors.sunset,
+      0.5,
+    ),
+    'scale_alpha_half': BeamColors.colorful.scaleAlpha(0.5),
+  };
 
-  // Halfway between two source presets: neither end's colors, both ends'
-  // geometry (they share it).
-  testWidgets('rotate dark lerp ocean to sunset', (tester) async {
-    await capture(
+  for (final MapEntry(key: name, value: colors) in built.entries) {
+    testWidgets(name, (tester) async {
+      await captureGolden(tester, 'palette_$name', ring(colors));
+    });
+  }
+
+  testWidgets('hue base', (tester) async {
+    await captureGolden(
       tester,
-      'lerp_ocean_sunset',
-      const BeamColors.lerp(BeamColors.ocean, BeamColors.sunset, 0.5),
+      'palette_colorful_hue_base_120',
+      ring(BeamColors.colorful, style: const BeamStyle(hueBase: 120)),
     );
   });
 }

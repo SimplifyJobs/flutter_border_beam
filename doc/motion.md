@@ -1,102 +1,110 @@
 # Motion
 
-Timing, direction, rest, synchronization, and taking the sweep off the clock entirely. The [README's timing table](../README.md#timing) lists the fields and defaults; this guide is about how they interact.
+Timing, direction, rest, synchronization, and taking the travel off the clock. The [README's `BeamTiming` table](../README.md#beamtiming) lists the fields and defaults; this guide is about how they interact.
 
 ## The clock
 
-One `Ticker` accumulates elapsed seconds. Every animated value — sweep position, hue, the line variant's breathe and spike scales, the pulse oscillator bank — is recomputed from that single number each frame. There are no `AnimationController`s and no per-track state, which is what makes the whole engine a pure function of time.
+One `Ticker` accumulates elapsed seconds. Every value on the timeline — the travel position, the hue, the breathing of the ambient effects — is recomputed from that one number each frame. There are no `AnimationController`s and no per-track state, so the same instant always puts the travel, the hue, and the breath in the same place. A frame also carries what sits beside the timeline: the fades and the controller's accents, which run on real time (below), and a [`follow`](#follow) easing toward its target.
 
-`speed` scales how fast that number advances. It is applied to the clock rather than to the config, so changing it never re-resolves the beam or rebuilds the phase resolver — a rate change is free.
+The clock ticks on every frame the engine produces. Nothing is capped, so a beam runs at 120Hz on a 120Hz display (on ProMotion iPhones, once the app opts in — see [performance](performance.md#120hz)).
 
-Three things can drive the rate, in order: a `speedListenable`, then an attached `BorderBeamController`'s `speed`, then `timing.speed`. Under a `BeamSync` the group's rate owns all of them.
+`speed` scales how fast the elapsed time advances. It is applied to the clock rather than to the config, so changing it never re-resolves the beam — a rate change is free. Three things can set the rate, in order: a `speedListenable`, then an attached `BorderBeamController`'s `speed`, then `timing.speed`; `BeamReducedMotion.slow` then quarters whichever wins. Under a `BeamSync` the group's `speed` owns all of them.
+
+`speed` moves the animation only. The fades and the controller's `pulse()` / `flash()` accents run on real time, so a beam at half speed still fades in about 0.5s, and seeking or retiming never stretches, skips, or replays a fade. Pausing — the controller's `pause()`, an offscreen pause — freezes both.
 
 ## Cycle and retiming
 
-`cycle` is one lap for a traveling variant and one breath for a pulse variant. Changing it on a live beam **retimes in place**: every track keeps the phase it was at, so the beam smoothly speeds up or slows down instead of jumping to the new cycle's start.
+`cycle` is one sweep of a travelling effect and one breath of `pulse`. Each effect has its own default — see [effects](effects.md#defaults).
+
+Changing `cycle` on a live beam **retimes it in place**: the travel keeps the position it was at, so the beam speeds up or slows down instead of jumping to the new cycle's start.
 
 ```dart
-BorderBeam.rotate(
-  timing: BeamTiming(cycle: isUrgent
-      ? const Duration(milliseconds: 900)
-      : const Duration(milliseconds: 1960)),
-  child: card,
-);
-```
-
-That is the mechanism to reach for when a beam should react to state. Toggling `active` fades out and back in; changing `cycle` keeps the light on and changes its urgency.
-
-## Rest between sweeps
-
-`cycleGap` parks the beam at the end of its travel after each lap:
-
-```dart
-BorderBeam.rotate(
-  timing: const BeamTiming(cycleGap: Duration(milliseconds: 1200)),
-  child: card,
-);
-```
-
-The sweep itself still takes `cycle`; the gap is added after it. The beam's fade envelope eases out and back in over `min(0.25s, gap / 2)` at each end, so the rest reads as the beam breathing rather than blinking off. Hue, breathe, and spike are textures rather than the sweep, so they keep running through the gap — the beam is dark, not frozen.
-
-Changing the gap needs no retime: the current sweep keeps its position and the gap simply appears at the next cycle end. The pulse variants ignore it — their breathing has no cycle boundary to rest at.
-
-## Direction, offset, and count
-
-```dart
-BorderBeam.rotate(
-  timing: const BeamTiming(
-    direction: BeamDirection.bounce,
-    phaseOffset: 0.25,
-    beamCount: 3,
+BorderBeam(
+  timing: BeamTiming(
+    cycle: isUrgent
+        ? const Duration(milliseconds: 900)
+        : const Duration(milliseconds: 2400),
   ),
   child: card,
 );
 ```
 
-- **`direction`** — `forward` (clockwise; left-to-right for `line`), `reverse` (the mirror), or `bounce` (alternating each cycle). The pulse variants have no travel to direct.
-- **`phaseOffset`** — a fraction of a cycle, 0–1, that the timeline starts at. Two beams on the same cycle with different offsets run out of step.
-- **`beamCount`** — how many beams travel the contour at once, spaced equally along the cycle. Every beam shares one clock and one config, so the count costs geometry, not tickers.
+That is the tool when a beam should react to state: toggling `active` fades out and back in, while changing `cycle` keeps the light on and changes its urgency.
 
-`beamCount` with `bounce` is worth trying on a wide card: the beams meet and part rather than chasing each other around.
+The fades run on critically damped springs — Apple's `.smooth` — so the light eases in from rest and settles without overshoot: about 0.5s in, and a slightly longer, gentler 0.6s out, so it leaves softly rather than cutting off. They run in real time, whatever the `speed`, and a retime mid-fade leaves the fade alone. `BeamPlayback.fadeCurve` replaces both with your own curve (`BeamPlayback.cssEase` is the web's `ease`).
 
-Segments compose with the same travel controls. The segment always names a clockwise span; `direction` controls which way a traveler crosses it, and `cycleGap` adds the normal rest after a traveling sweep. Two beams with opposite directions make a counter-sweep:
+## Rest between sweeps
+
+`cycleGap` parks a travelling effect at the end of its travel after each sweep:
+
+```dart
+BorderBeam(
+  timing: const BeamTiming(cycleGap: Duration(milliseconds: 1200)),
+  child: card,
+);
+```
+
+The sweep still takes `cycle`; the gap is added after it. The beam fades out and back in over `min(0.25s, gap / 2)` at each end of the rest, so it reads as breathing rather than blinking off. The hue drift keeps running through the gap.
+
+No effect rests by default. Changing the gap needs no retime: the current sweep keeps its position and the rest appears at the next cycle end. Ambient effects ignore it — their motion has no cycle boundary to rest at.
+
+## Direction, offset, and count
+
+```dart
+BorderBeam(
+  effect: const BeamEffect.rotate(count: 3),
+  timing: const BeamTiming(
+    direction: BeamDirection.bounce,
+    phaseOffset: 0.25,
+  ),
+  child: card,
+);
+```
+
+- **`direction`** — `forward` (clockwise; reading order for `line`), `reverse` (the mirror), or `bounce` (alternating each cycle). It applies to the travelling effects; `pulse` has no direction.
+- **`phaseOffset`** — the fraction of a cycle, 0–1, the timeline starts at. Two beams on the same cycle with different offsets run out of step — a travelling beam sits further along its sweep, an ambient one breathes out of phase.
+- **`BeamEffect.rotate(count:)`** — how many beams lap the border at once, 1–4, spaced evenly. They share one clock and one draw, so the count costs nothing extra.
+
+`count` with `bounce` is worth trying on a wide card: the beams meet and part rather than chasing each other.
+
+Segments compose with the same controls. A segment always names a clockwise span; `direction` decides which way a traveller crosses it, and `cycleGap` adds the usual rest. Two beams with opposite directions make a counter-sweep:
 
 ```dart
 Stack(
   children: [
-    BorderBeam.rotate(
+    BorderBeam(
       shape: const BeamShape(segment: BeamSegment.bottomHalf),
       child: card,
     ),
-    BorderBeam.rotate(
-      shape: const BeamShape(segment: BeamSegment.bottomHalf),
-      timing: const BeamTiming(direction: BeamDirection.reverse),
-      child: card,
+    const Positioned.fill(
+      child: BorderBeam.overlay(
+        shape: BeamShape(segment: BeamSegment.bottomHalf),
+        timing: BeamTiming(direction: BeamDirection.reverse),
+      ),
     ),
   ],
 );
 ```
 
-Add the same `cycleGap` to both timings when the arcs should disappear between passes.
+## Hue drift
 
-## The hue tracks
+The hue is a separate track from the travel, on its own period (`huePeriod`):
 
-The hue is a separate track from the sweep, on its own period.
-
-| | Traveling (`rotate`, `small`, `line`) | Pulse |
+| `hueMode` | What it does | Default for |
 | --- | --- | --- |
-| Default `hueMode` | `pingPong` — swings ±`hueRange` | `continuous` — a full 360° revolution |
-| Default `huePeriod` | 12s | 16s (`pulseInside`) · 14s (`pulseOutside`) |
+| `pingPong` | Swings ±`hueShift` degrees (30 by default) and back, eased at each end. | `rotate` (12s), `line` (8s) |
+| `continuous` | Turns a full 360° per period, never reversing. | `pulse` (16s) |
+| `none` | No drift. | — (`mono` and `gold` force it) |
 
-`hueMode` is settable on either family, and swapping it is the cheapest way to change a palette's character: `continuous` on a traveling variant turns a subtle shimmer into a full rainbow cycle, and `pingPong` on a pulse variant calms it down.
+`line` splits its `pingPong` drift in two: the bloom swings over one `huePeriod` and the stroke over one and a half, both capped narrower than the default `hueShift` (see [effects](effects.md#line--inputs)).
 
-`line` has a second hue track for its bloom (`bloomHuePeriod`, 8s), swinging across ±(`hueRange` + 10)°, and its `hueRange` is capped at 13° regardless of what you set — see [variants](variants.md).
+Any effect accepts any mode: `continuous` on `rotate` turns a subtle swing into a full rainbow, and `pingPong` on `pulse` calms it. `mono` and `gold` never drift. `hueBase` shifts the whole palette by a fixed number of degrees, independent of the drift.
 
-`hueBase` shifts the whole palette by a fixed number of degrees, independent of the animation. It has no upstream counterpart and is the quickest way to nudge a preset toward your brand without leaving the preset.
+Changing `huePeriod` mid-run re-phases the drift: the colours jump once to where the new period puts them, then continue smoothly.
 
 ## Reduced motion
 
-Reduced motion is a *playback* concern rather than a timing one — the field lives on `BeamPlayback` and has four behaviors. See [accessibility](accessibility.md).
+Reduced motion is a playback concern rather than a timing one — the field lives on `BeamPlayback` and has four behaviours. See [accessibility](accessibility.md).
 
 ## `BeamSync`
 
@@ -108,7 +116,8 @@ BeamSync(
   child: Column(
     children: [
       for (final (i, row) in rows.indexed)
-        BorderBeam.line(
+        BorderBeam(
+          effect: const BeamEffect.line(),
           timing: BeamTiming(phaseOffset: i / rows.length),
           child: row,
         ),
@@ -117,28 +126,26 @@ BeamSync(
 );
 ```
 
-The group owns playback: `active`, `autoPlay`, `startAfter`, `duration`, and `repeat` are ignored below it, and a `BorderBeamController` asserts rather than fighting for the clock. Everything visual stays per beam — palette, variant, shape — as does `phaseOffset`, which is what lets a synced group be evenly spaced rather than perfectly stacked.
+The group owns playback: `active`, `autoPlay`, `startAfter`, `duration`, `repeat`, `fadeCurve`, `pauseWhenOffscreen`, and `timing.speed` are ignored below it, and a `BorderBeamController` asserts rather than fighting for the clock. Everything visual stays per beam — effect, palette, shape — as does `phaseOffset`, which is what spaces a synced group evenly rather than stacking it. Timing stays per beam too: a member that changes its `cycle` retimes in place without moving the rest of the group.
 
-Reduced motion is group-owned because every beam shares one clock. Set `BeamSync.reducedMotion` to `staticFrame` (the default), `hide`, `slow`, or `animate`; per-beam settings are ignored while synchronized.
+Reduced motion is group-owned too, because every beam shares one clock: set `BeamSync.reducedMotion` (`staticFrame` by default). Per-beam settings are ignored while synchronized.
 
-## Driving the sweep yourself
+## Driving the travel yourself
 
-Two inputs take the sweep off the clock without stopping it.
+Two inputs take the travel off the clock without stopping the clock.
 
 ### `progress`
 
 ```dart
-BorderBeam.rotate(progress: received / total, child: card);
+BorderBeam(progress: received / total, child: card);
 ```
 
-The sweep sits where the value says, turning `rotate` into a glowing progress ring and `line` into a progress bar. The clock keeps running underneath, so the fade envelope, the hue shift, and the line variant's breathe and spike tracks are all still alive — the beam reads as lit rather than frozen. Changing it repaints without re-resolving the configuration, so driving it from an `AnimationController` every frame is cheap.
+The travel sits where the value says: `rotate` becomes a glowing progress ring, `line` a progress bar. A driven value maps linearly — no easing — and the travel stays lit: no rest from a `cycleGap`, and no fade at the ends of `line`'s run. The clock keeps running underneath, so the fade in and out, the hue drift, and `line`'s spikes stay alive, and `style.strength` still scales the light. Changing it repaints without re-resolving the configuration, so driving it from an `AnimationController` every frame is cheap.
 
 ### `follow`
 
 ```dart
-class _Card extends StatefulWidget { /* … */ }
-
-// In the State:
+// In a State:
 Offset? _follow;
 
 @override
@@ -155,22 +162,28 @@ Widget build(BuildContext context) {
       });
     },
     onExit: (_) => setState(() => _follow = null),
-    child: BorderBeam.rotate(follow: _follow, child: card),
+    child: BorderBeam(follow: _follow, child: card),
   );
 }
 ```
 
-The beam leaves its schedule and eases to the perimeter point nearest the given normalized point — critically damped, about 150ms, so a jittery pointer stream is smoothed without lag you can feel. Setting it back to null hands the sweep back to the clock from wherever it is, with no snap.
+The travel leaves its schedule and eases toward the given normalized point — critically damped, about 150ms, so a jittery pointer is smoothed without a lag you can feel. `rotate` turns its head toward it, the shortest way round (on a segment, to the border point nearest it); `line` follows the coordinate along its edge. Setting it back to null hands the travel back to the clock from wherever it is, without a snap: the sweep resumes from that point, travelling the way it was — a bouncing beam keeps its direction — and never lands in the rest of a `cycleGap`.
 
-`progress` wins over `follow`, and the pulse variants ignore both. `BeamHover` is this wired up for you.
+`progress` wins over `follow`, and the ambient effects ignore both. A NaN `progress` or a non-finite `follow` counts as unset. `BeamHover` is this wired up for you.
 
 ### Live listenables
 
-`strengthListenable` and `speedListenable` are the per-frame twins of `style.strength` and `timing.speed`: they change the beam without rebuilding the widget, which is what you want when the source is a mic level, a download rate, or a tempo.
+`strengthListenable` and `speedListenable` are the per-frame twins of `style.strength` and `timing.speed`: they change the beam without rebuilding the widget, which is what you want when the source is a microphone level, a download rate, or a tempo.
 
 ```dart
-BorderBeam.rotate(
+BorderBeam(
   strengthListenable: level, // ValueListenable<double>
   child: card,
 );
 ```
+
+Values of `strengthListenable` above 1 brighten the beam, saturating at full opacity.
+
+### Accents
+
+A `BorderBeamController` adds two one-shot accents on a running beam: `pulse()` lifts its brightness and lets it settle over about 0.6s, and `flash()` blinks it brighter, holds 120ms, and decays. Neither touches the timeline.

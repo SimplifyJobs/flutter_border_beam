@@ -7,6 +7,7 @@ import 'package:flutter/scheduler.dart';
 import '../animation/beam_clock.dart';
 import '../animation/beam_phases.dart';
 import '../border_beam_theme.dart';
+import '../effects/beam_effect.dart';
 import '../models/beam_colors.dart';
 import '../models/beam_config.dart';
 import '../models/beam_playback.dart';
@@ -14,10 +15,9 @@ import '../models/beam_shape.dart';
 import '../models/beam_style.dart';
 import '../models/beam_theme.dart';
 import '../models/beam_timing.dart';
-import '../models/beam_variant.dart';
 import '../models/model_validation.dart';
-import '../painting/beam_painter.dart';
-import '../painting/variant_strategy.dart';
+import '../render/beam_program.dart';
+import '../render/beam_renderer.dart';
 
 /// A beam as a [Decoration], for dropping into an existing
 /// `Container`/`DecoratedBox` instead of wrapping the subtree in a
@@ -26,7 +26,7 @@ import '../painting/variant_strategy.dart';
 /// ```dart
 /// Container(
 ///   foregroundDecoration: BeamDecoration(
-///     variant: BeamVariant.rotate,
+///     effect: const BeamEffect.rotate(),
 ///     brightness: Theme.of(context).brightness,
 ///     colors: BeamColors.ocean,
 ///     borderRadius: 16,
@@ -45,19 +45,12 @@ import '../painting/variant_strategy.dart';
 ///
 /// ## Which slot
 ///
-/// A decoration paints in exactly one slot, so the variant decides which:
-///
-/// | Variant | Slot |
-/// | --- | --- |
-/// | [BeamVariant.rotate], [BeamVariant.small], [BeamVariant.line], [BeamVariant.pulseInside] | `foregroundDecoration:` |
-/// | [BeamVariant.pulseOutside] | `decoration:` |
-///
-/// `BorderBeam` paints every layer of the first four *over* its child, which
-/// is what `foregroundDecoration:` does — put them in `decoration:` only when
-/// the beam is meant to sit under opaque content.
-/// [BeamVariant.pulseOutside] is the opposite case: its halo blooms behind
-/// and outside the child, so it belongs in `decoration:`, and the child needs
-/// the same clip-free room around it that the widget form requires.
+/// The beam draws its light over whatever is beneath it, so put it in
+/// `foregroundDecoration:` — the same place `BorderBeam` paints, over the
+/// child. Use `decoration:` only when the beam should sit under opaque
+/// content. Light that reaches outward — rotate's `comet`, a positive
+/// `shape.ringOffset` — paints past the box, so leave clip-free room around
+/// it either way.
 ///
 /// ## Limits of the decoration form
 ///
@@ -89,15 +82,15 @@ import '../painting/variant_strategy.dart';
 /// hits fall through to the child exactly as they do under `BorderBeam`.
 @immutable
 class BeamDecoration extends Decoration {
-  /// Creates a beam decoration for [variant].
+  /// Creates a beam decoration painting [effect].
   ///
   /// [brightness] is the ambient brightness the beam adapts to — normally
   /// `Theme.of(context).brightness`; `style.theme` still overrides it.
   /// [theme] stands in for the enclosing `BorderBeamTheme`: pass
   /// `BorderBeamTheme.of(context)` to inherit app-wide defaults.
   const BeamDecoration({
-    required this.variant,
     required this.brightness,
+    this.effect,
     this.theme,
     this.colors,
     this.active,
@@ -108,8 +101,12 @@ class BeamDecoration extends Decoration {
     this.playback,
   });
 
-  /// Which effect this decoration paints.
-  final BeamVariant variant;
+  /// What the light does. Null inherits [theme]'s effect, and then
+  /// [BeamEffect.rotate].
+  final BeamEffect? effect;
+
+  BeamEffect get _effect =>
+      effect ?? theme?.effect ?? const BeamEffect.rotate();
 
   /// The ambient brightness the beam adapts to, since a painter cannot read
   /// one. `style.theme` (a [BeamTheme] other than [BeamTheme.auto]) wins.
@@ -130,13 +127,14 @@ class BeamDecoration extends Decoration {
   /// here wins over it. Match the decorated box's own radius.
   final double? borderRadius;
 
-  /// Colors, theme adaptation, and every filter/opacity tuning hook.
+  /// Colours, surface brightness, strength, glow, and hue drift.
   final BeamStyle? style;
 
-  /// Corner radii, ring width, and corner family.
+  /// Corner radii, corner family, stroke width, segment, and dashes.
   final BeamShape? shape;
 
-  /// Cycle length, rest between sweeps, playback rate, and hue periods.
+  /// Cycle length, rest between sweeps, playback rate, direction, and the
+  /// hue drift period.
   final BeamTiming? timing;
 
   /// Play state and scheduling. [BeamPlayback.reducedMotion] is inert here.
@@ -183,7 +181,7 @@ class BeamDecoration extends Decoration {
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is BeamDecoration &&
-          other.variant == variant &&
+          other.effect == effect &&
           other.brightness == brightness &&
           other.theme == theme &&
           other.colors == colors &&
@@ -196,7 +194,7 @@ class BeamDecoration extends Decoration {
 
   @override
   int get hashCode => Object.hash(
-    variant,
+    effect,
     brightness,
     theme,
     colors,
@@ -212,7 +210,7 @@ class BeamDecoration extends Decoration {
   void debugFillProperties(DiagnosticPropertiesBuilder properties) {
     super.debugFillProperties(properties);
     properties
-      ..add(EnumProperty<BeamVariant>('variant', variant))
+      ..add(DiagnosticsProperty<BeamEffect>('effect', _effect))
       ..add(EnumProperty<Brightness>('brightness', brightness))
       ..add(
         DiagnosticsProperty<BorderBeamThemeData>(
@@ -235,12 +233,17 @@ class BeamDecoration extends Decoration {
 // that comes with one (see the class docs on BeamDecoration).
 class _BeamBoxPainter extends BoxPainter {
   _BeamBoxPainter(this._decoration, super.onChanged)
-    : _strategy = strategyFor(_decoration.variant) {
+    : _repeatCycles = validateRepeat(_decoration._playback.repeat) {
     validateBeamTiming(_decoration._timing);
-    validateRepeat(_decoration._playback.repeat);
+    // The repeat budget is counted on the resolver from the first tick, so
+    // it exists before anything is painted: a box that ticks through its
+    // cycles with nothing to paint (an empty size) still runs out of them,
+    // rather than showing a spent beam the first time it gets a size. Text
+    // direction moves only the corners, never the count; the first paint
+    // re-resolves for its own.
+    _configFor(TextDirection.ltr);
     _clock = BeamClock(
       createTicker: Ticker.new,
-      maxFps: _strategy.preferredFps,
       fadeCurve: _decoration._playback.fadeCurve,
     )..speed = _decoration._timing.speed ?? 1;
     _schedule();
@@ -248,26 +251,29 @@ class _BeamBoxPainter extends BoxPainter {
     // object's paint, where onChanged (markNeedsPaint) is illegal, and
     // _schedule may activate the clock synchronously.
     _clock.addListener(_handleTick);
+    if (BeamProgram.program == null) {
+      BeamProgram.ready.addListener(_handleTick);
+      BeamProgram.load();
+    }
   }
 
   final BeamDecoration _decoration;
-  final BeamVariantStrategy _strategy;
+  final int? _repeatCycles;
   late final BeamClock _clock;
+  final BeamRenderer _renderer = BeamRenderer();
 
   Timer? _startTimer;
   Timer? _durationTimer;
 
   BeamConfig? _config;
-  // _config re-authored for renderScale, or _config itself at scale 1 —
-  // built with the config so a frame never allocates one.
-  BeamConfig? _painted;
   BeamPhaseResolver? _resolver;
   TextDirection? _configDirection;
   bool _disposed = false;
 
   // Mirrors BorderBeam's autoplay: `active`/`autoPlay` gate the start,
-  // `startAfter` delays it, `duration` ends it. There is no controller here —
-  // a controller attaches to a widget's clock, not a painter's.
+  // `startAfter` delays it, `duration` and `repeat` end it. There is no
+  // controller here — a controller attaches to a widget's clock, not a
+  // painter's.
   void _schedule() {
     final playback = _decoration._playback;
     // A frozen beam paints one instant forever; its clock never starts.
@@ -288,14 +294,26 @@ class _BeamBoxPainter extends BoxPainter {
     if (duration != null) _durationTimer = Timer(duration, _clock.deactivate);
   }
 
-  void _handleTick() => onChanged?.call();
+  void _handleTick() {
+    _checkRepeatBudget();
+    onChanged?.call();
+  }
+
+  // Once the repeat budget is spent the beam fades out the way an inactive
+  // one does, so the last cycle ends on a fade rather than a cut.
+  void _checkRepeatBudget() {
+    final resolver = _resolver;
+    if (resolver == null || resolver.repeatCycles == null) return;
+    if (!_clock.isVisible || _clock.stage == BeamFadeStage.fadingOut) return;
+    if (resolver.finishedAt(_clock.elapsedSeconds)) _clock.deactivate();
+  }
 
   BeamConfig _configFor(TextDirection textDirection) {
     if (_config != null && _configDirection == textDirection) return _config!;
     final style = _decoration._style;
     _configDirection = textDirection;
     _config = BeamConfig.resolve(
-      variant: _decoration.variant,
+      effect: _decoration._effect,
       palette: (style.colors ?? BeamColors.colorful).resolve(),
       brightness: (style.theme ?? BeamTheme.auto).resolve(
         _decoration.brightness,
@@ -305,9 +323,7 @@ class _BeamBoxPainter extends BoxPainter {
       timing: _decoration._timing,
       textDirection: textDirection,
     );
-    _resolver = BeamPhaseResolver(_config!);
-    final scale = _config!.renderScale;
-    _painted = scale >= 1 ? _config : _config!.scaledBy(scale);
+    _resolver = BeamPhaseResolver(_config!)..repeatCycles = _repeatCycles;
     return _config!;
   }
 
@@ -324,22 +340,13 @@ class _BeamBoxPainter extends BoxPainter {
             1,
           )
         : _resolver!.sample(_clock.elapsedSeconds, _clock.fadeOpacity);
-    // renderScale paints the beam into a smaller box and magnifies it back,
-    // so a palette authored for a card reads on a screen-sized one.
-    final scale = config.renderScale;
-    final painted = _painted!;
-    final paintedSize = scale >= 1
-        ? size
-        : Size(size.width * scale, size.height * scale);
-    canvas.save();
-    canvas.translate(offset.dx, offset.dy);
-    if (scale < 1) canvas.scale(1 / scale);
-    // Both passes land in this one slot; BeamDecoration's docs say which slot
-    // to hand the variant so they land on the right side of the child.
-    _strategy
-      ..paintBehind(canvas, paintedSize, painted, phases)
-      ..paintAbove(canvas, paintedSize, painted, phases);
-    canvas.restore();
+    _renderer.paint(
+      canvas,
+      offset & size,
+      config,
+      phases,
+      devicePixelRatio: configuration.devicePixelRatio ?? 1,
+    );
   }
 
   @override
@@ -347,9 +354,11 @@ class _BeamBoxPainter extends BoxPainter {
     _disposed = true;
     _startTimer?.cancel();
     _durationTimer?.cancel();
+    BeamProgram.ready.removeListener(_handleTick);
     _clock
       ..removeListener(_handleTick)
       ..dispose();
+    _renderer.dispose();
     super.dispose();
   }
 }

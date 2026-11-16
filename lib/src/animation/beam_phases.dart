@@ -2,83 +2,50 @@ import 'dart:math' as math;
 
 import 'package:flutter/animation.dart' show Curves;
 
-import '../constants/line_keyframes.dart';
-import '../constants/pulse_params.dart';
 import '../models/beam_config.dart';
 import '../models/beam_options.dart';
-import '../models/beam_variant.dart';
-import 'beam_clock.dart';
-import 'oscillator.dart';
 
-/// Samples a keyframe table at cycle progress [t] (0–1).
+/// The time-driven values one frame is painted from.
 ///
-/// [easedSegments] applies ease-in-out within each segment, matching CSS
-/// `animation-timing-function: ease-in-out` semantics (the timing function
-/// applies per keyframe segment); linear tables pass `false`.
-double sampleKeyframes(
-  List<BeamKeyframe> frames,
-  double t, {
-  bool easedSegments = false,
-}) {
-  final clamped = t.clamp(0.0, 1.0);
-  for (var i = 1; i < frames.length; i++) {
-    final prev = frames[i - 1];
-    final next = frames[i];
-    if (clamped <= next.t) {
-      final span = next.t - prev.t;
-      if (span <= 0) return next.value;
-      var local = (clamped - prev.t) / span;
-      if (easedSegments) local = Curves.easeInOut.transform(local);
-      return prev.value + (next.value - prev.value) * local;
-    }
-  }
-  return frames.last.value;
-}
-
-/// Every animated value the painter needs for one frame.
+/// Effects turn these into light; nothing here knows what an effect looks
+/// like.
 class BeamFramePhases {
   /// Creates a frame phase snapshot.
   const BeamFramePhases({
     required this.fadeOpacity,
     required this.hueDegrees,
-    this.bloomHueDegrees = 0,
-    this.angleRadians = 0,
     this.travelProgress = 0,
     this.travellers = const [0],
     this.reversedNow = false,
     this.finished = false,
-    this.lineX = 0.06,
-    this.lineW = 0.5,
-    this.lineH = 0.8,
-    this.spike = 1,
-    this.spike2 = 1,
-    this.edge = 1,
-    this.pulse = const PulsePhaseSet.identity(),
+    this.cycles = 0,
+    this.driven = false,
+    this.hueTime,
   });
 
-  /// Fade envelope (0–1), multiplied into every layer opacity. Carries the
-  /// rest between sweeps (`BeamTiming.cycleGap`) as well as the beam's own
-  /// fade in and out.
+  /// Fade envelope (0–1), multiplied into the whole beam. Carries the rest
+  /// between sweeps (`BeamTiming.cycleGap`) as well as the beam's own fade in
+  /// and out.
   final double fadeOpacity;
 
   /// Animated hue rotation in degrees (excludes the static hue base).
   final double hueDegrees;
 
-  /// The line bloom's separate hue track (±(hueRange+10)°, over
-  /// `BeamConfig.bloomHuePeriodSeconds`).
-  final double bloomHueDegrees;
+  /// The time the hue track reads, in seconds — for effects that run a
+  /// second hue track of their own.
+  ///
+  /// Null when the hue holds still (a static frame): an effect's own tracks
+  /// then hold the palette's colours too, as [hueDegrees] does at 0.
+  final double? hueTime;
 
-  /// Rotating conic window angle (rotate/small), radians.
-  final double angleRadians;
-
-  /// Raw sweep progress (0–1) of the leading beam through the current cycle.
+  /// Sweep progress (0–1) of the leading beam through the current cycle.
   ///
   /// Equal to `travellers.first`. Already carries the travel direction and
   /// the phase offset, and is the value a driven `BorderBeam.progress`
   /// replaces.
   final double travelProgress;
 
-  /// Sweep progress (0–1) of every beam travelling the contour, spaced
+  /// Sweep progress (0–1) of every beam travelling the border, spaced
   /// `1 / BeamConfig.beamCount` apart. Never empty; the first entry is
   /// [travelProgress].
   final List<double> travellers;
@@ -86,209 +53,153 @@ class BeamFramePhases {
   /// Whether the current cycle runs mirrored — always false under
   /// [BeamDirection.forward], always true under [BeamDirection.reverse], and
   /// alternating per cycle under [BeamDirection.bounce].
-  ///
-  /// The geometry in [travellers] is already mirrored; this flag lets a
-  /// strategy mirror asymmetric tables (a comet tail, a spike schedule) to
-  /// match.
   final bool reversedNow;
 
   /// Whether the beam has run out its `BeamPlayback.repeat` budget.
-  ///
-  /// The widget reacts by deactivating the clock, so the beam fades out the
-  /// way an inactive one does rather than cutting off.
   final bool finished;
 
-  /// Line beam x position, fraction of width.
-  final double lineX;
+  /// Elapsed time in cycles (continuous, never wraps): the clock the ambient
+  /// effects breathe and stream by.
+  final double cycles;
 
-  /// Line beam width factor.
-  final double lineW;
-
-  /// Line beam height factor.
-  final double lineH;
-
-  /// Line spike scale (drives spikes at 8/78/92%; inverted at 36/92%).
-  final double spike;
-
-  /// Second line spike scale (drives spikes at 22/50/64%).
-  final double spike2;
-
-  /// Line edge fade factor multiplying all three layers.
-  final double edge;
-
-  /// Pulse oscillator values.
-  final PulsePhaseSet pulse;
+  /// Whether [travelProgress] comes from `BorderBeam.progress` or `follow`
+  /// rather than the clock. Effects map a driven position linearly (a
+  /// readout) and a timed one with their own easing.
+  final bool driven;
 }
 
-/// Computes [BeamFramePhases] from elapsed time for a given config,
-/// mirroring the source's CSS keyframes and JS pulse driver exactly.
+/// Computes [BeamFramePhases] from elapsed time for a given config.
 class BeamPhaseResolver {
   /// Creates a resolver for [config].
-  factory BeamPhaseResolver(BeamConfig config) => BeamPhaseResolver._(
-    config,
-    config.variant.isPulse
-        ? PulseParams.resolve(
-            config.variant,
-            config.brightness,
-            config.cycleSeconds,
-          )
-        : null,
-  );
-
-  BeamPhaseResolver._(this.config, PulseParams? pulseParams)
-    : _bank = pulseParams == null ? null : PulseOscillatorBank(pulseParams);
+  BeamPhaseResolver(this.config);
 
   /// The resolved beam configuration.
   final BeamConfig config;
-  final PulseOscillatorBank? _bank;
 
-  /// Seconds added to the sample time of the fixed-period hue tracks only.
+  /// Seconds added to the sample time of the fixed-period hue track only.
   ///
-  /// The cycle-derived tracks (rotate angle, line travel, pulse
-  /// oscillators) all scale with [BeamConfig.cycleSeconds], so a cycle
-  /// change can be absorbed by rescaling elapsed time
-  /// ([BeamClock.retime]) — their fractions come out unchanged. The hue
-  /// tracks run on fixed periods ([BeamConfig.huePeriodSeconds],
-  /// [BeamConfig.bloomHuePeriodSeconds]) and would jump under that rescale,
-  /// so the widget shifts them back by the amount the timeline moved.
-  ///
-  /// See [breatheTimeOffset] for the cycle-derived tracks that still need a
-  /// correction, because the retime target is not always a pure rescale.
+  /// The cycle-derived tracks all scale with [BeamConfig.cycleSeconds], so a
+  /// cycle change is absorbed by rescaling elapsed time (`BeamClock.retime`).
+  /// The hue track runs on a fixed period and would jump under that rescale,
+  /// so the widget shifts it back by the amount the timeline moved.
   double hueTimeOffset = 0;
 
   /// Cycles the beam is allowed to run before it reports
   /// [BeamFramePhases.finished], or null to run forever.
-  ///
-  /// The resolved form of `BeamPlayback.repeat`: playback is the widget's
-  /// business rather than a painted value, so it rides on the resolver
-  /// instead of on [BeamConfig].
   int? repeatCycles;
 
-  /// Seconds added to the sample time of the travel tracks only.
+  /// Seconds added to the sample time of the travel track only.
   ///
-  /// Shifts where the sweep sits without touching the hue tracks. The widget
-  /// uses it to hand a `BorderBeam.follow` gesture back to the clock: the
-  /// timed sweep picks up from wherever the pointer left the beam instead of
-  /// snapping back to its own schedule.
+  /// The widget uses it to hand a `BorderBeam.follow` gesture back to the
+  /// clock: the timed sweep picks up from wherever the pointer left the beam.
   double travelTimeOffset = 0;
 
-  /// Seconds added to the sample time of the line variant's breathe and
-  /// spike tracks only.
+  /// Seconds added to the sample time of the ambient track
+  /// ([BeamFramePhases.cycles]) only.
   ///
-  /// Those tracks scale with the cycle, so a *pure ratio* rescale of elapsed
-  /// time is what holds their phase. A retime does not always produce one:
-  /// once a cycle gap, a phase offset, or a [travelTimeOffset] hand-back is
-  /// in play, the clock is moved to put the *sweep* where it belongs, and
-  /// that target is not the pure rescale. The widget sets this to the
-  /// difference, so these tracks read the timeline they would have had.
-  ///
-  /// It corrects for a *cycle* change only. Changing one of the factors that
-  /// define these periods (`BeamTiming.breatheFactor` and friends) re-phases
-  /// the affected track by design, the same way changing
-  /// `BeamTiming.huePeriod` re-phases the hue: a period change describes a
-  /// different animation, so there is no phase to carry over. The widget
-  /// drops this offset whenever the timeline restarts.
+  /// A retime is a pure rescale only without a gap, phase offset, or follow
+  /// hand-back in play; otherwise the clock is moved to put the *sweep* where
+  /// it belongs. The widget sets this to the difference, so the ambient track
+  /// reads the timeline it would have had.
   double breatheTimeOffset = 0;
+
+  bool get _travels => config.effect.travels;
 
   /// Samples all phases at [t] seconds with the given [fadeOpacity].
   ///
   /// [progress] takes the travel over when non-null (`BorderBeam.progress`
   /// and `BorderBeam.follow`): the sweep sits at that fraction (0–1) instead
-  /// of running with the clock, while the fade envelope and the hue tracks
-  /// keep running. A driven progress is used as given —
-  /// [BeamConfig.direction] and [BeamConfig.phaseOffset] shape the timed
-  /// sweep, not this value.
+  /// of running with the clock, while the fade and hue keep running.
   BeamFramePhases sample(double t, double fadeOpacity, {double? progress}) {
-    final v = config.variant;
     final hue = _hue(t);
-    final sweep = _sweep(t, progress);
-    switch (v) {
-      case BeamVariant.rotate || BeamVariant.small:
-        return BeamFramePhases(
-          fadeOpacity: fadeOpacity * sweep.envelope,
-          hueDegrees: hue,
-          angleRadians: sweep.travellers.first * 2 * math.pi,
-          travelProgress: sweep.travellers.first,
-          travellers: sweep.travellers,
-          reversedNow: sweep.reversed,
-          finished: sweep.finished,
-        );
-      case BeamVariant.line:
-        final head = sweep.travellers.first;
-        final cs = config.cycleSeconds;
-        final bt = t + breatheTimeOffset;
-        final breathe = (bt / (cs * config.breatheFactor)) % 1.0;
-        final spikeT = (bt / (cs * config.spikeFactor)) % 1.0;
-        final spike2T = (bt / (cs * config.spike2Factor)) % 1.0;
-        return BeamFramePhases(
-          fadeOpacity: fadeOpacity * sweep.envelope,
-          hueDegrees: hue,
-          bloomHueDegrees: _pingPongHue(
-            t + hueTimeOffset,
-            config.bloomHuePeriodSeconds,
-            config.hueRange + 10,
-          ),
-          travelProgress: head,
-          travellers: sweep.travellers,
-          reversedNow: sweep.reversed,
-          finished: sweep.finished,
-          lineX: sampleKeyframes(lineTravelX, head),
-          lineW: sampleKeyframes(lineTravelW, head),
-          edge: sampleKeyframes(lineEdgeFade, head),
-          lineH: sampleKeyframes(lineBreatheH, breathe, easedSegments: true),
-          spike: sampleKeyframes(lineSpike, spikeT, easedSegments: true),
-          spike2: sampleKeyframes(lineSpike2, spike2T, easedSegments: true),
-        );
-      case BeamVariant.pulseInside || BeamVariant.pulseOutside:
-        return BeamFramePhases(
-          fadeOpacity: fadeOpacity,
-          hueDegrees: hue,
-          finished: sweep.finished,
-          pulse: _bank!.sample(t),
-        );
+    // The phase offset moves the breathing along with the sweep, so two beams
+    // on different offsets are out of step whichever family they belong to.
+    final cycles =
+        (t + breatheTimeOffset) / config.cycleSeconds + config.phaseOffset;
+    if (!_travels) {
+      return BeamFramePhases(
+        fadeOpacity: fadeOpacity,
+        hueDegrees: hue,
+        hueTime: t + hueTimeOffset,
+        reversedNow: config.direction == BeamDirection.reverse,
+        finished: _finished(_shift(t)),
+        cycles: cycles,
+      );
     }
+    final sweep = _sweep(t, progress);
+    return BeamFramePhases(
+      fadeOpacity: fadeOpacity * sweep.envelope,
+      hueDegrees: hue,
+      hueTime: t + hueTimeOffset,
+      travelProgress: sweep.travellers.first,
+      travellers: sweep.travellers,
+      reversedNow: sweep.reversed,
+      finished: sweep.finished,
+      cycles: cycles,
+      driven: progress != null,
+    );
   }
 
   /// Whether the beam has spent its [repeatCycles] budget at [t] seconds.
-  ///
-  /// The same test [sample] reports through [BeamFramePhases.finished],
-  /// without building a frame: the widget checks it every tick.
-  bool finishedAt(double t) {
+  bool finishedAt(double t) => _finished(_shift(t));
+
+  bool _finished(double shifted) {
     final budget = repeatCycles;
-    if (budget == null) return false;
-    return _cycleIndex(_shift(t)) >= budget;
+    return budget != null && _cycleIndex(shifted) >= budget;
   }
 
-  /// The travel timeline at [t]: the phase offset and any follow hand-back
-  /// folded in.
   double _shift(double t) =>
       t + config.phaseOffset * config.cycleSeconds + travelTimeOffset;
 
+  double get _period =>
+      config.cycleSeconds + (_travels ? config.gapSeconds : 0);
+
   int _cycleIndex(double shifted) {
-    final period =
-        config.cycleSeconds + (config.variant.isPulse ? 0 : config.gapSeconds);
+    final period = _period;
     return period <= 0 ? 0 : (shifted / period).floor();
   }
 
-  /// The travel state of every beam at [t]: their progress, the gap
-  /// envelope, whether this cycle runs mirrored, and whether the repeat
-  /// budget is spent.
+  bool _reversedIn(int cycleIndex) => switch (config.direction) {
+    BeamDirection.forward => false,
+    BeamDirection.reverse => true,
+    BeamDirection.bounce => cycleIndex.isOdd,
+  };
+
+  /// The [travelTimeOffset] at which the timed sweep sits at [progress]
+  /// (0–1) at [t] seconds — how the widget hands a `BorderBeam.follow`
+  /// gesture back to the clock without a snap.
+  ///
+  /// Of the timeline positions that put the sweep at [progress] mid-run,
+  /// travelling the way it travels now, this picks the nearest: within the
+  /// current cycle, or — unless the direction alternates — a cycle either
+  /// side. So a bouncing beam keeps its direction, and a beam pulled out of
+  /// the rest between sweeps resumes its sweep rather than the rest.
+  double travelOffsetHolding(double t, double progress) {
+    final shifted = _shift(t);
+    final cycle = config.cycleSeconds;
+    final period = _period;
+    final index = _cycleIndex(shifted);
+    final p = progress.isNaN ? 0.0 : progress.clamp(0.0, 1.0);
+    // Just short of the cycle end, which is the next cycle's start.
+    final forward = math.min(_reversedIn(index) ? 1 - p : p, 1 - 1e-9);
+    var target = index * period + forward * cycle;
+    if (config.direction != BeamDirection.bounce && period > 0) {
+      final distance = (target - shifted).abs();
+      if ((target - period - shifted).abs() < distance) {
+        target -= period;
+      } else if ((target + period - shifted).abs() < distance) {
+        target += period;
+      }
+    }
+    return travelTimeOffset + target - shifted;
+  }
+
   _Sweep _sweep(double t, double? driven) {
-    // The phase offset moves the beam along its own timeline; the hue tracks
-    // run on fixed periods of their own and stay where they are.
     final shifted = _shift(t);
     final cycleIndex = _cycleIndex(shifted);
-    final budget = repeatCycles;
-    final finished = budget != null && cycleIndex >= budget;
-    final reversed = switch (config.direction) {
-      BeamDirection.forward => false,
-      BeamDirection.reverse => true,
-      BeamDirection.bounce => cycleIndex.isOdd,
-    };
-
+    final finished = _finished(shifted);
+    final reversed = _reversedIn(cycleIndex);
     if (driven != null) {
-      // A driven progress replaces the sweep outright, so there is no gap to
-      // rest in either.
       final head = driven.clamp(0.0, 1.0);
       return _Sweep(_spread(head), 1, false, finished);
     }
@@ -302,8 +213,6 @@ class BeamPhaseResolver {
     );
   }
 
-  /// Places [head] and the remaining `beamCount - 1` beams evenly around the
-  /// cycle, keeping [head] first.
   List<double> _spread(double head, {bool reversed = false}) {
     final n = config.beamCount;
     if (n <= 1) return [head];
@@ -315,41 +224,60 @@ class BeamPhaseResolver {
     });
   }
 
-  /// A representative static frame for reduced motion: mid-cycle, no hue
-  /// offset, full opacity.
+  /// A representative static frame for reduced motion: full opacity, the
+  /// palette's own colours, travelling effects mid-sweep.
   ///
-  /// The frame is shown for as long as reduced motion lasts, so it carries
-  /// the palette's own colors — a hue sampled from the ping-pong would tint
-  /// the whole effect by an arbitrary offset.
+  /// The sweep is the first cycle's, partway through, facing the way the beam
+  /// travels: a reversed beam's head, its trail, and the beams behind it are
+  /// mirrored exactly as they are when it runs.
+  ///
+  /// The ambient clock ([BeamFramePhases.cycles]) carries the phase offset
+  /// as it does when the beam runs, so still beams on different offsets
+  /// breathe at different points rather than in lockstep. The sweep does
+  /// not: it stays where it is lit.
   ///
   /// A driven [progress] is honored: a beam whose sweep is a progress
   /// readout still reads its value under reduced motion.
   BeamFramePhases staticFrame({double? progress}) {
-    if (config.variant.isPulse) {
-      // Freeze the breathing at rest, matching the source's
-      // prefers-reduced-motion behavior (animations disabled entirely).
-      return const BeamFramePhases(fadeOpacity: 1, hueDegrees: 0);
+    if (!_travels) {
+      return BeamFramePhases(
+        fadeOpacity: 1,
+        hueDegrees: 0,
+        cycles: _staticCycles,
+        reversedNow: config.direction == BeamDirection.reverse,
+      );
     }
-    // The traveling variants keep their mid-cycle geometry.
-    final phases = sample(config.cycleSeconds / 2, 1, progress: progress);
+    if (progress != null) {
+      final head = progress.clamp(0.0, 1.0);
+      return BeamFramePhases(
+        fadeOpacity: 1,
+        hueDegrees: 0,
+        travelProgress: head,
+        travellers: _spread(head),
+        cycles: _staticCycles,
+        driven: true,
+      );
+    }
+    final reversed = _reversedIn(0);
+    final head = reversed ? 1 - _staticSweep : _staticSweep;
     return BeamFramePhases(
       fadeOpacity: 1,
       hueDegrees: 0,
-      angleRadians: phases.angleRadians,
-      travelProgress: phases.travelProgress,
-      travellers: phases.travellers,
-      reversedNow: phases.reversedNow,
-      lineX: phases.lineX,
-      lineW: phases.lineW,
-      lineH: phases.lineH,
-      spike: phases.spike,
-      spike2: phases.spike2,
-      edge: phases.edge,
+      travelProgress: head,
+      travellers: _spread(head, reversed: reversed),
+      reversedNow: reversed,
+      cycles: _staticCycles,
     );
   }
 
-  /// Travel progress through one sweep (0–1) and the gap envelope that
-  /// multiplies into the fade at [t].
+  // How far through its sweep a travelling effect's static frame sits.
+  static const double _staticSweep = 0.35;
+
+  // The ambient clock of a static frame: a representative instant, moved by
+  // the phase offset the way `sample` moves it.
+  double get _staticCycles => 0.3 + config.phaseOffset;
+
+  /// Travel progress through one sweep (0–1) and the gap envelope at [t].
   ///
   /// Without a gap this is the plain `t / cycle` wrap. With one, the sweep
   /// runs over the first `cycleSeconds` of each `cycle + gap` period and then
@@ -372,29 +300,25 @@ class BeamPhaseResolver {
     return (1.0, 0.0);
   }
 
-  // Smoothstep: zero slope at both ends, so the rest opens and closes without
-  // a visible corner.
   static double _smoothstep(double x) {
     final c = x.clamp(0.0, 1.0);
     return c * c * (3 - 2 * c);
   }
 
   double _hue(double t) {
-    if (config.staticColors) return 0;
     final hueT = t + hueTimeOffset;
     return switch (config.hueMode) {
-      // Continuous full revolution (sawtooth 0→360°).
+      BeamHueMode.none => 0,
       BeamHueMode.continuous => ((hueT / config.huePeriodSeconds) % 1.0) * 360,
       BeamHueMode.pingPong => _pingPongHue(
         hueT,
         config.huePeriodSeconds,
-        config.hueRange,
+        config.hueShift,
       ),
     };
   }
 
-  // CSS `beam-hue-shift`: keyframes −range @0%, +range @50%, −range @100%,
-  // ease-in-out per segment.
+  // −range at 0%, +range at 50%, −range at 100%, eased per half.
   static double _pingPongHue(double t, double period, double range) {
     final cycle = (t / period) % 1.0;
     final local = cycle < 0.5 ? cycle / 0.5 : (1 - cycle) / 0.5;
@@ -403,8 +327,6 @@ class BeamPhaseResolver {
   }
 }
 
-/// One frame of travel: where every beam sits, the gap envelope, whether the
-/// cycle is mirrored, and whether the repeat budget is spent.
 class _Sweep {
   const _Sweep(this.travellers, this.envelope, this.reversed, this.finished);
 

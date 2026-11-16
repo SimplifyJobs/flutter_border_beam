@@ -1,19 +1,21 @@
 name: flutter_border_beam_example
 description: >-
-  Gallery and interactive playground for the flutter_border_beam package,
-  plus the recording reels used to capture its demo videos.
+  One-screen showcase of the flutter_border_beam effects and palettes, plus
+  the recording reels used to capture its demo videos.
 publish_to: 'none'
 
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.9.0
+  sdk: ^3.13.0
+  flutter: ">=3.47.0"
 
 dependencies:
   flutter:
     sdk: flutter
   flutter_border_beam:
     path: ../
+  material_ui: ^1.11.1
 
 dev_dependencies:
   flutter_test:

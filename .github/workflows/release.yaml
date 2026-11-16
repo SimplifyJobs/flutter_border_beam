@@ -10,7 +10,8 @@
 #     "Today, you can only automate publishing of existing packages. To create
 #     a new package, you must publish the first version using `dart pub
 #     publish`." (https://dart.dev/tools/pub/automated-publishing). Until
-#     0.1.0 is on pub.dev there is nothing to attach automated publishing to.
+#     the first version is on pub.dev there is nothing to attach automated
+#     publishing to.
 #  2. On pub.dev, open
 #         https://pub.dev/packages/flutter_border_beam/admin
 #     → "Automated publishing" → "Enable publishing from GitHub Actions", and
@@ -64,25 +65,30 @@ permissions:
 
 env:
   # Must match ci.yaml's pin.
-  FLUTTER_VERSION: 3.44.2
+  FLUTTER_VERSION: 3.50.0
 
 jobs:
   publish:
     name: Publish to pub.dev
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       # Mints the pub.dev OIDC credential.
       id-token: write
       # Lets `gh release create` write the GitHub Release.
       contents: write
     steps:
-      - uses: actions/checkout@v7
+      # Every action here is pinned to a commit SHA (see ci.yaml's header):
+      # this job holds a credential that can publish to pub.dev.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # Order matters — see the header. This step configures the pub.dev
       # credential; the Flutter SDK installed next provides the toolchain.
-      - uses: dart-lang/setup-dart@v1
+      - uses: dart-lang/setup-dart@2286a0c042b44434fe26d292bbce8d34f7ec662b # v1.8.2
 
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable

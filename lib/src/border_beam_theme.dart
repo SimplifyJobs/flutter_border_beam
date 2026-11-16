@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import 'effects/beam_effect.dart';
 import 'models/beam_playback.dart';
 import 'models/beam_shape.dart';
 import 'models/beam_style.dart';
@@ -15,19 +16,23 @@ import 'models/beam_timing.dart';
 class BorderBeamThemeData {
   /// Creates theme defaults. Every omitted slot inherits.
   const BorderBeamThemeData({
+    this.effect,
     this.style,
     this.shape,
     this.timing,
     this.playback,
   });
 
-  /// Default colors, theme adaptation, and filter hooks.
+  /// Default effect, used by every beam below that does not choose one.
+  final BeamEffect? effect;
+
+  /// Default colors, theme adaptation, glow, and colour drift.
   final BeamStyle? style;
 
-  /// Default corner radii, ring width, and corner family.
+  /// Default corner radii, stroke width, and corner family.
   final BeamShape? shape;
 
-  /// Default cycle length, rest, rate, and hue periods.
+  /// Default cycle length, rest, rate, and hue period.
   final BeamTiming? timing;
 
   /// Default play state and scheduling.
@@ -36,11 +41,13 @@ class BorderBeamThemeData {
   /// Returns a copy with the given slots replaced. A null argument keeps the
   /// current slot.
   BorderBeamThemeData copyWith({
+    BeamEffect? effect,
     BeamStyle? style,
     BeamShape? shape,
     BeamTiming? timing,
     BeamPlayback? playback,
   }) => BorderBeamThemeData(
+    effect: effect ?? this.effect,
     style: style ?? this.style,
     shape: shape ?? this.shape,
     timing: timing ?? this.timing,
@@ -48,10 +55,12 @@ class BorderBeamThemeData {
   );
 
   /// Layers [other] over this data, field by field: a field set in [other]
-  /// wins, every other field falls through to this data.
+  /// wins, every other field falls through to this data. An effect is one
+  /// value, so [other]'s replaces this one whole.
   BorderBeamThemeData merge(BorderBeamThemeData? other) => other == null
       ? this
       : BorderBeamThemeData(
+          effect: other.effect ?? effect,
           style: style?.merge(other.style) ?? other.style,
           shape: shape?.merge(other.shape) ?? other.shape,
           timing: timing?.merge(other.timing) ?? other.timing,
@@ -62,17 +71,18 @@ class BorderBeamThemeData {
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is BorderBeamThemeData &&
+          other.effect == effect &&
           other.style == style &&
           other.shape == shape &&
           other.timing == timing &&
           other.playback == playback;
 
   @override
-  int get hashCode => Object.hash(style, shape, timing, playback);
+  int get hashCode => Object.hash(effect, style, shape, timing, playback);
 
   @override
   String toString() =>
-      'BorderBeamThemeData(style: $style, shape: $shape, '
+      'BorderBeamThemeData(effect: $effect, style: $style, shape: $shape, '
       'timing: $timing, playback: $playback)';
 }
 
@@ -81,8 +91,9 @@ class BorderBeamThemeData {
 /// ```dart
 /// BorderBeamTheme(
 ///   data: const BorderBeamThemeData(
+///     effect: BeamEffect.pulse(),
 ///     style: BeamStyle(colors: BeamColors.ocean),
-///     shape: BeamShape.circular(20, superellipse: true),
+///     shape: BeamShape.all(20, superellipse: true),
 ///   ),
 ///   child: app,
 /// )

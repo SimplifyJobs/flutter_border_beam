@@ -1,17 +1,22 @@
+/// @docImport 'border_beam.dart';
+library;
+
 import 'package:flutter/foundation.dart';
 
 import 'animation/beam_clock.dart';
+import 'models/model_validation.dart';
 
 /// Programmatic playback control for a [BorderBeam].
 ///
 /// When a controller is attached the widget gives up scheduling entirely:
-/// `startAfter`, `duration`, and `autoPlay` must not be set, the beam starts
-/// hidden, and playback is driven exclusively through this API:
+/// `startAfter` and `duration` must not be set, `active` and `autoPlay` are
+/// ignored, the beam starts hidden, and playback is driven exclusively
+/// through this API:
 ///
 /// ```dart
 /// final controller = BorderBeamController();
 ///
-/// BorderBeam.rotate(controller: controller, child: card);
+/// BorderBeam(controller: controller, child: card);
 ///
 /// controller.start();       // fade in, begin animating
 /// controller.pause();       // freeze the current frame
@@ -19,6 +24,15 @@ import 'animation/beam_clock.dart';
 /// controller.speed = 2.0;   // double-time
 /// controller.stop();        // fade out, halt
 /// ```
+///
+/// One controller drives one beam at a time, and a beam below a `BeamSync`
+/// cannot take one — the group owns its playback.
+///
+/// The controller notifies its listeners when one of its own methods is
+/// called, not when the beam changes state by itself (a fade-out finishing,
+/// a `BeamPlayback.repeat` budget running out): read [isActive] and
+/// [isRunning] when you need them, or use `BorderBeam.onActivate` and
+/// `BorderBeam.onDeactivate`.
 class BorderBeamController extends ChangeNotifier {
   BeamClock? _clock;
   double _speed = 1;
@@ -33,18 +47,37 @@ class BorderBeamController extends ChangeNotifier {
   /// stopped).
   bool get isRunning => _clock?.isRunning ?? false;
 
-  /// Playback rate multiplier (1.0 = normal). Must be positive.
+  /// Playback rate multiplier (1.0 = normal). Must be finite and positive.
+  ///
+  /// Replaces `BeamTiming.speed` while attached. A
+  /// `BorderBeam.speedListenable` still wins over it, and reduced motion's
+  /// `BeamReducedMotion.slow` still quarters it.
   double get speed => _speed;
   set speed(double value) {
-    assert(value > 0, 'speed must be positive');
+    // Checked in release builds too: the rate multiplies the timeline every
+    // frame, so a NaN or infinity would reach every phase and the shader.
+    validateSpeed(value, 'BorderBeamController.speed');
+    if (value == _speed) return;
     _speed = value;
-    _clock?.speed = value;
+    // The attached beam listens and works out the rate in force from this.
     notifyListeners();
   }
 
-  /// Starts the beam: resets the timeline and fades in.
+  /// Starts the beam: restarts its timeline from zero and fades it in.
+  ///
+  /// Called mid-fade-out, it reverses the fade from the opacity reached
+  /// instead, keeping the timeline. On a paused beam that is still showing it
+  /// carries on from the held frame, as [resume] does; on a beam that is
+  /// already running it does nothing.
   void start() {
-    _clock?.activate();
+    final clock = _clock;
+    if (clock != null) {
+      if (clock.isVisible && clock.stage != BeamFadeStage.fadingOut) {
+        clock.resume();
+      } else {
+        clock.activate();
+      }
+    }
     notifyListeners();
   }
 
@@ -85,24 +118,36 @@ class BorderBeamController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Jumps the animation timeline to [position].
+  /// Jumps the animation timeline to [position]; a fade in progress carries
+  /// on as it was.
+  ///
+  /// The position lasts only while the beam is showing: [start] begins the
+  /// timeline at zero.
   void seek(Duration position) {
     _clock?.seek(position.inMicroseconds / Duration.microsecondsPerSecond);
+    notifyListeners();
   }
+}
 
-  /// Called by [BorderBeam] when it starts using this controller. Internal —
-  /// do not call from application code.
+/// Binds a [BorderBeamController] to the clock of the beam it drives.
+///
+/// Package-internal: the library exports only [BorderBeamController], so
+/// application code never sees these. [BorderBeam] is the only caller.
+extension BorderBeamControllerBinding on BorderBeamController {
+  /// Called by [BorderBeam] when it starts using this controller.
+  ///
+  /// The beam applies [speed] to [clock] itself, so it can fold in its own
+  /// `speedListenable` and reduced-motion rate.
   void attach(BeamClock clock) {
     assert(
       _clock == null || _clock == clock,
-      'BorderBeamController is already attached to another BorderBeam',
+      'BorderBeamController is already attached to another BorderBeam. A '
+      'controller drives one beam at a time.',
     );
     _clock = clock;
-    clock.speed = _speed;
   }
 
-  /// Called by [BorderBeam] when it stops using this controller. Internal —
-  /// do not call from application code.
+  /// Called by [BorderBeam] when it stops using this controller.
   void detach(BeamClock clock) {
     if (_clock == clock) _clock = null;
   }

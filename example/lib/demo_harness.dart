@@ -1,5 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_border_beam/flutter_border_beam.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A single named scene in a demo reel: the widget (usually a `BorderBeam`
 /// around a mock surface) that should be shown centered on the stage while
@@ -21,15 +22,19 @@ typedef DemoScene = Widget Function();
 /// clean), starts recording, hot-restarts to replay, and stops at the second
 /// `<prefix>:DONE`. Keeping the marker contract here means new demos need
 /// zero recorder changes.
-void runDemoReel({
+///
+/// The beam shader is loaded before the reel starts, so the first frame of
+/// every scene is already lit.
+Future<void> runDemoReel({
   required String prefix,
   required Map<String, DemoScene> scenes,
   Duration hold = const Duration(seconds: 6),
   Color backdrop = const Color(0xFF070707),
   Duration settle = const Duration(seconds: 2),
   Duration gap = const Duration(milliseconds: 1800),
-}) {
+}) async {
   WidgetsFlutterBinding.ensureInitialized();
+  await BorderBeam.precache();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
   runApp(

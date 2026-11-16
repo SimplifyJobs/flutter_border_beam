@@ -5,11 +5,11 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 
 import '../border_beam.dart';
+import '../effects/beam_effect.dart';
 import '../models/beam_colors.dart';
 import '../models/beam_shape.dart';
 import '../models/beam_style.dart';
 import '../models/beam_timing.dart';
-import '../models/beam_variant.dart';
 
 /// Lights a beam around [child] while the cursor is over it, and pulls the
 /// sweep toward the cursor — the "spotlight border" effect.
@@ -37,7 +37,7 @@ class BeamHover extends StatefulWidget {
   const BeamHover({
     super.key,
     required this.child,
-    this.variant = BeamVariant.rotate,
+    this.effect = const BeamEffect.rotate(),
     this.colors,
     this.borderRadius,
     this.style,
@@ -50,9 +50,9 @@ class BeamHover extends StatefulWidget {
   /// The hovered content. Laid out and hit-tested normally.
   final Widget child;
 
-  /// Which effect the hover paints. Defaults to [BeamVariant.rotate]; only
-  /// the traveling variants can follow a pointer.
-  final BeamVariant variant;
+  /// Which effect the hover paints. Defaults to [BeamEffect.rotate]; only
+  /// the travelling effects can follow a pointer.
+  final BeamEffect effect;
 
   /// Shorthand for `style.colors`; a non-null value here wins over it.
   final BeamColors? colors;
@@ -61,13 +61,16 @@ class BeamHover extends StatefulWidget {
   /// radius.
   final double? borderRadius;
 
-  /// Colors, theme adaptation, and filter hooks, passed straight through.
+  /// Colours, surface brightness, strength, glow, and hue drift, passed
+  /// straight through to the `BorderBeam`.
   final BeamStyle? style;
 
-  /// Corner radii, ring width, and corner family, passed straight through.
+  /// Corner radii, corner family, stroke width, ring offset, segment, and
+  /// dashes, passed straight through to the `BorderBeam`.
   final BeamShape? shape;
 
-  /// Cycle length, rest, rate, and hue periods, passed straight through.
+  /// Cycle length, rest between sweeps, playback rate, direction, and the
+  /// hue drift period, passed straight through to the `BorderBeam`.
   final BeamTiming? timing;
 
   /// Whether the sweep gravitates to the cursor. False lights the beam on
@@ -84,7 +87,7 @@ class BeamHover extends StatefulWidget {
   void debugFillProperties(DiagnosticPropertiesBuilder properties) {
     super.debugFillProperties(properties);
     properties
-      ..add(EnumProperty<BeamVariant>('variant', variant))
+      ..add(DiagnosticsProperty<BeamEffect>('effect', effect))
       ..add(
         DiagnosticsProperty<BeamColors>('colors', colors, defaultValue: null),
       )
@@ -180,7 +183,7 @@ class _BeamHoverState extends State<BeamHover> {
     onHover: _handleHover,
     onExit: _handleExit,
     child: BorderBeam(
-      variant: widget.variant,
+      effect: widget.effect,
       colors: widget.colors,
       active: _active,
       follow: _follow,

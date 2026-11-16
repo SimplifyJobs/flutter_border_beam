@@ -1,8 +1,13 @@
+/// @docImport 'package:flutter/scheduler.dart';
+/// @docImport 'border_beam.dart';
+library;
+
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 
 import 'animation/beam_clock.dart';
 import 'models/beam_options.dart';
+import 'models/model_validation.dart';
 
 /// Runs every [BorderBeam] below it off one shared clock, so a group of
 /// beams animates in lockstep.
@@ -18,18 +23,18 @@ import 'models/beam_options.dart';
 ///   child: Row(
 ///     children: [
 ///       for (final card in cards)
-///         BorderBeam.rotate(child: card),
+///         BorderBeam(child: card),
 ///     ],
 ///   ),
 /// )
 /// ```
 ///
-/// Beams stay individually configurable — palette, variant, shape, and
+/// Beams stay individually configurable — effect, palette, shape, and
 /// `BeamTiming.phaseOffset` are still per beam, so a group can run evenly
 /// spaced around the cycle rather than perfectly on top of each other:
 ///
 /// ```dart
-/// BorderBeam.rotate(
+/// BorderBeam(
 ///   timing: BeamTiming(phaseOffset: i / cards.length),
 ///   child: card,
 /// )
@@ -37,8 +42,9 @@ import 'models/beam_options.dart';
 ///
 /// The group owns playback. A synced beam does not start, stop, pause, or
 /// fade on its own, so `BeamPlayback`'s `active`, `autoPlay`, `startAfter`,
-/// `duration`, and `repeat` are ignored below a [BeamSync] — use [active]
-/// and [speed] here instead. A `BorderBeamController` is playback control
+/// `duration`, `repeat`, `fadeCurve`, and `pauseWhenOffscreen` are ignored
+/// below a [BeamSync], as is `BeamTiming.speed` — use [active] and [speed]
+/// here instead. A `BorderBeamController` is playback control
 /// for one beam and asserts if it meets a [BeamSync].
 ///
 /// Reduced motion is necessarily group-owned too: one shared clock cannot
@@ -53,31 +59,24 @@ class BeamSync extends StatefulWidget {
     this.active = true,
     this.speed = 1,
     this.reducedMotion = BeamReducedMotion.staticFrame,
-  });
+  }) : assert(
+         speed > 0 && speed < double.infinity,
+         'BeamSync.speed must be finite and positive',
+       );
 
   /// The subtree whose beams share the clock.
   final Widget child;
 
-  /// Whether the group is playing. Toggling fades every beam in (0.6s) or
-  /// out (0.5s) together.
+  /// Whether the group is playing. Toggling fades every beam in (about 0.5s)
+  /// or out (about 0.6s) together.
   final bool active;
 
-  /// Playback rate for the group; must be positive.
+  /// Playback rate for the group; must be finite and positive. Default 1.
   final double speed;
 
   /// How the whole group responds to the platform reduced-motion request.
+  /// Default [BeamReducedMotion.staticFrame].
   final BeamReducedMotion reducedMotion;
-
-  /// The shared clock for [context], or null when there is no enclosing
-  /// [BeamSync]. Internal — do not call from application code.
-  static BeamClock? clockOf(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<BeamSyncScope>()?.clock;
-
-  /// The reduced-motion policy owned by the nearest group, or null when the
-  /// beam is not synchronized.
-  static BeamReducedMotion? reducedMotionOf(BuildContext context) => context
-      .dependOnInheritedWidgetOfExactType<BeamSyncScope>()
-      ?.reducedMotion;
 
   @override
   State<BeamSync> createState() => _BeamSyncState();
@@ -95,16 +94,18 @@ class BeamSync extends StatefulWidget {
 class _BeamSyncState extends State<BeamSync>
     with SingleTickerProviderStateMixin {
   late final BeamClock _clock = BeamClock(createTicker: createTicker)
-    ..speed = widget.speed;
+    ..speed = validateSpeed(widget.speed, 'BeamSync.speed');
 
   bool _started = false;
   bool _reduced = false;
 
+  // The constructor only asserts, so the rate is checked here as well, where
+  // release builds run it before it reaches the shared clock.
   void _applySpeed() {
     final factor = _reduced && widget.reducedMotion == BeamReducedMotion.slow
-        ? 0.25
+        ? slowMotionFactor
         : 1.0;
-    _clock.speed = widget.speed * factor;
+    _clock.speed = validateSpeed(widget.speed, 'BeamSync.speed') * factor;
   }
 
   // Puts the group's clock back in motion. A clock that is mid-fade-out is
@@ -179,8 +180,10 @@ class _BeamSyncState extends State<BeamSync>
   );
 }
 
-/// Carries a [BeamSync]'s shared clock down the tree. Internal — read it
-/// through [BeamSync.clockOf].
+/// Carries a [BeamSync]'s shared clock down the tree.
+///
+/// Package-internal: the library exports only [BeamSync], so these lookups
+/// stay out of the public API. [BorderBeam] is their only caller.
 class BeamSyncScope extends InheritedWidget {
   /// Creates the scope for [clock].
   const BeamSyncScope({
@@ -189,6 +192,17 @@ class BeamSyncScope extends InheritedWidget {
     required this.reducedMotion,
     required super.child,
   });
+
+  /// The shared clock for [context], or null when there is no enclosing
+  /// [BeamSync].
+  static BeamClock? clockOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<BeamSyncScope>()?.clock;
+
+  /// The reduced-motion policy owned by the nearest group, or null when the
+  /// beam is not synchronized.
+  static BeamReducedMotion? reducedMotionOf(BuildContext context) => context
+      .dependOnInheritedWidgetOfExactType<BeamSyncScope>()
+      ?.reducedMotion;
 
   /// The clock every beam in this subtree runs on.
   final BeamClock clock;

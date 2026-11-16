@@ -1,19 +1,26 @@
 # CI for flutter_border_beam.
 #
-# Two things about this workflow are deliberate and easy to get wrong:
+# Three things about this workflow are deliberate and easy to get wrong:
 #
-#  1. The Flutter version is PINNED to 3.44.2 rather than tracking `stable`.
-#     The golden files in `test/` were generated on Flutter 3.44.2 (Dart 3.12)
-#     on macOS, and rasterization of blurs and gradients shifts between
-#     Flutter releases. An unpinned `stable` would turn every Flutter release
-#     into a spurious golden diff. Regenerate the goldens (macOS,
+#  1. The Flutter version is PINNED to 3.50.0 rather than tracking `stable`.
+#     The golden files in `test/golden/` were generated on Flutter 3.50.0
+#     (Dart 3.14) on macOS, and shader compilation and rasterization shift
+#     between Flutter releases. An unpinned `stable` would turn every Flutter
+#     release into a spurious golden diff. Regenerate the goldens (macOS,
 #     `flutter test --update-goldens --tags golden`) in the same commit that
-#     bumps this pin.
-#  2. The `min-sdk` job builds and tests on Flutter 3.35.0 — the exact lower
-#     bound declared by `environment: flutter: ">=3.35.0"` in pubspec.yaml.
+#     bumps this pin, and move release.yaml's and pages.yaml's pins with it.
+#  2. The `min-sdk` job builds and tests on Flutter 3.47.0 — the exact lower
+#     bound declared by `environment: flutter: ">=3.47.0"` in pubspec.yaml
+#     (the floor `material_ui` sets). Its job name carries no version, so a
+#     floor bump does not rename the required status check.
 #     Without it that bound is an untested claim and consumers on the oldest
 #     supported SDK find the breakage for us. It is a hard gate, not an
 #     advisory one: no `continue-on-error`.
+#  3. Every action is pinned to a full commit SHA, with the release it was cut
+#     from in a trailing comment. A tag can be moved; a SHA cannot, and
+#     release.yaml runs with a credential that can publish to pub.dev.
+#     Dependabot (.github/dependabot.yml) bumps the SHA and the comment
+#     together.
 #
 # Jobs are intentionally independent (no `needs:`) so they run in parallel.
 # `goldens` is the only macOS runner, and therefore the only expensive one.
@@ -26,32 +33,38 @@ on:
   pull_request:
   workflow_dispatch:
 
+# A new push to a PR supersedes the run in flight. Runs on `main` are never
+# cancelled: every commit there gets a complete run, because release.yaml
+# expects the tagged commit to have been green on `main` — goldens included.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 env:
   # The pinned SDK. Keep in sync with the goldens and with release.yaml.
-  FLUTTER_VERSION: 3.44.2
+  FLUTTER_VERSION: 3.50.0
   # The declared lower bound from pubspec.yaml's `environment:` block.
-  FLUTTER_MIN_VERSION: 3.35.0
+  FLUTTER_MIN_VERSION: 3.47.0
 
 jobs:
   quality:
     name: Format, analyze, test, coverage
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
       # Required so codecov/codecov-action can mint a GitHub OIDC token and
       # upload tokenlessly (the repo is public, so there is no CODECOV_TOKEN).
       id-token: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
@@ -66,28 +79,36 @@ jobs:
       - name: Analyze
         run: flutter analyze --fatal-infos
 
+      # Validated before the tests run, from a tree that holds only the
+      # checkout: once `--coverage` and the Codecov upload have run, the tree
+      # also holds `coverage/` and the Codecov uploader binary, and the dry
+      # run would no longer be looking at the archive a release publishes.
+      # Exits non-zero on any validation warning.
+      - name: Validate the publishable archive
+        run: dart pub publish --dry-run
+
       # Goldens are pinned to macOS rendering — the `goldens` job owns them.
       - name: Test with coverage
         run: flutter test --exclude-tags golden --coverage
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v7
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: coverage/lcov.info
           use_oidc: true
           # Coverage reporting must never be the reason a PR goes red.
           fail_ci_if_error: false
 
-      - name: Validate the publishable archive
-        run: dart pub publish --dry-run
-
   goldens:
     name: Goldens (macOS)
     runs-on: macos-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           # Same pin as `quality`: the goldens encode this exact renderer.
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -102,7 +123,7 @@ jobs:
 
       - name: Upload golden failures
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: golden-failures
           path: test/**/failures/**
@@ -110,12 +131,15 @@ jobs:
           if-no-files-found: ignore
 
   min-sdk:
-    name: Minimum supported Flutter (3.35.0)
+    name: Minimum supported Flutter
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: ${{ env.FLUTTER_MIN_VERSION }}
           channel: stable
@@ -136,14 +160,27 @@ jobs:
   pana:
     name: pub.dev score (pana)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+
+      # pana scores the pubspec's `screenshots:` by converting them with the
+      # libwebp tools (cwebp, dwebp, webpinfo), as pub.dev's analyzer does.
+      # The runner image does not ship them; without them every screenshot
+      # fails with "No such file or directory" and the example/screenshots
+      # check scores 0/10 here while scoring 10/10 on pub.dev.
+      - name: Install the WebP tools
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends webp
 
       - name: Install dependencies
         run: flutter pub get
@@ -152,30 +189,33 @@ jobs:
         run: dart pub global activate pana
 
       # pana prints the full report to the log, then `--exit-code-threshold N`
-      # fails the job when MORE than N pub.dev points are lost. 20 is a floor,
-      # not a target: it leaves room for points only a published package can
-      # earn (downstream-usage and up-to-date-dependency signals) while still
-      # catching a real regression — a dropped example, a broken publish
-      # archive, undocumented public API, an unresolvable dependency. Ratchet
-      # it down as the package settles; the number should only get smaller.
+      # fails the job when MORE than N of the 160 pub.dev points are lost. On
+      # the pinned SDK the package earns all 160, so any lost check is a
+      # regression — a dropped example, a broken screenshot, a lint, an
+      # undocumented public API, an unresolvable dependency. If a new pana
+      # release takes points for something the package cannot fix, raise this
+      # with a comment saying which check and why rather than ignoring the job.
       - name: Run pana
-        run: dart pub global run pana --no-warning --exit-code-threshold 20 .
+        run: dart pub global run pana --no-warning --exit-code-threshold 0 .
 
   example:
     name: Example app
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
 
-      # The example consumes the package by path, so it is the canary for API
-      # breaks in the gallery, and the web build proves the package carries no
-      # imports that fail to compile for web.
+      # The example consumes the package by path, so analyzing it catches API
+      # breaks, and the web build proves the package carries no imports that
+      # fail to compile for web.
       - name: Install dependencies
         working-directory: example
         run: flutter pub get
@@ -183,10 +223,6 @@ jobs:
       - name: Analyze
         working-directory: example
         run: flutter analyze --fatal-infos
-
-      - name: Test
-        working-directory: example
-        run: flutter test
 
       - name: Build web
         working-directory: example

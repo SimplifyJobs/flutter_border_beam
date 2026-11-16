@@ -1,14 +1,12 @@
-# Deploy the example gallery to GitHub Pages.
+# Deploy the example app to GitHub Pages.
 #
-# The site is `example/` — the demo gallery and the interactive playground —
-# built for web and served at
+# The site is `example/` — the one-screen effect showcase — built for web and
+# served at
 #
 #     https://simplifyjobs.github.io/flutter_border_beam/
 #
-# That URL is not incidental: `example/lib/src/playground/share_codec.dart`
-# hardcodes it as `playgroundSiteUrl` when it builds a share link, so the
-# `--base-href` below must stay `/flutter_border_beam/` (the repo name) for
-# shared links to resolve.
+# The root README links to that URL. Pages serves a project site under the
+# repo name, so the `--base-href` below must stay `/flutter_border_beam/`.
 #
 # ── ONE-TIME SETUP THE MAINTAINER MUST DO ────────────────────────────────────
 #
@@ -21,12 +19,9 @@
 # ── WHY THE 404 COPY ─────────────────────────────────────────────────────────
 #
 # Pages serves static files and has no rewrite rule, so any path that is not a
-# real file 404s. The playground puts its state in the URL and the gallery
-# uses path-shaped routes (`/pulse`, …), so a deep link would land on the
-# Pages 404 page instead of the app. Copying `index.html` to `404.html` makes
-# the 404 response *be* the app: Flutter boots, reads the location, and routes
-# to it. `#state` fragments survive the redirect for free (fragments are never
-# sent to the server).
+# real file 404s. A mistyped or stale deep link would land on the Pages 404
+# page instead of the app. Copying `index.html` to `404.html` makes the 404
+# response *be* the app: Flutter boots on any path under the site.
 #
 # The Flutter pin matches ci.yaml's FLUTTER_VERSION — the site should be built
 # by the same SDK the package is tested on.
@@ -39,14 +34,13 @@ on:
     paths:
       - "example/**"
       - "lib/**"
+      - "shaders/**"
       - "pubspec.yaml"
       - ".github/workflows/pages.yaml"
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+# Least privilege: nothing by default; each job asks for what it uses.
+permissions: {}
 
 # One deployment at a time. Queued rather than cancelled: a half-finished
 # deploy that loses its slot would leave the live site on an older build.
@@ -56,16 +50,24 @@ concurrency:
 
 env:
   # Keep in sync with ci.yaml's FLUTTER_VERSION.
-  FLUTTER_VERSION: 3.44.2
+  FLUTTER_VERSION: 3.50.0
 
 jobs:
   build:
     name: Build the example for web
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      # configure-pages reads the repo's Pages settings to fail early when
+      # Pages is not set to deploy from GitHub Actions.
+      pages: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
@@ -85,9 +87,9 @@ jobs:
         working-directory: example
         run: cp build/web/index.html build/web/404.html
 
-      - uses: actions/configure-pages@v6
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
-      - uses: actions/upload-pages-artifact@v5
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: example/build/web
 
@@ -95,10 +97,16 @@ jobs:
     name: Deploy to GitHub Pages
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The minimum deploy-pages documents: write the deployment, and mint the
+    # OIDC token that proves it came from this workflow.
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Deploy
         id: deployment
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

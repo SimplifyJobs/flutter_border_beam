@@ -1,9 +1,9 @@
 name: flutter_border_beam
 description: >-
-  A traveling or breathing glow around any widget: five beam variants, eleven
-  palettes, squircle and custom contours, theming, playback control, and
-  hover/press/focus wrappers.
-version: 0.1.0
+  Animated light around any widget's border: three effects drawn by a
+  single-pass fragment shader at the display rate, 19 palettes, squircle
+  corners, and theming.
+version: 0.2.0
 repository: https://github.com/SimplifyJobs/flutter_border_beam
 issue_tracker: https://github.com/SimplifyJobs/flutter_border_beam/issues
 homepage: https://github.com/SimplifyJobs/flutter_border_beam
@@ -16,23 +16,28 @@ topics:
   - ui
 screenshots:
   - path: screenshots/rotate.png
-    description: Rotate variant — a beam travels around the full border of a card.
-  - path: screenshots/pulse_outside.png
-    description: Pulse-outside variant — a breathing halo blooms behind the child.
+    description: Rotate effect — a beam travels around the full border of a card.
   - path: screenshots/line.png
-    description: Line variant — the beam rides the bottom edge of an input.
+    description: Line effect — a streak rides the bottom edge of an input.
+  - path: screenshots/pulse.png
+    description: Pulse effect — colour breathes in from the border of a card.
   - path: screenshots/squircle.png
-    description: Superellipse borders in the ocean palette — Apple-style squircle contour.
+    description: Superellipse corners in the ocean palette — an Apple-style squircle outline.
 
 environment:
-  sdk: ^3.9.0
-  flutter: ">=3.35.0"
+  sdk: ^3.13.0
+  flutter: ">=3.47.0"
 
 dependencies:
   flutter:
     sdk: flutter
+  material_ui: ^1.11.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+
+flutter:
+  shaders:
+    - shaders/beam.frag

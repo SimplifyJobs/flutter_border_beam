@@ -1,289 +1,130 @@
 @Tags(['golden'])
 library;
 
-import 'package:flutter/material.dart';
 import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
-/// Golden scenes freeze the (fake) test clock at 1.3s after activation —
-/// past the 0.6s fade-in, mid-cycle for every variant — so each image
-/// captures a representative animated frame deterministically. The two
-/// traveling variants are captured a second time at a later instant
-/// (`_late`), because one frame of a sweep says nothing about where the
-/// sweep is the rest of the time.
+import 'golden_scene.dart';
+
+/// The effect family: every effect on both themes in the colorful palette
+/// and in the other three original palettes, and the effect options.
 ///
-/// Regenerate with:
-///   flutter test --update-goldens --tags golden
+/// All captured at t = 1.3s. A travelling effect is captured a second time
+/// (`_late`) further along: one frame of a sweep says nothing about where it
+/// is the rest of the time.
 void main() {
-  Widget scene({
-    required Widget beam,
-    required Brightness brightness,
-    double width = 350,
-    double height = 140,
-  }) {
-    final isDark = brightness == Brightness.dark;
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(brightness: brightness),
-      home: ColoredBox(
-        // The demo backdrops of the source library.
-        color: isDark ? const Color(0xFF070707) : const Color(0xFFFDFDFD),
-        child: Center(
-          child: SizedBox(width: width, height: height, child: beam),
-        ),
-      ),
-    );
-  }
+  setUpAll(BorderBeam.precache);
 
-  // [radii] carries a per-corner radius when a scene needs one; otherwise
-  // every corner takes [radius].
-  Widget mockSurface(
+  // Where the second capture of each travelling effect lands: late in a
+  // rotate's turn and a line's sweep.
+  const late = {
+    'rotate': Duration(milliseconds: 2000),
+    'line': Duration(milliseconds: 2000),
+  };
+
+  BeamTheme themeFor(Brightness b) =>
+      b == Brightness.dark ? BeamTheme.dark : BeamTheme.light;
+
+  Widget beam(
+    BeamEffect effect,
     Brightness brightness, {
+    BeamColors colors = BeamColors.colorful,
+    BeamStyle style = const BeamStyle(),
     double radius = 16,
-    BorderRadius? radii,
-  }) => DecoratedBox(
-    decoration: BoxDecoration(
-      color: brightness == Brightness.dark
-          ? const Color(0xFF1D1D1D)
-          : const Color(0xFFFFFFFF),
-      borderRadius: radii ?? BorderRadius.circular(radius),
-      border: Border.all(
-        color: brightness == Brightness.dark
-            ? const Color(0x14FFFFFF)
-            : const Color(0x14000000),
-      ),
-    ),
+  }) => BorderBeam(
+    effect: effect,
+    colors: colors,
+    borderRadius: radius,
+    style: style.copyWith(theme: themeFor(brightness)),
+    child: mockSurface(brightness, radius: radius),
   );
-
-  Future<void> capture(
-    WidgetTester tester,
-    String name,
-    Widget Function(Brightness) beam, {
-    required Brightness brightness,
-    double width = 350,
-    double height = 140,
-    Duration freeze = const Duration(milliseconds: 1300),
-  }) async {
-    await tester.pumpWidget(
-      scene(
-        beam: beam(brightness),
-        brightness: brightness,
-        width: width,
-        height: height,
-      ),
-    );
-    await tester.pump();
-    await tester.pump(freeze);
-    await expectLater(
-      find.byType(MaterialApp),
-      matchesGoldenFile('goldens/$name.png'),
-    );
-  }
 
   for (final brightness in Brightness.values) {
-    final theme = brightness == Brightness.dark ? 'dark' : 'light';
-    final beamTheme = brightness == Brightness.dark
-        ? BeamTheme.dark
-        : BeamTheme.light;
+    final theme = brightness.name;
 
-    for (final MapEntry(key: paletteName, value: colors) in {
-      'colorful': BeamColors.colorful,
-      'mono': BeamColors.mono,
-      'ocean': BeamColors.ocean,
-      'sunset': BeamColors.sunset,
-    }.entries) {
-      testWidgets('rotate $theme $paletteName', (tester) async {
-        await capture(
+    for (final effect in BeamEffect.values) {
+      testWidgets('${effect.name} $theme colorful', (tester) async {
+        await captureGolden(
           tester,
-          'rotate_${theme}_$paletteName',
-          brightness: brightness,
-          (b) => BorderBeam.rotate(
-            colors: colors,
-            style: BeamStyle(theme: beamTheme),
-            child: mockSurface(b),
-          ),
+          '${effect.name}_${theme}_colorful',
+          goldenScene(beam(effect, brightness), brightness: brightness),
         );
       });
 
-      testWidgets('small $theme $paletteName', (tester) async {
-        await capture(
-          tester,
-          'small_${theme}_$paletteName',
-          brightness: brightness,
-          width: 70,
-          height: 36,
-          (b) => BorderBeam.small(
-            colors: colors,
-            style: BeamStyle(theme: beamTheme),
-            child: mockSurface(b, radius: 32),
-          ),
-        );
-      });
-
-      testWidgets('line $theme $paletteName', (tester) async {
-        await capture(
-          tester,
-          'line_${theme}_$paletteName',
-          brightness: brightness,
-          (b) => BorderBeam.line(
-            colors: colors,
-            style: BeamStyle(theme: beamTheme),
-            child: mockSurface(b),
-          ),
-        );
-      });
-
-      testWidgets('pulseInside $theme $paletteName', (tester) async {
-        await capture(
-          tester,
-          'pulse_inside_${theme}_$paletteName',
-          brightness: brightness,
-          (b) => BorderBeam.pulseInside(
-            colors: colors,
-            style: BeamStyle(theme: beamTheme),
-            child: mockSurface(b),
-          ),
-        );
-      });
-
-      testWidgets('pulseOutside $theme $paletteName', (tester) async {
-        await capture(
-          tester,
-          'pulse_outside_${theme}_$paletteName',
-          brightness: brightness,
-          (b) => BorderBeam.pulseOutside(
-            colors: colors,
-            style: BeamStyle(theme: beamTheme),
-            child: mockSurface(b),
-          ),
-        );
-      });
+      final later = late[effect.name];
+      if (later != null) {
+        testWidgets('${effect.name} $theme colorful late', (tester) async {
+          await captureGolden(
+            tester,
+            '${effect.name}_${theme}_colorful_late',
+            goldenScene(beam(effect, brightness), brightness: brightness),
+            freeze: later,
+          );
+        });
+      }
     }
 
-    // Second freezes for the traveling variants. rotate's 1.96s cycle puts
-    // 2.3s at cycle fraction 0.17 (vs 0.66 at 1.3s) — the beam is on the
-    // opposite side of the border. line's 3.1s cycle puts 2.0s at fraction
-    // 0.645, still inside the [0.325, 0.675] window where `beam-edge-fade`
-    // holds at 1, so the beam is at full strength further along its travel
-    // (x 0.60 vs 0.45 at 1.3s).
-    testWidgets('rotate $theme colorful late', (tester) async {
-      await capture(
-        tester,
-        'rotate_${theme}_colorful_late',
-        brightness: brightness,
-        freeze: const Duration(milliseconds: 2300),
-        (b) => BorderBeam.rotate(
-          style: BeamStyle(theme: beamTheme),
-          child: mockSurface(b),
-        ),
-      );
-    });
+    for (final effect in BeamEffect.values) {
+      for (final MapEntry(key: palette, value: colors) in {
+        'mono': BeamColors.mono,
+        'ocean': BeamColors.ocean,
+        'sunset': BeamColors.sunset,
+      }.entries) {
+        testWidgets('${effect.name} $theme $palette', (tester) async {
+          await captureGolden(
+            tester,
+            '${effect.name}_${theme}_$palette',
+            goldenScene(
+              beam(effect, brightness, colors: colors),
+              brightness: brightness,
+            ),
+          );
+        });
+      }
+    }
 
-    testWidgets('line $theme colorful late', (tester) async {
-      await capture(
+    // The small-chip size the old `small` variant was made for: rotate
+    // scales its glow down with the box.
+    testWidgets('rotate $theme chip', (tester) async {
+      await captureGolden(
         tester,
-        'line_${theme}_colorful_late',
-        brightness: brightness,
-        freeze: const Duration(milliseconds: 2000),
-        (b) => BorderBeam.line(
-          style: BeamStyle(theme: beamTheme),
-          child: mockSurface(b),
-        ),
-      );
-    });
-
-    testWidgets('rotate $theme ocean superellipse', (tester) async {
-      await capture(
-        tester,
-        'rotate_${theme}_ocean_squircle',
-        brightness: brightness,
-        (b) => BorderBeam.rotate(
-          colors: BeamColors.ocean,
-          style: BeamStyle(theme: beamTheme),
-          shape: const BeamShape(superellipse: true),
-          borderRadius: 28,
-          child: mockSurface(b, radius: 28),
+        'rotate_${theme}_chip',
+        goldenScene(
+          beam(const BeamEffect.rotate(), brightness, radius: 18),
+          brightness: brightness,
+          size: const Size(70, 36),
         ),
       );
     });
   }
 
-  testWidgets('rotate dark custom palette', (tester) async {
-    await capture(
+  testWidgets('rotate dark comet', (tester) async {
+    await captureGolden(
       tester,
-      'rotate_dark_custom',
-      brightness: Brightness.dark,
-      (b) => BorderBeam.rotate(
-        colors: const BeamColors.custom([
-          Color(0xFFFF0080),
-          Color(0xFF00E5FF),
-          Color(0xFFFFC400),
-        ]),
-        style: const BeamStyle(theme: BeamTheme.dark),
-        child: mockSurface(b),
-      ),
+      'rotate_dark_comet',
+      goldenScene(beam(const BeamEffect.rotate(comet: true), Brightness.dark)),
     );
   });
 
-  // Per-corner and stadium geometry, dark/colorful only: the shape is what
-  // these scenes are about, so one palette is enough.
-  const cornerRadii = BorderRadius.only(
-    topLeft: Radius.circular(40),
-    bottomRight: Radius.circular(40),
-  );
-
-  testWidgets('rotate dark colorful per-corner radii', (tester) async {
-    await capture(
+  testWidgets('rotate dark long tail', (tester) async {
+    await captureGolden(
       tester,
-      'rotate_dark_colorful_corners',
-      brightness: Brightness.dark,
-      (b) => BorderBeam.rotate(
-        style: const BeamStyle(theme: BeamTheme.dark),
-        shape: const BeamShape(radius: cornerRadii),
-        child: mockSurface(b, radii: cornerRadii),
-      ),
+      'rotate_dark_long_tail',
+      goldenScene(beam(const BeamEffect.rotate(length: 2), Brightness.dark)),
     );
   });
 
-  testWidgets('rotate dark colorful per-corner superellipse', (tester) async {
-    await capture(
+  testWidgets('rotate dark glow 2', (tester) async {
+    await captureGolden(
       tester,
-      'rotate_dark_colorful_corners_squircle',
-      brightness: Brightness.dark,
-      (b) => BorderBeam.rotate(
-        style: const BeamStyle(theme: BeamTheme.dark),
-        shape: const BeamShape(radius: cornerRadii, superellipse: true),
-        child: mockSurface(b, radii: cornerRadii),
-      ),
-    );
-  });
-
-  // A 350x60 box: the stadium radius clamps to 30 on every corner, so the
-  // beam travels a pill and the surface matches it.
-  testWidgets('rotate dark colorful stadium', (tester) async {
-    await capture(
-      tester,
-      'rotate_dark_colorful_stadium',
-      brightness: Brightness.dark,
-      height: 60,
-      (b) => BorderBeam.rotate(
-        style: const BeamStyle(theme: BeamTheme.dark),
-        shape: const BeamShape.stadium(),
-        child: mockSurface(b, radius: 30),
-      ),
-    );
-  });
-
-  testWidgets('line dark colorful stadium', (tester) async {
-    await capture(
-      tester,
-      'line_dark_colorful_stadium',
-      brightness: Brightness.dark,
-      height: 60,
-      (b) => BorderBeam.line(
-        style: const BeamStyle(theme: BeamTheme.dark),
-        shape: const BeamShape.stadium(),
-        child: mockSurface(b, radius: 30),
+      'rotate_dark_glow_2',
+      goldenScene(
+        beam(
+          const BeamEffect.rotate(),
+          Brightness.dark,
+          style: const BeamStyle(glow: 2),
+        ),
       ),
     );
   });

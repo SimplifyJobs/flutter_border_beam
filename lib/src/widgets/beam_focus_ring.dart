@@ -2,11 +2,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import '../border_beam.dart';
+import '../border_beam_theme.dart';
+import '../effects/beam_effect.dart';
 import '../models/beam_colors.dart';
 import '../models/beam_shape.dart';
 import '../models/beam_style.dart';
 import '../models/beam_timing.dart';
-import '../models/beam_variant.dart';
 
 /// Lights a beam around [child] while it holds keyboard focus.
 ///
@@ -23,8 +24,8 @@ import '../models/beam_variant.dart';
 /// form wrapped in one ring should do. Pass [focusNode] to follow one
 /// specific node instead — including a node that lives outside this subtree.
 ///
-/// Focus comes and goes with the beam's own fades (0.6s in, 0.5s out) rather
-/// than a cut, because the ring only flips `BorderBeam`'s `active`.
+/// Focus comes and goes with the beam's own fades (about 0.5s in, 0.6s out)
+/// rather than a cut, because the ring only flips `BorderBeam`'s `active`.
 ///
 /// ## Highlight mode
 ///
@@ -46,8 +47,8 @@ class BeamFocusRing extends StatefulWidget {
     super.key,
     required this.child,
     this.focusNode,
-    this.variant = BeamVariant.small,
-    this.colors = BeamColors.ocean,
+    this.effect = const BeamEffect.rotate(),
+    this.colors,
     this.borderRadius,
     this.style,
     this.shape,
@@ -62,24 +63,31 @@ class BeamFocusRing extends StatefulWidget {
   /// subtree through an inserted non-focusable [Focus].
   final FocusNode? focusNode;
 
-  /// Which effect the ring paints. Defaults to [BeamVariant.small], the
-  /// compact traveling beam.
-  final BeamVariant variant;
+  /// Which effect the ring paints. Defaults to [BeamEffect.rotate], which
+  /// switches to its compact chip look on small controls.
+  final BeamEffect effect;
 
-  /// The ring's palette. Defaults to [BeamColors.ocean].
-  final BeamColors colors;
+  /// The ring's palette; a non-null value wins over `style.colors`.
+  ///
+  /// Null inherits `style.colors`, then the enclosing [BorderBeamTheme]'s
+  /// colours, and only when neither sets one falls back to the ring's own
+  /// default, [BeamColors.ocean].
+  final BeamColors? colors;
 
   /// Shorthand for a uniform corner radius in logical px. Match the focused
   /// widget's own radius.
   final double? borderRadius;
 
-  /// Colors, theme adaptation, and filter hooks, passed straight through.
+  /// Colours, surface brightness, strength, glow, and hue drift, passed
+  /// straight through to the `BorderBeam`.
   final BeamStyle? style;
 
-  /// Corner radii, ring width, and corner family, passed straight through.
+  /// Corner radii, corner family, stroke width, segment, and dashes, passed
+  /// straight through to the `BorderBeam`.
   final BeamShape? shape;
 
-  /// Cycle length, rest, rate, and hue periods, passed straight through.
+  /// Cycle length, rest between sweeps, playback rate, direction, and the
+  /// hue drift period, passed straight through to the `BorderBeam`.
   final BeamTiming? timing;
 
   /// Whether to light the ring even under [FocusHighlightMode.touch].
@@ -92,8 +100,10 @@ class BeamFocusRing extends StatefulWidget {
   void debugFillProperties(DiagnosticPropertiesBuilder properties) {
     super.debugFillProperties(properties);
     properties
-      ..add(EnumProperty<BeamVariant>('variant', variant))
-      ..add(DiagnosticsProperty<BeamColors>('colors', colors))
+      ..add(DiagnosticsProperty<BeamEffect>('effect', effect))
+      ..add(
+        DiagnosticsProperty<BeamColors>('colors', colors, defaultValue: null),
+      )
       ..add(DoubleProperty('borderRadius', borderRadius, defaultValue: null))
       ..add(
         DiagnosticsProperty<FocusNode>(
@@ -169,11 +179,20 @@ class _BeamFocusRingState extends State<BeamFocusRing> {
   bool get _showHighlight =>
       widget.alwaysShow || _highlightMode == FocusHighlightMode.traditional;
 
+  // BorderBeam's colors shorthand wins over style.colors and the theme, so
+  // the ring passes its ocean default only when nothing else names colours.
+  BeamColors? _colors(BuildContext context) {
+    if (widget.colors != null) return widget.colors;
+    if (widget.style?.colors != null) return null;
+    if (BorderBeamTheme.of(context).style?.colors != null) return null;
+    return BeamColors.ocean;
+  }
+
   @override
   Widget build(BuildContext context) {
     final beam = BorderBeam(
-      variant: widget.variant,
-      colors: widget.colors,
+      effect: widget.effect,
+      colors: _colors(context),
       active: _focused && _showHighlight,
       borderRadius: widget.borderRadius,
       style: widget.style,

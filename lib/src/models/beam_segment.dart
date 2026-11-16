@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart';
 
-import '../painting/ring_geometry.dart';
+import '../render/beam_outline.dart';
 import 'beam_options.dart';
 
-/// A corner of a beam contour, in clockwise order.
+/// A corner of a beam's outline, in clockwise order.
 enum BeamCorner {
   /// The top-left corner.
   topLeft,
@@ -18,7 +18,7 @@ enum BeamCorner {
   bottomLeft,
 }
 
-/// A position on a beam's perimeter, resolved against its painted box.
+/// A position on a beam's border, resolved against its outline.
 @immutable
 sealed class BeamAnchor {
   /// Creates an anchor at arc-length fraction [t], clockwise from top-center.
@@ -50,8 +50,9 @@ sealed class BeamAnchor {
   /// The center of the left edge's straight run.
   static const BeamAnchor leftCenter = BeamAnchor.edge(BeamEdge.left);
 
-  /// Resolves this anchor to an arc-length fraction on [perimeter].
-  double resolve(BeamPerimeter perimeter);
+  /// Resolves this anchor to a perimeter coordinate in `[0, 1)` on
+  /// [outline]: an arc-length fraction, clockwise from top-centre.
+  double resolve(BeamOutline outline);
 }
 
 final class _FractionAnchor extends BeamAnchor {
@@ -60,7 +61,7 @@ final class _FractionAnchor extends BeamAnchor {
   final double t;
 
   @override
-  double resolve(BeamPerimeter perimeter) => t % 1 < 0 ? t % 1 + 1 : t % 1;
+  double resolve(BeamOutline outline) => BeamOutline.wrapFraction(t);
 
   @override
   bool operator ==(Object other) =>
@@ -80,7 +81,7 @@ final class _EdgeAnchor extends BeamAnchor {
   final double t;
 
   @override
-  double resolve(BeamPerimeter perimeter) => perimeter.fractionOfEdge(edge, t);
+  double resolve(BeamOutline outline) => outline.fractionOfEdge(edge, t);
 
   @override
   bool operator ==(Object other) =>
@@ -101,8 +102,7 @@ final class _CornerAnchor extends BeamAnchor {
   final double t;
 
   @override
-  double resolve(BeamPerimeter perimeter) =>
-      perimeter.fractionOfCorner(corner, t);
+  double resolve(BeamOutline outline) => outline.fractionOfCorner(corner, t);
 
   @override
   bool operator ==(Object other) =>
@@ -118,16 +118,16 @@ final class _CornerAnchor extends BeamAnchor {
 
 /// A clockwise portion of the perimeter over which a beam is visible.
 ///
-/// A segment masks an unchanged full-ring animation: constants and blob
-/// positions never move. The traveling beam enters at [start] and leaves at
-/// [end], the line variant travels the segment, and pulse blobs outside it
-/// are hidden. Ends fade over [feather] logical pixels along the perimeter.
+/// A segment masks an unchanged full-border animation: nothing is
+/// repositioned to fit it. A travelling beam enters at [start] and leaves at
+/// [end], and light outside the segment is hidden. Ends fade over [feather]
+/// logical pixels along the border.
 ///
 /// A beam covering the lower half of a square runs from right-center, around
 /// the bottom, to left-center:
 ///
 /// ```dart
-/// BorderBeam.rotate(
+/// BorderBeam(
 ///   shape: const BeamShape(segment: BeamSegment.bottomHalf),
 ///   child: card,
 /// )
@@ -135,11 +135,8 @@ final class _CornerAnchor extends BeamAnchor {
 @immutable
 class BeamSegment {
   /// Creates the clockwise segment from [start] to [end].
-  const BeamSegment({
-    required this.start,
-    required this.end,
-    this.feather = 32,
-  });
+  const BeamSegment({required this.start, required this.end, this.feather = 32})
+    : assert(feather >= 0, 'feather must not be negative');
 
   /// Where the clockwise visible portion begins.
   final BeamAnchor start;
@@ -148,7 +145,8 @@ class BeamSegment {
   /// when its resolved fraction is smaller than [start].
   final BeamAnchor end;
 
-  /// Logical pixels over which each end fades; zero makes a hard cut.
+  /// Logical pixels over which each end fades; zero makes a hard cut. Must
+  /// not be negative; at most half the segment's length is used. Default 32.
   final double feather;
 
   /// The lower half, from right-center through bottom-center to left-center.
@@ -203,9 +201,11 @@ class BeamSegment {
     end: BeamAnchor.corner(BeamCorner.bottomRight, 1),
   );
 
-  /// Returns this segment with all logical lengths scaled by [factor].
-  BeamSegment scaledBy(double factor) =>
-      BeamSegment(start: start, end: end, feather: feather * factor);
+  /// The perimeter coordinates of [start] and [end] on [outline], each in
+  /// `[0, 1)`. When `to` is smaller than `from` the segment wraps through
+  /// top-centre.
+  ({double from, double to}) resolve(BeamOutline outline) =>
+      (from: start.resolve(outline), to: end.resolve(outline));
 
   @override
   bool operator ==(Object other) =>

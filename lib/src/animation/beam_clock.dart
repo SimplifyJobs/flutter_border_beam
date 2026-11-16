@@ -9,71 +9,63 @@ enum BeamFadeStage {
   /// Not animating a fade (either idle or fully visible).
   none,
 
-  /// Fading in (0.6s).
+  /// Fading in ([BeamClock.fadeInSeconds]).
   fadingIn,
 
-  /// Fading out (0.5s).
+  /// Fading out ([BeamClock.fadeOutSeconds]).
   fadingOut,
 }
 
 /// The single time source of a beam instance.
 ///
-/// Mirrors the source library's model: every animated value is a pure
-/// function of elapsed time, driven by ONE [Ticker] (the React library uses
-/// one shared requestAnimationFrame loop). The clock integrates scaled
-/// deltas so [speed] changes and pauses keep continuity, runs the
-/// fade-in/fade-out envelope (spring-eased via [FadeSpringCurve] unless
-/// [fadeCurve] replaces it), and can
-/// cap its notification rate for the pulse variants (~30fps in the source).
+/// Every animated value is a pure function of elapsed time, driven by ONE
+/// [Ticker]. The clock integrates scaled deltas so [speed] changes and
+/// pauses keep continuity, and runs the fade-in/fade-out envelope
+/// (critically damped springs — [BeamSpringCurve.fadeIn] and
+/// [BeamSpringCurve.fadeOut] — unless [fadeCurve] replaces them) and the
+/// [pulse]/[flash] boosts on top. It notifies on every display frame — the
+/// beam is cheap enough to run at the panel's full rate, 120Hz included.
+///
+/// The fades and boosts run on [activeSeconds], real time while ticking, not
+/// on the animation timeline: [speed], [seek], and [retime] move the
+/// animation without stretching, skipping, or replaying a fade.
 class BeamClock extends ChangeNotifier {
-  /// Creates a clock. [createTicker] is typically
-  /// `TickerProviderStateMixin.createTicker`. [maxFps] caps notification
-  /// frequency while not fading (null = every frame). [onFadeComplete] fires
+  /// Creates a clock. `createTicker` is typically
+  /// `TickerProviderStateMixin.createTicker`. [onFadeComplete] fires
   /// with `true` when a fade-in finishes and `false` when a fade-out
   /// finishes. [fadeCurve] replaces the spring easing of both fades.
-  BeamClock({
-    required Ticker Function(TickerCallback) createTicker,
-    this.maxFps,
-    this.onFadeComplete,
-    this.fadeCurve,
-  }) : _createTicker = createTicker;
+  BeamClock({required this._createTicker, this.onFadeComplete, this.fadeCurve});
 
-  /// Fade-in duration in seconds (React `beam-fade-in 0.6s`).
-  static const double fadeInSeconds = 0.6;
+  /// Fade-in duration in seconds: [BeamSpringCurve.fadeIn]'s settling time,
+  /// so the spring plays in real time, whatever the [speed].
+  static const double fadeInSeconds = 0.475;
 
-  /// Fade-out duration in seconds (React `beam-fade-out 0.5s`).
-  static const double fadeOutSeconds = 0.5;
+  /// Fade-out duration in seconds: [BeamSpringCurve.fadeOut]'s settling
+  /// time.
+  static const double fadeOutSeconds = 0.581;
 
   /// How far [pulse] lifts [boost] at its peak.
   static const double pulsePeak = 2;
 
   /// How far [flash] lifts [boost] at its peak.
   ///
-  /// High enough that every layer reaches the clamp `BeamLayerUtils`
-  /// applies, which is what makes the blink read as full opacity.
+  /// High enough that the beam saturates at full opacity, which is what
+  /// makes the blink read as a flash.
   static const double flashPeak = 4;
 
-  // Spring-eased fade, isolated here so the curve is trivially replaceable.
-  static const _defaultFadeCurve = FadeSpringCurve.instance;
-
   final Ticker Function(TickerCallback) _createTicker;
-
-  /// Optional notification rate cap (frames per second) while not fading.
-  final double? maxFps;
 
   /// Fired when a fade completes; the argument is whether the beam is now
   /// active (`true` after fade-in, `false` after fade-out).
   final ValueChanged<bool>? onFadeComplete;
 
-  /// The easing both fades run on; null uses the spring
-  /// ([FadeSpringCurve]).
+  /// The easing both fades run on; null uses the springs
+  /// ([BeamSpringCurve.fadeIn], [BeamSpringCurve.fadeOut]).
   ///
   /// Settable so a beam can pick up `BeamPlayback.fadeCurve` after its clock
   /// exists. It is read per frame, so a change lands on the next one — and
   /// mid-fade, since both stages read the curve from where they already are.
   Curve? fadeCurve;
-
-  Curve get _fadeCurve => fadeCurve ?? _defaultFadeCurve;
 
   Ticker? _ticker;
   Duration _lastRaw = Duration.zero;
@@ -81,9 +73,9 @@ class BeamClock extends ChangeNotifier {
   double _activeSeconds = 0;
   double _speed = 1;
   BeamFadeStage _stage = BeamFadeStage.none;
+  // The [activeSeconds] the current fade started at.
   double _fadeStart = 0;
   double _fadeFromOpacity = 0;
-  double _lastNotify = -1;
   bool _visible = false;
   _Boost? _boost;
 
@@ -93,8 +85,9 @@ class BeamClock extends ChangeNotifier {
   /// Unscaled wall time accumulated while the ticker is running.
   ///
   /// Unlike [elapsedSeconds], this is unaffected by playback speed and does
-  /// not advance while paused. Scheduling uses it for duration limits so an
-  /// offscreen pause suspends the remaining play time too.
+  /// not advance while paused. The fades and boosts run on it, and
+  /// scheduling uses it for duration limits, so an offscreen pause suspends
+  /// the remaining play time too.
   double get activeSeconds => _activeSeconds;
 
   /// Whether the ticker is currently producing frames.
@@ -119,7 +112,7 @@ class BeamClock extends ChangeNotifier {
   double get boost {
     final b = _boost;
     if (b == null) return 1;
-    return 1 + b.envelopeAt(_elapsed) * (b.peak - 1);
+    return 1 + b.envelopeAt(_activeSeconds) * (b.peak - 1);
   }
 
   /// Lifts the beam to [pulsePeak] and settles back over ~0.6s — a one-shot
@@ -141,7 +134,7 @@ class BeamClock extends ChangeNotifier {
 
   void _startBoost(_Boost boost) {
     if (!_visible || !isRunning) return;
-    _boost = boost.startingAt(_elapsed);
+    _boost = boost.startingAt(_activeSeconds);
     notifyListeners();
   }
 
@@ -154,22 +147,28 @@ class BeamClock extends ChangeNotifier {
 
   /// The current fade envelope value (0–1).
   ///
-  /// The spring curve is lightly under-damped and overshoots its target by
-  /// up to ~3%; the result is clamped so it is always a valid opacity.
+  /// The default springs are critically damped and never leave 0–1; the
+  /// result is clamped anyway, since a custom [fadeCurve] may overshoot.
   double get fadeOpacity {
     final raw = switch (_stage) {
       BeamFadeStage.none => _visible ? 1.0 : 0.0,
       BeamFadeStage.fadingIn =>
         _fadeFromOpacity +
             (1 - _fadeFromOpacity) *
-                _fadeCurve.transform(
-                  ((_elapsed - _fadeStart) / fadeInSeconds).clamp(0.0, 1.0),
+                (fadeCurve ?? BeamSpringCurve.fadeIn).transform(
+                  ((_activeSeconds - _fadeStart) / fadeInSeconds).clamp(
+                    0.0,
+                    1.0,
+                  ),
                 ),
       BeamFadeStage.fadingOut =>
         _fadeFromOpacity *
             (1 -
-                _fadeCurve.transform(
-                  ((_elapsed - _fadeStart) / fadeOutSeconds).clamp(0.0, 1.0),
+                (fadeCurve ?? BeamSpringCurve.fadeOut).transform(
+                  ((_activeSeconds - _fadeStart) / fadeOutSeconds).clamp(
+                    0.0,
+                    1.0,
+                  ),
                 )),
     };
     return raw.clamp(0.0, 1.0);
@@ -200,8 +199,11 @@ class BeamClock extends ChangeNotifier {
     }
   }
 
-  /// Activates the beam: resets the timeline (matching CSS animation restart
-  /// when `data-active` is re-applied) and fades in.
+  /// Activates the beam: restarts the timeline from zero and fades in.
+  ///
+  /// Mid-fade-out it reverses the fade instead, from the opacity it has
+  /// reached, and keeps the timeline. A no-op while the beam is already
+  /// visible — paused or not; [resume] restarts a paused one.
   void activate() {
     if (_visible && _stage != BeamFadeStage.fadingOut) return;
     if (_stage == BeamFadeStage.fadingOut) {
@@ -216,7 +218,7 @@ class BeamClock extends ChangeNotifier {
     }
     _visible = true;
     _stage = BeamFadeStage.fadingIn;
-    _fadeStart = _elapsed;
+    _fadeStart = _activeSeconds;
     _startTicker();
     notifyListeners();
   }
@@ -226,12 +228,13 @@ class BeamClock extends ChangeNotifier {
     if (!_visible || _stage == BeamFadeStage.fadingOut) return;
     _fadeFromOpacity = fadeOpacity;
     _stage = BeamFadeStage.fadingOut;
-    _fadeStart = _elapsed;
+    _fadeStart = _activeSeconds;
     _startTicker();
     notifyListeners();
   }
 
-  /// Freezes the timeline, keeping the current frame on screen.
+  /// Freezes the timeline — and any fade or boost in progress — keeping the
+  /// current frame on screen.
   void pause() => _ticker?.stop();
 
   /// Resumes after [pause].
@@ -239,7 +242,8 @@ class BeamClock extends ChangeNotifier {
     if (_visible && !isRunning) _startTicker();
   }
 
-  /// Jumps the timeline to [seconds].
+  /// Jumps the timeline to [seconds]. A fade or boost in progress carries on
+  /// as it was.
   void seek(double seconds) {
     _elapsed = seconds;
     notifyListeners();
@@ -251,25 +255,24 @@ class BeamClock extends ChangeNotifier {
   /// Used when a beam's cycle duration changes mid-run: every animated
   /// track derived from the cycle reads `elapsed / cycleSeconds`, so
   /// multiplying elapsed time by `newCycle / oldCycle` leaves each track at
-  /// the exact fraction it had. The fade envelope and the frame-rate cap
-  /// are wall-clock schedules, not cycle-relative ones, so their anchors
-  /// move with the timeline rather than being scaled — the fade keeps its
-  /// current opacity and its remaining duration.
+  /// the exact fraction it had. The fades and boosts run on
+  /// [activeSeconds], not on the timeline, so they keep their current value
+  /// and their remaining duration.
   void retime(double factor) {
     assert(factor > 0, 'retime factor must be positive');
-    final shift = _elapsed * factor - _elapsed;
-    _elapsed += shift;
-    _fadeStart += shift;
-    _lastNotify += shift;
-    _boost = _boost?.shiftedBy(shift);
+    _elapsed *= factor;
     notifyListeners();
   }
 
   /// Marks the beam visible at full opacity without animating (used for
   /// reduced motion and for initially-active beams that must not fade in).
+  ///
+  /// Drops any boost in progress: with the ticker stopped it would otherwise
+  /// hold its current value forever.
   void showStatic() {
     _visible = true;
     _stage = BeamFadeStage.none;
+    _boost = null;
     _ticker?.stop();
     notifyListeners();
   }
@@ -291,32 +294,25 @@ class BeamClock extends ChangeNotifier {
     _activeSeconds += deltaSeconds;
     _elapsed += deltaSeconds * _speed;
 
-    var mustNotify = true;
     if (_stage == BeamFadeStage.fadingIn &&
-        _elapsed - _fadeStart >= fadeInSeconds) {
+        _activeSeconds - _fadeStart >= fadeInSeconds) {
       _stage = BeamFadeStage.none;
       onFadeComplete?.call(true);
     } else if (_stage == BeamFadeStage.fadingOut &&
-        _elapsed - _fadeStart >= fadeOutSeconds) {
+        _activeSeconds - _fadeStart >= fadeOutSeconds) {
       _stage = BeamFadeStage.none;
       _visible = false;
       _ticker!.stop();
       _elapsed = 0;
+      // Nothing is left to play a boost on, and the stopped ticker would
+      // otherwise hold one at its current value until the next activation.
+      _boost = null;
       _notifyTimelineReset();
       onFadeComplete?.call(false);
-    } else if (_stage == BeamFadeStage.none && maxFps != null && !isBoosting) {
-      // Rate cap (pulse variants): skip paint-frame notifications, matching
-      // the source's ~30fps pulse driver. Time still accumulates. A boost is
-      // short and steep, so it plays at the full frame rate.
-      final interval = 1 / maxFps! - 0.002;
-      if (_elapsed - _lastNotify < interval) mustNotify = false;
     }
     // Drop a spent boost, keeping the frame that lands back at 1.
-    if (_boost?.isDoneAt(_elapsed) ?? false) _boost = null;
-    if (mustNotify) {
-      _lastNotify = _elapsed;
-      notifyListeners();
-    }
+    if (_boost?.isDoneAt(_activeSeconds) ?? false) _boost = null;
+    notifyListeners();
   }
 
   @override
@@ -342,7 +338,7 @@ class _Boost {
   /// The multiplier at the top of the envelope.
   final double peak;
 
-  /// Seconds spent climbing to [peak], spring-eased like the fade.
+  /// Seconds spent climbing to [peak], on [BeamSpringCurve.pop].
   final double rise;
 
   /// Seconds held at [peak].
@@ -352,7 +348,7 @@ class _Boost {
   /// has no visible corner at either end.
   final double fall;
 
-  /// Timeline position the envelope started at.
+  /// The [BeamClock.activeSeconds] the envelope started at.
   final double startedAt;
 
   double get _total => rise + hold + fall;
@@ -360,21 +356,13 @@ class _Boost {
   _Boost startingAt(double now) =>
       _Boost(peak: peak, rise: rise, hold: hold, fall: fall, startedAt: now);
 
-  _Boost shiftedBy(double shift) => _Boost(
-    peak: peak,
-    rise: rise,
-    hold: hold,
-    fall: fall,
-    startedAt: startedAt + shift,
-  );
-
   bool isDoneAt(double now) => now - startedAt >= _total;
 
-  /// The 0–1 envelope at timeline position [now].
+  /// The 0–1 envelope at [BeamClock.activeSeconds] [now].
   double envelopeAt(double now) {
     var x = now - startedAt;
     if (x <= 0) return rise > 0 ? 0 : 1;
-    if (x < rise) return FadeSpringCurve.instance.transform(x / rise);
+    if (x < rise) return BeamSpringCurve.pop.transform(x / rise);
     x -= rise;
     if (x < hold) return 1;
     x -= hold;

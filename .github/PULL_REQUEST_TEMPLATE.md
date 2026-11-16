@@ -11,7 +11,7 @@ the first thing a reviewer needs to know.
 <!--
 Bullets, each opening with a bold lead-in naming the area:
 
-- **Painting** (`lib/src/painting/`) — …
+- **Render** (`lib/src/render/`, `shaders/beam.frag`) — …
 - **Docs** — …
 -->
 
@@ -32,24 +32,24 @@ What you actually ran, and what it said. Do not claim a check you skipped —
 
 <!--
 If you regenerated any: list which scenes, and why the pixels legitimately
-moved (a new blur radius, a corrected gradient stop, a Flutter pin bump).
-Goldens are macOS-only and pinned to Flutter 3.44.2; regenerate only your own
-new scenes, with `--plain-name`.
+moved (a retuned effect, a shader fix, a Flutter pin bump). Goldens are
+macOS-only and pinned to Flutter 3.50.0; regenerate only the scenes you
+touched, with `--plain-name`.
 -->
 
-**saveLayer budget** — unchanged / changed:
+**Frame budget** — still one draw, no `saveLayer` / clip / image or mask filter:
 
 <!--
-If `test/painting/save_layer_budget_test.dart`'s table changed: which variants,
-the new counts, and what the added layer composites that no existing layer
-could. Both the test and CLAUDE.md's table have to move together.
+`test/render/frame_budget_test.dart` must pass unchanged. If you touched the
+shader's uniforms, say so: `shaders/beam.frag` and the offsets and slot
+counts in `lib/src/render/beam_frame.dart` (`beamUniformFloats`) must move
+together, and the uniform order is checked by hand.
 -->
 
 ## Checklist
 
-- [ ] No values in `lib/src/constants/` were tweaked (they are verbatim
-      transcriptions of the React source); Flutter-only additions live in a
-      clearly headed file
+- [ ] `BeamOutline` and `color_math.dart` still mirror the shader (if either
+      side changed)
 - [ ] New public API has doc comments (`public_member_api_docs` is enforced)
 - [ ] Docs and comments describe current behavior — no change-history prose
 - [ ] `CHANGELOG.md` updated

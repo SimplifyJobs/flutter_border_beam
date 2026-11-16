@@ -1,61 +1,39 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_border_beam/flutter_border_beam.dart';
-import 'package:flutter_border_beam/src/painting/beam_painter.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
-Widget _host(Widget child) => MaterialApp(
-  theme: ThemeData(brightness: Brightness.dark),
-  home: Scaffold(
-    body: Center(child: SizedBox(width: 350, height: 140, child: child)),
-  ),
-);
+import 'test_utils.dart';
 
-BeamPainter _painter(WidgetTester tester) => tester
-    .widgetList<CustomPaint>(
-      find.descendant(
-        of: find.byType(BorderBeam),
-        matching: find.byType(CustomPaint),
-      ),
-    )
-    .expand((paint) => [paint.painter, paint.foregroundPainter])
-    .whereType<BeamPainter>()
-    .first;
-
-/// The three shorthands (`colors`, `active`, `borderRadius`) are the top of
-/// the resolution order: they beat the value object they abbreviate on the
-/// same widget, and everything a `BorderBeamTheme` supplies. The generic
-/// `BorderBeam(variant:)` constructor must build exactly what the matching
-/// named constructor does.
-///
-/// The `borderRadius` shorthand is covered in `beam_shape_test.dart`, next
-/// to the rest of the shape resolution.
+/// The three shorthands (`colors`, `active`, `borderRadius`) sit at the top
+/// of the resolution order: they beat the value-object field they abbreviate
+/// on the same widget, and everything a `BorderBeamTheme` supplies — and they
+/// leave every other field of that value object alone.
 void main() {
-  group('colors shorthand', () {
+  group('colors', () {
     testWidgets('beats style.colors on the same widget', (tester) async {
       await tester.pumpWidget(
-        _host(
-          const BorderBeam.rotate(
+        beamHost(
+          const BorderBeam(
             colors: BeamColors.sunset,
-            style: BeamStyle(colors: BeamColors.ocean, strength: 0.3),
+            style: BeamStyle(colors: BeamColors.ocean, strength: 0.3, glow: 2),
             child: SizedBox.expand(),
           ),
         ),
       );
-      final config = _painter(tester).config;
-      expect(identical(config.palette, BeamColors.sunset.resolve()), isTrue);
+      final config = beamPainterOf(tester).config;
+      expect(config.palette, BeamColors.sunset.resolve());
       expect(config.strength, 0.3, reason: 'the rest of the style survives');
+      expect(config.glow, 2);
     });
 
-    testWidgets('beats a theme colors and the widget style together', (
-      tester,
-    ) async {
+    testWidgets('beats a theme and the widget style together', (tester) async {
       await tester.pumpWidget(
-        _host(
+        beamHost(
           const BorderBeamTheme(
             data: BorderBeamThemeData(
-              style: BeamStyle(colors: BeamColors.ocean),
+              style: BeamStyle(colors: BeamColors.ocean, hueBase: 40),
             ),
-            child: BorderBeam.rotate(
+            child: BorderBeam(
               colors: BeamColors.sunset,
               style: BeamStyle(colors: BeamColors.mono),
               child: SizedBox.expand(),
@@ -63,38 +41,46 @@ void main() {
           ),
         ),
       );
-      final config = _painter(tester).config;
-      expect(identical(config.palette, BeamColors.sunset.resolve()), isTrue);
+      final config = beamPainterOf(tester).config;
+      expect(config.palette, BeamColors.sunset.resolve());
       expect(
-        config.staticColors,
-        isFalse,
-        reason: 'the mono palette never took effect',
+        config.hueMode,
+        isNot(BeamHueMode.none),
+        reason: 'the fixed-hue mono palette never took effect',
       );
+      expect(config.hueBase, 40, reason: 'the theme fills the rest');
     });
 
-    testWidgets('a null shorthand leaves style.colors in charge', (
+    testWidgets('a null shorthand leaves style.colors in control', (
       tester,
     ) async {
       await tester.pumpWidget(
-        _host(
-          const BorderBeam.rotate(
+        beamHost(
+          const BorderBeam(
             style: BeamStyle(colors: BeamColors.ocean),
             child: SizedBox.expand(),
           ),
         ),
       );
-      expect(
-        identical(_painter(tester).config.palette, BeamColors.ocean.resolve()),
-        isTrue,
+      expect(beamPainterOf(tester).config.palette, BeamColors.ocean.resolve());
+    });
+
+    testWidgets('a custom palette passes through', (tester) async {
+      const custom = BeamColors([Color(0xFFFF0000), Color(0xFF0000FF)]);
+      await tester.pumpWidget(
+        beamHost(const BorderBeam(colors: custom, child: SizedBox.expand())),
       );
+      final palette = beamPainterOf(tester).config.palette;
+      expect(palette, custom.resolve());
+      expect(palette.colors, hasLength(2));
     });
   });
 
-  group('active shorthand', () {
-    testWidgets('beats playback.active on the same widget', (tester) async {
+  group('active', () {
+    testWidgets('true beats playback.active: false', (tester) async {
       await tester.pumpWidget(
-        _host(
-          const BorderBeam.rotate(
+        beamHost(
+          const BorderBeam(
             active: true,
             playback: BeamPlayback(active: false),
             child: SizedBox.expand(),
@@ -103,16 +89,14 @@ void main() {
       );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
-      expect(_painter(tester).clock.isVisible, isTrue);
-      expect(tester.binding.hasScheduledFrame, isTrue);
+      expect(beamPainterOf(tester).clock.isVisible, isTrue);
+      expect(tester.binding.transientCallbackCount, 1);
     });
 
-    testWidgets('active: false wins over playback.active: true', (
-      tester,
-    ) async {
+    testWidgets('false beats playback.active: true', (tester) async {
       await tester.pumpWidget(
-        _host(
-          const BorderBeam.rotate(
+        beamHost(
+          const BorderBeam(
             active: false,
             playback: BeamPlayback(active: true),
             child: SizedBox.expand(),
@@ -120,45 +104,45 @@ void main() {
         ),
       );
       await tester.pump(const Duration(seconds: 1));
-      expect(_painter(tester).clock.isVisible, isFalse);
-      expect(tester.binding.hasScheduledFrame, isFalse);
+      expect(beamPainterOf(tester).clock.isVisible, isFalse);
+      expect(tester.binding.transientCallbackCount, 0);
     });
 
     testWidgets('beats a theme playback', (tester) async {
       await tester.pumpWidget(
-        _host(
+        beamHost(
           const BorderBeamTheme(
             data: BorderBeamThemeData(playback: BeamPlayback(active: false)),
-            child: BorderBeam.rotate(active: true, child: SizedBox.expand()),
+            child: BorderBeam(active: true, child: SizedBox.expand()),
           ),
         ),
       );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
-      expect(_painter(tester).clock.isVisible, isTrue);
+      expect(beamPainterOf(tester).clock.isVisible, isTrue);
     });
 
     testWidgets('a theme active: false keeps a plain beam idle', (
       tester,
     ) async {
       await tester.pumpWidget(
-        _host(
+        beamHost(
           const BorderBeamTheme(
             data: BorderBeamThemeData(playback: BeamPlayback(active: false)),
-            child: BorderBeam.rotate(child: SizedBox.expand()),
+            child: BorderBeam(child: SizedBox.expand()),
           ),
         ),
       );
       await tester.pump(const Duration(seconds: 1));
-      expect(_painter(tester).clock.isVisible, isFalse);
-      expect(tester.binding.hasScheduledFrame, isFalse);
+      expect(beamPainterOf(tester).clock.isVisible, isFalse);
+      expect(tester.binding.transientCallbackCount, 0);
     });
 
-    testWidgets('the shorthand keeps the rest of the playback', (tester) async {
+    testWidgets('keeps the rest of the playback', (tester) async {
       var deactivated = 0;
       await tester.pumpWidget(
-        _host(
-          BorderBeam.rotate(
+        beamHost(
+          BorderBeam(
             active: true,
             playback: const BeamPlayback(
               active: false,
@@ -176,83 +160,81 @@ void main() {
     });
   });
 
-  group('the generic constructor', () {
-    Widget named(BeamVariant variant) => switch (variant) {
-      BeamVariant.rotate => const BorderBeam.rotate(
-        colors: BeamColors.ocean,
-        child: SizedBox.expand(),
-      ),
-      BeamVariant.small => const BorderBeam.small(
-        colors: BeamColors.ocean,
-        child: SizedBox.expand(),
-      ),
-      BeamVariant.line => const BorderBeam.line(
-        colors: BeamColors.ocean,
-        child: SizedBox.expand(),
-      ),
-      BeamVariant.pulseInside => const BorderBeam.pulseInside(
-        colors: BeamColors.ocean,
-        child: SizedBox.expand(),
-      ),
-      BeamVariant.pulseOutside => const BorderBeam.pulseOutside(
-        colors: BeamColors.ocean,
-        child: SizedBox.expand(),
-      ),
-    };
-
-    for (final variant in BeamVariant.values) {
-      testWidgets('$variant matches its named constructor', (tester) async {
-        await tester.pumpWidget(
-          _host(
-            BorderBeam(
-              variant: variant,
-              colors: BeamColors.ocean,
-              child: const SizedBox.expand(),
-            ),
+  group('borderRadius', () {
+    testWidgets('beats shape.radius on the same widget', (tester) async {
+      await tester.pumpWidget(
+        beamHost(
+          BorderBeam(
+            borderRadius: 8,
+            shape: BeamShape(radius: BorderRadius.circular(40)),
+            child: const SizedBox.expand(),
           ),
-        );
-        final generic = _painter(tester);
-        expect(generic.config.variant, variant);
-        expect(
-          identical(generic.strategy, strategyFor(variant)),
-          isTrue,
-          reason: 'the strategy for $variant',
-        );
+        ),
+      );
+      expect(
+        beamPainterOf(tester).config.borderRadius,
+        BorderRadius.circular(8),
+      );
+    });
 
-        await tester.pumpWidget(_host(named(variant)));
-        final byName = _painter(tester);
-        expect(byName.config, generic.config);
-        expect(identical(byName.strategy, generic.strategy), isTrue);
-        expect(byName.behind, generic.behind);
-      });
-    }
+    testWidgets('beats a theme radius', (tester) async {
+      await tester.pumpWidget(
+        beamHost(
+          const BorderBeamTheme(
+            data: BorderBeamThemeData(shape: BeamShape.all(40)),
+            child: BorderBeam(borderRadius: 8, child: SizedBox.expand()),
+          ),
+        ),
+      );
+      expect(
+        beamPainterOf(tester).config.borderRadius,
+        BorderRadius.circular(8),
+      );
+    });
 
-    testWidgets('pulseOutside is the only variant that paints behind', (
+    testWidgets('beats a per-corner radius, not just a uniform one', (
       tester,
     ) async {
-      for (final variant in BeamVariant.values) {
-        await tester.pumpWidget(
-          _host(BorderBeam(variant: variant, child: const SizedBox.expand())),
-        );
-        final custom = tester.widget<CustomPaint>(
-          find
-              .descendant(
-                of: find.byType(BorderBeam),
-                matching: find.byType(CustomPaint),
-              )
-              .first,
-        );
-        expect(
-          custom.painter,
-          variant == BeamVariant.pulseOutside ? isA<BeamPainter>() : isNull,
-          reason: '$variant',
-        );
-        expect(
-          custom.foregroundPainter,
-          isA<BeamPainter>(),
-          reason: '$variant',
-        );
-      }
+      await tester.pumpWidget(
+        beamHost(
+          const BorderBeam(
+            borderRadius: 8,
+            shape: BeamShape(
+              radius: BorderRadiusDirectional.only(
+                topStart: Radius.circular(30),
+              ),
+            ),
+            child: SizedBox.expand(),
+          ),
+        ),
+      );
+      expect(
+        beamPainterOf(tester).config.borderRadius,
+        BorderRadius.circular(8),
+      );
+    });
+
+    testWidgets('leaves the other shape fields alone', (tester) async {
+      await tester.pumpWidget(
+        beamHost(
+          const BorderBeam(
+            borderRadius: 8,
+            shape: BeamShape(
+              borderWidth: 6,
+              superellipse: true,
+              ringOffset: 4,
+              dashes: 6,
+            ),
+            child: SizedBox.expand(),
+          ),
+        ),
+      );
+      final config = beamPainterOf(tester).config;
+      expect(config.borderRadius, BorderRadius.circular(8));
+      expect(config.borderWidth, 6);
+      expect(config.superellipse, isTrue);
+      expect(config.ringOffset, 4);
+      expect(config.dashes, 6);
     });
   });
 }

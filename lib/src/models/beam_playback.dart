@@ -16,7 +16,8 @@ import 'beam_options.dart';
 /// ignored.
 ///
 /// ```dart
-/// BorderBeam.pulseInside(
+/// BorderBeam(
+///   effect: const BeamEffect.pulse(),
 ///   playback: BeamPlayback(
 ///     active: isWorking,
 ///     startAfter: const Duration(milliseconds: 500),
@@ -41,13 +42,13 @@ class BeamPlayback {
 
   /// The web platform's `ease` timing function, as a [Curve].
   ///
-  /// The fades default to a spring, which carries a little momentum. Hand
-  /// this to [fadeCurve] to get the CSS transition the source library's own
-  /// page fades with instead.
+  /// The fades default to critically damped springs, which ease in and
+  /// settle without overshoot. Hand this to [fadeCurve] to get the CSS
+  /// transition the source library's own page fades with instead.
   static const Curve cssEase = Cubic(0.25, 0.1, 0.25, 1);
 
-  /// Declarative play state: toggling fades the beam in (0.6s) and out
-  /// (0.5s). Default true.
+  /// Declarative play state: toggling fades the beam in (about 0.5s) and
+  /// out (about 0.6s). Default true.
   final bool? active;
 
   /// Whether the beam starts by itself. Default true.
@@ -80,8 +81,9 @@ class BeamPlayback {
   /// there is none.
   final bool? pauseWhenOffscreen;
 
-  /// The easing both fade envelopes run on. Null (the default) uses the
-  /// spring, which overshoots slightly and settles.
+  /// The easing both fade envelopes run on. Null (the default) uses
+  /// critically damped springs — Apple's `.smooth`, with a slightly longer
+  /// response on the way out — which glide without overshoot.
   ///
   /// [cssEase] is the web's own `ease`, for a fade that matches the source
   /// library exactly.
@@ -95,11 +97,17 @@ class BeamPlayback {
   /// That is what makes a beam screenshottable — golden tests, docs
   /// captures, design reviews.
   ///
-  /// It reads the timeline from activation, so anything past the 0.6s
-  /// fade-in is a fully-lit frame. The frozen frame is still sampled at the
-  /// live strength — [BeamStyle.strength] and
-  /// [BorderBeam.strengthListenable] dim it as they would any other frame,
+  /// The instant is measured on the timeline from activation, and the
+  /// fade-in is skipped: the frame is lit as if the beam had long since
+  /// faded in (a `BeamTiming.cycleGap` rest still dims it). It is sampled at
+  /// the live strength — `BeamStyle.strength` and
+  /// `BorderBeam.strengthListenable` dim it as they would any other frame,
   /// and a strength of 0 paints nothing.
+  ///
+  /// Setting it on a running beam stops its clock; clearing it again resumes
+  /// the clock, or starts a beam that never got to. A beam driven by a
+  /// `BorderBeamController` is the exception: the frame is pinned, but its
+  /// clock runs, pauses, and resumes only when the controller says so.
   final Duration? debugFrozenAt;
 
   /// Returns a copy with the given fields replaced. A null argument keeps the

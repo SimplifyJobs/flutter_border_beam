@@ -1,35 +1,16 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_border_beam/src/animation/beam_clock.dart';
 import 'package:flutter_border_beam/src/animation/beam_phases.dart';
-import 'package:flutter_border_beam/src/painting/beam_painter.dart';
+import 'package:flutter_border_beam/src/models/beam_config.dart';
+import 'package:flutter_border_beam/src/render/beam_painter.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
-Widget _host(Widget child, {bool disableAnimations = false}) => MaterialApp(
-  theme: ThemeData(brightness: Brightness.dark),
-  builder: (context, app) => MediaQuery(
-    data: MediaQuery.of(context).copyWith(disableAnimations: disableAnimations),
-    child: app!,
-  ),
-  home: Scaffold(
-    body: Center(child: SizedBox(width: 350, height: 140, child: child)),
-  ),
-);
-
-BeamPainter _beamPainter(WidgetTester tester) => tester
-    .widgetList<CustomPaint>(
-      find.descendant(
-        of: find.byType(BorderBeam),
-        matching: find.byType(CustomPaint),
-      ),
-    )
-    .expand((paint) => [paint.painter, paint.foregroundPainter])
-    .whereType<BeamPainter>()
-    .first;
+import 'test_utils.dart';
 
 // The frame the painter would draw right now.
 ({BeamPainter painter, BeamFramePhases phases}) _frame(WidgetTester tester) {
-  final painter = _beamPainter(tester);
+  final painter = beamPainterOf(tester);
   return (
     painter: painter,
     phases: painter.resolver.sample(
@@ -39,11 +20,166 @@ BeamPainter _beamPainter(WidgetTester tester) => tester
   );
 }
 
+/// `didUpdateWidget` and dependency changes: what re-resolves the painted
+/// config (and only that), what retimes the running clock, and how the
+/// scheduling inputs take effect on a beam that is already mounted.
 void main() {
-  group('cycleDuration change', () {
-    testWidgets('retimes the rotate beam without a phase jump', (tester) async {
-      Widget build(Duration cycle) => _host(
-        BorderBeam.rotate(
+  group('config resolution', () {
+    testWidgets('an effect change rebuilds the config and the resolver', (
+      tester,
+    ) async {
+      Widget build(BeamEffect effect) =>
+          beamHost(BorderBeam(effect: effect, child: const SizedBox.expand()));
+
+      await tester.pumpWidget(build(const BeamEffect.rotate()));
+      final before = beamPainterOf(tester);
+
+      await tester.pumpWidget(build(const BeamEffect.line(edge: BeamEdge.top)));
+      final after = beamPainterOf(tester);
+      expect(after.config.effect, const BeamEffect.line(edge: BeamEdge.top));
+      expect(identical(after.config, before.config), isFalse);
+      expect(identical(after.resolver, before.resolver), isFalse);
+      expect(identical(after.resolver.config, after.config), isTrue);
+
+      // A parameter of the same effect is a different effect.
+      await tester.pumpWidget(
+        build(const BeamEffect.line(edge: BeamEdge.bottom)),
+      );
+      expect(
+        beamPainterOf(tester).config.effect,
+        const BeamEffect.line(edge: BeamEdge.bottom),
+      );
+    });
+
+    testWidgets('a style change re-resolves the config', (tester) async {
+      Widget build(BeamStyle style) =>
+          beamHost(BorderBeam(style: style, child: const SizedBox.expand()));
+
+      await tester.pumpWidget(
+        build(const BeamStyle(colors: BeamColors.ocean, strength: 0.4)),
+      );
+      final ocean = beamPainterOf(tester).config;
+      expect(ocean.palette, BeamColors.ocean.resolve());
+      expect(ocean.strength, 0.4);
+
+      await tester.pumpWidget(
+        build(const BeamStyle(colors: BeamColors.sunset, strength: 0.8)),
+      );
+      final sunset = beamPainterOf(tester).config;
+      expect(identical(sunset, ocean), isFalse);
+      expect(sunset.palette, BeamColors.sunset.resolve());
+      expect(sunset.strength, 0.8);
+    });
+
+    testWidgets('a shape change re-resolves the config', (tester) async {
+      Widget build(BeamShape shape) =>
+          beamHost(BorderBeam(shape: shape, child: const SizedBox.expand()));
+
+      await tester.pumpWidget(build(const BeamShape(borderWidth: 1)));
+      final thin = beamPainterOf(tester).config;
+
+      await tester.pumpWidget(
+        build(const BeamShape(borderWidth: 3, superellipse: true)),
+      );
+      final thick = beamPainterOf(tester).config;
+      expect(identical(thick, thin), isFalse);
+      expect(thick.borderWidth, 3);
+      expect(thick.superellipse, isTrue);
+    });
+
+    testWidgets('a timing change re-resolves the config', (tester) async {
+      Widget build(BeamTiming timing) =>
+          beamHost(BorderBeam(timing: timing, child: const SizedBox.expand()));
+
+      await tester.pumpWidget(build(const BeamTiming()));
+      final forward = beamPainterOf(tester).config;
+      expect(forward.direction, BeamDirection.forward);
+
+      await tester.pumpWidget(
+        build(
+          const BeamTiming(
+            direction: BeamDirection.reverse,
+            huePeriod: Duration(seconds: 4),
+          ),
+        ),
+      );
+      final reverse = beamPainterOf(tester).config;
+      expect(identical(reverse, forward), isFalse);
+      expect(reverse.direction, BeamDirection.reverse);
+      expect(reverse.huePeriodSeconds, closeTo(4, 1e-9));
+    });
+
+    testWidgets('equal but new value objects keep the resolved config', (
+      tester,
+    ) async {
+      // Every argument is built at runtime, so each pump hands the widget
+      // fresh instances that are merely equal to the last ones.
+      Widget build(double strength, double radius, int cycleMs) => beamHost(
+        BorderBeam(
+          effect: BeamEffect.rotate(count: cycleMs ~/ 1000),
+          colors: BeamColors([Color(0xFF00AAFF + 0 * cycleMs), Colors.pink]),
+          style: BeamStyle(strength: strength, glow: strength * 2),
+          shape: BeamShape.circular(radius, borderWidth: radius / 8),
+          timing: BeamTiming(
+            cycle: Duration(milliseconds: cycleMs),
+            huePeriod: Duration(milliseconds: cycleMs * 4),
+          ),
+          child: const SizedBox.expand(),
+        ),
+      );
+
+      await tester.pumpWidget(build(0.5, 16, 2000));
+      await tester.pump(const Duration(milliseconds: 100));
+      final config = beamPainterOf(tester).config;
+      final resolver = beamPainterOf(tester).resolver;
+
+      for (var i = 0; i < 3; i++) {
+        await tester.pumpWidget(build(0.5, 16, 2000));
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(identical(beamPainterOf(tester).config, config), isTrue);
+        expect(identical(beamPainterOf(tester).resolver, resolver), isTrue);
+      }
+
+      // And a real change still lands.
+      await tester.pumpWidget(build(0.6, 16, 2000));
+      expect(identical(beamPainterOf(tester).config, config), isFalse);
+      expect(beamPainterOf(tester).config.strength, 0.6);
+    });
+
+    testWidgets('an ambient brightness change re-resolves an auto beam', (
+      tester,
+    ) async {
+      Widget build(Brightness brightness, {BeamTheme? theme}) => beamHost(
+        brightness: brightness,
+        BorderBeam(
+          style: BeamStyle(theme: theme),
+          child: const SizedBox.expand(),
+        ),
+      );
+
+      await tester.pumpWidget(build(Brightness.dark));
+      expect(beamPainterOf(tester).config.brightness, Brightness.dark);
+
+      // MaterialApp animates a theme change; let it land.
+      await tester.pumpWidget(build(Brightness.light));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(beamPainterOf(tester).config.brightness, Brightness.light);
+
+      await tester.pumpWidget(build(Brightness.light, theme: BeamTheme.dark));
+      expect(
+        beamPainterOf(tester).config.brightness,
+        Brightness.dark,
+        reason: 'an explicit theme ignores the ambient brightness',
+      );
+    });
+  });
+
+  group('cycle change', () {
+    testWidgets('retimes a travelling beam without snapping the sweep', (
+      tester,
+    ) async {
+      Widget build(Duration cycle) => beamHost(
+        BorderBeam(
           timing: BeamTiming(cycle: cycle),
           child: const SizedBox.expand(),
         ),
@@ -54,58 +190,69 @@ void main() {
       await tester.pump(const Duration(milliseconds: 900));
       final before = _frame(tester);
       expect(before.painter.clock.elapsedSeconds, closeTo(0.9, 1e-9));
+      expect(before.phases.travelProgress, closeTo(0.45, 1e-9));
 
       await tester.pumpWidget(build(const Duration(seconds: 4)));
       final after = _frame(tester);
-
+      expect(after.painter.config.cycleSeconds, closeTo(4, 1e-9));
       expect(
-        after.painter.config.cycleSeconds,
-        closeTo(4, 1e-9),
-        reason: 'the new cycle is in effect',
+        identical(after.painter.clock, before.painter.clock),
+        isTrue,
+        reason: 'the running clock is retimed, not replaced',
       );
       expect(
-        after.painter.clock.elapsedSeconds,
-        closeTo(1.8, 1e-9),
-        reason: 'elapsed time is rescaled by the cycle ratio',
-      );
-      expect(
-        after.phases.angleRadians,
-        closeTo(before.phases.angleRadians, 1e-6),
+        after.phases.travelProgress,
+        closeTo(before.phases.travelProgress, 1e-9),
       );
       expect(after.phases.hueDegrees, closeTo(before.phases.hueDegrees, 1e-6));
+
+      // And from here it runs at the new rate: 0.4s more is a tenth of a
+      // 4s cycle.
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(_frame(tester).phases.travelProgress, closeTo(0.55, 1e-9));
     });
 
-    testWidgets('retimes the line beam without a phase jump', (tester) async {
-      Widget build(Duration cycle) => _host(
-        BorderBeam.line(
-          timing: BeamTiming(cycle: cycle),
-          child: const SizedBox.expand(),
-        ),
-      );
+    // Rotate has its own test above; every other travelling effect here.
+    for (final effect in BeamEffect.values.where(
+      (e) => e.travels && e is! RotateEffect,
+    )) {
+      testWidgets('retimes ${effect.name} without snapping the sweep', (
+        tester,
+      ) async {
+        Widget build(Duration cycle) => beamHost(
+          BorderBeam(
+            effect: effect,
+            timing: BeamTiming(cycle: cycle, cycleGap: Duration.zero),
+            child: const SizedBox.expand(),
+          ),
+        );
 
-      await tester.pumpWidget(build(const Duration(seconds: 3)));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 1400));
-      final before = _frame(tester);
+        await tester.pumpWidget(build(const Duration(seconds: 3)));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 1400));
+        final before = _frame(tester);
 
-      await tester.pumpWidget(build(const Duration(milliseconds: 1500)));
-      final after = _frame(tester);
+        await tester.pumpWidget(build(const Duration(milliseconds: 1500)));
+        final after = _frame(tester);
+        expect(
+          after.phases.travelProgress,
+          closeTo(before.phases.travelProgress, 1e-9),
+        );
+        expect(
+          after.phases.fadeOpacity,
+          closeTo(before.phases.fadeOpacity, 1e-9),
+        );
+        expect(
+          after.phases.hueDegrees,
+          closeTo(before.phases.hueDegrees, 1e-6),
+        );
+      });
+    }
 
-      expect(after.phases.lineX, closeTo(before.phases.lineX, 1e-6));
-      expect(after.phases.lineW, closeTo(before.phases.lineW, 1e-6));
-      expect(after.phases.lineH, closeTo(before.phases.lineH, 1e-6));
-      expect(after.phases.spike, closeTo(before.phases.spike, 1e-6));
-      expect(after.phases.edge, closeTo(before.phases.edge, 1e-6));
-      expect(after.phases.hueDegrees, closeTo(before.phases.hueDegrees, 1e-6));
-      expect(
-        after.phases.bloomHueDegrees,
-        closeTo(before.phases.bloomHueDegrees, 1e-6),
-      );
-    });
-
-    testWidgets('keeps every pulse oscillator continuous', (tester) async {
-      Widget build(Duration cycle) => _host(
-        BorderBeam.pulseInside(
+    testWidgets('keeps an ambient beam breathing continuously', (tester) async {
+      Widget build(Duration cycle) => beamHost(
+        BorderBeam(
+          effect: const BeamEffect.pulse(),
           timing: BeamTiming(cycle: cycle),
           child: const SizedBox.expand(),
         ),
@@ -118,34 +265,7 @@ void main() {
 
       await tester.pumpWidget(build(const Duration(seconds: 5)));
       final after = _frame(tester);
-
-      for (var i = 0; i < 3; i++) {
-        expect(
-          after.phases.pulse.bw[i],
-          closeTo(before.phases.pulse.bw[i], 1e-6),
-        );
-        expect(
-          after.phases.pulse.bh[i],
-          closeTo(before.phases.pulse.bh[i], 1e-6),
-        );
-        expect(
-          after.phases.pulse.bx[i],
-          closeTo(before.phases.pulse.bx[i], 1e-6),
-        );
-        expect(
-          after.phases.pulse.by[i],
-          closeTo(before.phases.pulse.by[i], 1e-6),
-        );
-      }
-      expect(after.phases.pulse.bgh, closeTo(before.phases.pulse.bgh, 1e-6));
-      expect(
-        after.phases.pulse.bopTl,
-        closeTo(before.phases.pulse.bopTl, 1e-6),
-      );
-      expect(
-        after.phases.pulse.bopBr,
-        closeTo(before.phases.pulse.bopBr, 1e-6),
-      );
+      expect(after.phases.cycles, closeTo(before.phases.cycles, 1e-9));
       expect(after.phases.hueDegrees, closeTo(before.phases.hueDegrees, 1e-6));
     });
 
@@ -153,8 +273,8 @@ void main() {
       tester,
     ) async {
       var activated = 0;
-      Widget build(Duration cycle) => _host(
-        BorderBeam.rotate(
+      Widget build(Duration cycle) => beamHost(
+        BorderBeam(
           timing: BeamTiming(cycle: cycle),
           onActivate: () => activated++,
           child: const SizedBox.expand(),
@@ -164,29 +284,73 @@ void main() {
       await tester.pumpWidget(build(const Duration(seconds: 2)));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 150));
-      final before = _beamPainter(tester).clock;
-      final opacity = before.fadeOpacity;
-      expect(opacity, greaterThan(0));
-      expect(opacity, lessThan(1));
-      expect(before.stage, BeamFadeStage.fadingIn);
+      final clock = beamPainterOf(tester).clock;
+      final opacity = clock.fadeOpacity;
+      expect(opacity, inExclusiveRange(0, 1));
+      expect(clock.stage, BeamFadeStage.fadingIn);
 
       await tester.pumpWidget(build(const Duration(seconds: 6)));
-      final after = _beamPainter(tester).clock;
-      expect(after.fadeOpacity, closeTo(opacity, 1e-6));
-      expect(after.stage, BeamFadeStage.fadingIn);
+      expect(clock.fadeOpacity, closeTo(opacity, 1e-9));
+      expect(clock.stage, BeamFadeStage.fadingIn);
 
-      // The remaining fade time is unchanged too: 0.45s left of the 0.6s
-      // fade-in, not 0.45s scaled by the cycle ratio.
-      await tester.pump(const Duration(milliseconds: 400));
+      // The remaining fade time is unchanged too: the rest of the fade-in,
+      // not that rest scaled by the cycle ratio.
+      final left = Duration(
+        microseconds: ((BeamClock.fadeInSeconds - 0.15) * 1e6).round(),
+      );
+      await tester.pump(left - const Duration(milliseconds: 50));
       expect(activated, 0);
       await tester.pump(const Duration(milliseconds: 100));
       expect(activated, 1);
-      expect(after.fadeOpacity, 1);
+      expect(clock.fadeOpacity, 1);
+    });
+
+    testWidgets('a cycle under the floor retimes on the cycle the beam runs', (
+      tester,
+    ) async {
+      Widget build(Duration cycle) => beamHost(
+        BorderBeam(
+          timing: BeamTiming(cycle: cycle),
+          child: const SizedBox.expand(),
+        ),
+      );
+
+      await tester.pumpWidget(build(const Duration(milliseconds: 10)));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 20));
+      final before = _frame(tester);
+      expect(
+        before.painter.config.cycleSeconds,
+        BeamConfig.minCycleSeconds,
+        reason: 'a 10ms cycle runs at the floor',
+      );
+
+      // 20ms is under the floor too: the beam runs the same cycle, so its
+      // timeline must not move.
+      await tester.pumpWidget(build(const Duration(milliseconds: 20)));
+      final same = _frame(tester);
+      expect(
+        same.painter.clock.elapsedSeconds,
+        closeTo(before.painter.clock.elapsedSeconds, 1e-12),
+      );
+      expect(
+        same.phases.travelProgress,
+        closeTo(before.phases.travelProgress, 1e-9),
+      );
+
+      // Out of the floor, the sweep holds where the floored cycle had it.
+      await tester.pumpWidget(build(const Duration(milliseconds: 200)));
+      final after = _frame(tester);
+      expect(after.painter.config.cycleSeconds, closeTo(0.2, 1e-12));
+      expect(
+        after.phases.travelProgress,
+        closeTo(before.phases.travelProgress, 1e-9),
+      );
     });
 
     testWidgets('an unchanged cycle leaves the timeline alone', (tester) async {
-      Widget build(double strength) => _host(
-        BorderBeam.rotate(
+      Widget build(double strength) => beamHost(
+        BorderBeam(
           style: BeamStyle(strength: strength),
           timing: const BeamTiming(cycle: Duration(seconds: 2)),
           child: const SizedBox.expand(),
@@ -197,187 +361,16 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 900));
       await tester.pumpWidget(build(0.5));
-      expect(_beamPainter(tester).clock.elapsedSeconds, closeTo(0.9, 1e-9));
-    });
-
-    testWidgets('retiming during a gap preserves the gap phase', (
-      tester,
-    ) async {
-      Widget build(Duration cycle) => _host(
-        BorderBeam.rotate(
-          timing: BeamTiming(
-            cycle: cycle,
-            cycleGap: const Duration(seconds: 1),
-          ),
-          child: const SizedBox.expand(),
-        ),
-      );
-
-      await tester.pumpWidget(build(const Duration(seconds: 2)));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 2500));
-      final before = _frame(tester);
-      expect(before.phases.travelProgress, 1);
-      expect(before.phases.fadeOpacity, 0);
-
-      await tester.pumpWidget(build(const Duration(seconds: 4)));
-      final after = _frame(tester);
-      expect(after.painter.clock.elapsedSeconds, closeTo(4.5, 1e-9));
-      expect(after.phases.travelProgress, 1);
-      expect(
-        after.phases.fadeOpacity,
-        closeTo(before.phases.fadeOpacity, 1e-9),
-      );
+      expect(beamPainterOf(tester).clock.elapsedSeconds, closeTo(0.9, 1e-9));
     });
   });
 
-  group('reduced motion', () {
-    testWidgets('turning it off starts a beam that never got to start', (
-      tester,
-    ) async {
-      Widget build(bool reduced) => _host(
-        disableAnimations: reduced,
-        const BorderBeam.rotate(child: SizedBox.expand()),
-      );
-
-      await tester.pumpWidget(build(true));
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(_beamPainter(tester).clock.isVisible, isFalse);
-      expect(tester.binding.hasScheduledFrame, isFalse);
-
-      await tester.pumpWidget(build(false));
-      expect(_beamPainter(tester).clock.isVisible, isTrue);
-      await tester.pump(const Duration(milliseconds: 50));
-      expect(tester.binding.hasScheduledFrame, isTrue);
-      expect(_beamPainter(tester).clock.isRunning, isTrue);
-    });
-
-    testWidgets('turning it off respects a pending startAfter delay', (
-      tester,
-    ) async {
-      Widget build(bool reduced) => _host(
-        disableAnimations: reduced,
-        const BorderBeam.rotate(
-          playback: BeamPlayback(startAfter: Duration(seconds: 2)),
-          child: SizedBox.expand(),
-        ),
-      );
-
-      await tester.pumpWidget(build(true));
-      await tester.pump(const Duration(milliseconds: 500));
-      await tester.pumpWidget(build(false));
-      expect(_beamPainter(tester).clock.isVisible, isFalse);
-      await tester.pump(const Duration(seconds: 2));
-      await tester.pump();
-      expect(_beamPainter(tester).clock.isVisible, isTrue);
-    });
-
-    testWidgets('toggling it on pauses and off resumes a running beam', (
-      tester,
-    ) async {
-      Widget build(bool reduced) => _host(
-        disableAnimations: reduced,
-        const BorderBeam.rotate(child: SizedBox.expand()),
-      );
-
-      await tester.pumpWidget(build(false));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 800));
-      final clock = _beamPainter(tester).clock;
-      expect(clock.isRunning, isTrue);
-      final frozenAt = clock.elapsedSeconds;
-
-      await tester.pumpWidget(build(true));
-      expect(clock.isRunning, isFalse);
-      await tester.pump(const Duration(milliseconds: 200));
-      expect(tester.binding.hasScheduledFrame, isFalse);
-      expect(clock.elapsedSeconds, closeTo(frozenAt, 1e-9));
-      expect(clock.isVisible, isTrue, reason: 'the frame stays on screen');
-
-      await tester.pumpWidget(build(false));
-      expect(clock.isRunning, isTrue);
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(
-        clock.elapsedSeconds,
-        greaterThan(frozenAt),
-        reason: 'the timeline continues where it was frozen',
-      );
-    });
-
-    testWidgets('turning it off does not replay a beam that already ran', (
-      tester,
-    ) async {
-      var deactivated = 0;
-      Widget build(bool reduced) => _host(
-        disableAnimations: reduced,
-        BorderBeam.rotate(
-          playback: const BeamPlayback(duration: Duration(seconds: 1)),
-          onDeactivate: () => deactivated++,
-          child: const SizedBox.expand(),
-        ),
-      );
-
-      await tester.pumpWidget(build(false));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 1100));
-      await tester.pump(const Duration(milliseconds: 600));
-      expect(deactivated, 1);
-      expect(_beamPainter(tester).clock.isVisible, isFalse);
-
-      await tester.pumpWidget(build(true));
-      await tester.pump(const Duration(milliseconds: 50));
-      await tester.pumpWidget(build(false));
-      await tester.pump(const Duration(milliseconds: 50));
-      expect(
-        _beamPainter(tester).clock.isVisible,
-        isFalse,
-        reason: 'its play time is spent',
-      );
-      expect(tester.binding.hasScheduledFrame, isFalse);
-    });
-
-    testWidgets('turning it off does not resume a controller-paused beam', (
-      tester,
-    ) async {
-      final controller = BorderBeamController();
-      addTearDown(controller.dispose);
-      Widget build(bool reduced) => _host(
-        disableAnimations: reduced,
-        BorderBeam.rotate(
-          controller: controller,
-          child: const SizedBox.expand(),
-        ),
-      );
-
-      await tester.pumpWidget(build(false));
-      controller.start();
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 700));
-      expect(controller.isRunning, isTrue);
-      controller.pause();
-      await tester.pump(const Duration(milliseconds: 50));
-      expect(controller.isRunning, isFalse);
-
-      await tester.pumpWidget(build(true));
-      await tester.pump(const Duration(milliseconds: 50));
-      await tester.pumpWidget(build(false));
-      await tester.pump(const Duration(milliseconds: 50));
-      expect(
-        controller.isRunning,
-        isFalse,
-        reason: 'the controller owns the pause',
-      );
-      expect(controller.isActive, isTrue);
-    });
-  });
-
-  group('widget updates', () {
+  group('scheduling updates', () {
     testWidgets('enabling autoPlay applies startAfter from the new schedule', (
       tester,
     ) async {
-      Widget build(bool autoPlay) => _host(
-        BorderBeam.rotate(
+      Widget build(bool autoPlay) => beamHost(
+        BorderBeam(
           playback: BeamPlayback(
             autoPlay: autoPlay,
             startAfter: const Duration(milliseconds: 500),
@@ -388,20 +381,20 @@ void main() {
 
       await tester.pumpWidget(build(false));
       await tester.pump(const Duration(seconds: 1));
-      expect(_beamPainter(tester).clock.isVisible, isFalse);
+      expect(beamPainterOf(tester).clock.isVisible, isFalse);
 
       await tester.pumpWidget(build(true));
       await tester.pump(const Duration(milliseconds: 400));
-      expect(_beamPainter(tester).clock.isVisible, isFalse);
+      expect(beamPainterOf(tester).clock.isVisible, isFalse);
       await tester.pump(const Duration(milliseconds: 150));
-      expect(_beamPainter(tester).clock.isVisible, isTrue);
+      expect(beamPainterOf(tester).clock.isVisible, isTrue);
     });
 
     testWidgets('changing a pending startAfter reschedules the start', (
       tester,
     ) async {
-      Widget build(Duration delay) => _host(
-        BorderBeam.rotate(
+      Widget build(Duration delay) => beamHost(
+        BorderBeam(
           playback: BeamPlayback(startAfter: delay),
           child: const SizedBox.expand(),
         ),
@@ -411,14 +404,14 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
       await tester.pumpWidget(build(const Duration(milliseconds: 100)));
       await tester.pump(const Duration(milliseconds: 150));
-      expect(_beamPainter(tester).clock.isVisible, isTrue);
+      expect(beamPainterOf(tester).clock.isVisible, isTrue);
     });
 
     testWidgets('changing duration starts a fresh budget from the update', (
       tester,
     ) async {
-      Widget build(Duration? duration) => _host(
-        BorderBeam.rotate(
+      Widget build(Duration? duration) => beamHost(
+        BorderBeam(
           playback: BeamPlayback(duration: duration),
           child: const SizedBox.expand(),
         ),
@@ -427,7 +420,7 @@ void main() {
       await tester.pumpWidget(build(null));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 800));
-      final clock = _beamPainter(tester).clock;
+      final clock = beamPainterOf(tester).clock;
 
       await tester.pumpWidget(build(const Duration(seconds: 1)));
       await tester.pump(const Duration(milliseconds: 900));
@@ -436,68 +429,13 @@ void main() {
       expect(clock.stage, BeamFadeStage.fadingOut);
     });
 
-    testWidgets('a variant swap keeps visibility and restarts the clock', (
-      tester,
-    ) async {
-      Widget build(bool pulse) => _host(
-        pulse
-            ? const BorderBeam.pulseInside(child: SizedBox.expand())
-            : const BorderBeam.rotate(child: SizedBox.expand()),
-      );
-
-      await tester.pumpWidget(build(false));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 900));
-      final first = _beamPainter(tester).clock;
-      expect(first.elapsedSeconds, closeTo(0.9, 1e-9));
-
-      await tester.pumpWidget(build(true));
-      final second = _beamPainter(tester).clock;
-      expect(identical(second, first), isFalse, reason: 'a fresh clock');
-      expect(second.isVisible, isTrue);
-      expect(second.elapsedSeconds, 0);
-      await tester.pump(const Duration(milliseconds: 50));
-      expect(second.isRunning, isTrue);
-    });
-
-    testWidgets('a controller swap detaches the old and attaches the new', (
-      tester,
-    ) async {
-      final first = BorderBeamController();
-      final second = BorderBeamController();
-      addTearDown(first.dispose);
-      addTearDown(second.dispose);
-      Widget build(BorderBeamController? controller) => _host(
-        BorderBeam.rotate(
-          controller: controller,
-          child: const SizedBox.expand(),
-        ),
-      );
-
-      await tester.pumpWidget(build(first));
-      expect(first.isAttached, isTrue);
-
-      await tester.pumpWidget(build(second));
-      expect(first.isAttached, isFalse);
-      expect(second.isAttached, isTrue);
-
-      second.start();
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 700));
-      expect(second.isActive, isTrue);
-      expect(_beamPainter(tester).clock.isVisible, isTrue);
-
-      await tester.pumpWidget(build(null));
-      expect(second.isAttached, isFalse);
-    });
-
     testWidgets('re-activating mid fade-out resumes from the current opacity', (
       tester,
     ) async {
       var activated = 0;
       var deactivated = 0;
-      Widget build(bool active) => _host(
-        BorderBeam.rotate(
+      Widget build(bool active) => beamHost(
+        BorderBeam(
           active: active,
           onActivate: () => activated++,
           onDeactivate: () => deactivated++,
@@ -508,15 +446,14 @@ void main() {
       await tester.pumpWidget(build(true));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 150));
-      final clock = _beamPainter(tester).clock;
+      final clock = beamPainterOf(tester).clock;
       expect(clock.stage, BeamFadeStage.fadingIn);
 
       await tester.pumpWidget(build(false));
       await tester.pump(const Duration(milliseconds: 80));
       expect(clock.stage, BeamFadeStage.fadingOut);
       final mid = clock.fadeOpacity;
-      expect(mid, greaterThan(0));
-      expect(mid, lessThan(1));
+      expect(mid, inExclusiveRange(0, 1));
       final elapsed = clock.elapsedSeconds;
 
       await tester.pumpWidget(build(true));
@@ -532,30 +469,76 @@ void main() {
         reason: 'a mid-fade re-activation keeps the timeline',
       );
 
-      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pump(pastFadeIn);
       expect(activated, 1);
       expect(deactivated, 0);
       expect(clock.fadeOpacity, 1);
     });
 
-    testWidgets('a colors change resolves a new config exactly once', (
+    testWidgets('a controller swap detaches the old and attaches the new', (
       tester,
     ) async {
-      Widget build(BeamColors colors) => _host(
-        BorderBeam.rotate(colors: colors, child: const SizedBox.expand()),
+      final first = BorderBeamController();
+      final second = BorderBeamController();
+      addTearDown(first.dispose);
+      addTearDown(second.dispose);
+      Widget build(BorderBeamController? controller) => beamHost(
+        BorderBeam(controller: controller, child: const SizedBox.expand()),
       );
 
-      await tester.pumpWidget(build(BeamColors.ocean));
-      final ocean = _beamPainter(tester).config;
+      await tester.pumpWidget(build(first));
+      expect(first.isAttached, isTrue);
+      expect(second.isAttached, isFalse);
 
-      await tester.pumpWidget(build(BeamColors.sunset));
-      final sunset = _beamPainter(tester).config;
-      expect(identical(sunset, ocean), isFalse);
-      expect(identical(sunset.palette, BeamColors.sunset.resolve()), isTrue);
+      await tester.pumpWidget(build(second));
+      expect(first.isAttached, isFalse);
+      expect(second.isAttached, isTrue);
 
-      // Rebuilding with the same colors reuses the resolved config.
-      await tester.pumpWidget(build(BeamColors.sunset));
-      expect(identical(_beamPainter(tester).config, sunset), isTrue);
+      // The detached controller no longer reaches the beam.
+      first.start();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(beamPainterOf(tester).clock.isVisible, isFalse);
+
+      second.start();
+      await tester.pump();
+      await tester.pump(pastFadeIn);
+      expect(second.isActive, isTrue);
+      expect(beamPainterOf(tester).clock.isVisible, isTrue);
+
+      await tester.pumpWidget(build(null));
+      expect(second.isAttached, isFalse);
+    });
+
+    testWidgets('dropping the controller hands playback back to the widget', (
+      tester,
+    ) async {
+      final controller = BorderBeamController();
+      addTearDown(controller.dispose);
+      Widget build(BorderBeamController? controller, {bool active = true}) =>
+          beamHost(
+            BorderBeam(
+              controller: controller,
+              active: active,
+              child: const SizedBox.expand(),
+            ),
+          );
+
+      await tester.pumpWidget(build(controller));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(beamPainterOf(tester).clock.isVisible, isFalse);
+
+      await tester.pumpWidget(build(null));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(
+        beamPainterOf(tester).clock.isVisible,
+        isTrue,
+        reason: 'autoPlay takes over the beam that never started',
+      );
+
+      await tester.pumpWidget(build(null, active: false));
+      await tester.pump(pastFadeOut);
+      expect(beamPainterOf(tester).clock.isVisible, isFalse);
     });
   });
 }

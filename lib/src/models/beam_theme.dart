@@ -2,7 +2,7 @@ import 'dart:ui';
 
 /// How the beam adapts to the surrounding background.
 enum BeamTheme {
-  /// Tuned for dark backgrounds (the React default).
+  /// Tuned for dark backgrounds.
   dark,
 
   /// Tuned for light backgrounds.

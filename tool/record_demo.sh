@@ -24,7 +24,7 @@
 # during the still gaps. True 120 fps needs a physical ProMotion device.
 #
 # Usage:
-#   tool/record_demo.sh --target lib/multiline_demo.dart --prefix MULTILINE
+#   tool/record_demo.sh --target lib/showcase.dart --prefix SHOWCASE --contact
 #
 # Options:
 #   --target PATH     Dart entrypoint, relative to example/ (required)
@@ -38,6 +38,8 @@
 #   --crop-height PX  crop to a centered band PX pixels tall (default: ~40% of the screen height)
 #   --scale-width PX  downscale to this width (default: 0 = keep native res)
 #   --no-crop         keep the full screen instead of cropping to the beam zone
+#   --display ID      simulator display to record, for multi-display devices
+#                     (passed to `simctl io recordVideo --display`)
 #   --lead SEC        seconds of lead-in to trim (default: auto — 1s before the
 #                     first scene, computed from the marker timing)
 #   --contact         also write a <out>_contact.png contact sheet to eyeball it
@@ -46,7 +48,7 @@
 set -euo pipefail
 
 # ---- args ----------------------------------------------------------------
-TARGET="" PREFIX="" OUT="" DEVICE="" FPS=60 CRF=16 PRESET=slow
+TARGET="" PREFIX="" OUT="" DEVICE="" DISPLAY_ID="" FPS=60 CRF=16 PRESET=slow
 CROP_H="" CROP_FRAC=0.40 SCALE_W=0 NOCROP=false LEAD="" CONTACT=false KEEP=false
 die() { echo "error: $*" >&2; exit 1; }
 usage() { sed -n '2,/^set -euo/p' "$0" | sed 's/^# \{0,1\}//; s/^#$//' | sed '$d'; exit "${1:-0}"; }
@@ -56,6 +58,7 @@ while [[ $# -gt 0 ]]; do
     --prefix) PREFIX="$2"; shift 2;;
     --out) OUT="$2"; shift 2;;
     --device) DEVICE="$2"; shift 2;;
+    --display) DISPLAY_ID="$2"; shift 2;;
     --fps) FPS="$2"; shift 2;;
     --crf) CRF="$2"; shift 2;;
     --preset) PRESET="$2"; shift 2;;
@@ -155,7 +158,7 @@ wait_done 1 600 "waiting for first $PREFIX:DONE"
 
 # ---- record + replay -----------------------------------------------------
 echo "▶ recording…"
-xcrun simctl io "$DEVICE" recordVideo --codec=h264 --force "$RAW" >"$RECLOG" 2>&1 &
+xcrun simctl io "$DEVICE" recordVideo --codec=h264 ${DISPLAY_ID:+--display="$DISPLAY_ID"} --force "$RAW" >"$RECLOG" 2>&1 &
 REC_PID=$!
 for _ in $(seq 1 40); do grep -q "Recording started" "$RECLOG" && break; sleep 0.1; done
 REC_T0="$(now)"
@@ -176,7 +179,7 @@ wait "$REC_PID" 2>/dev/null || true
 REC_PID=""
 
 # ---- encode --------------------------------------------------------------
-# auto lead-trim: start ~1s before the first toast appeared
+# auto lead-trim: start ~1s before the first scene appeared
 if [[ -z "$LEAD" ]]; then
   if [[ -n "$FIRST_START_AT" ]]; then LEAD="$(calc "max(0.0, $FIRST_START_AT-1.0)")"; else LEAD=4.0; fi
 fi
@@ -200,7 +203,7 @@ if [[ "$CONTACT" == true ]]; then
 fi
 
 # ---- report --------------------------------------------------------------
-read -r W H FR DUR < <(ffprobe -v error -select_streams v:0 \
+read -r W H _ DUR < <(ffprobe -v error -select_streams v:0 \
   -show_entries stream=width,height,r_frame_rate -show_entries format=duration \
   -of csv=p=0 "$OUT" | tr ',\n' '  ') || true   # read exits 1 at EOF (no newline)
 SRC_MED="$(ffprobe -v error -select_streams v:0 -show_entries frame=pts_time -of csv=p=0 "$RAW" 2>/dev/null \
