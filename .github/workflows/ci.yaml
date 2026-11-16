@@ -173,9 +173,9 @@ jobs:
           channel: stable
           cache: true
 
-      # The example consumes the package by path, so it is the canary for API
-      # breaks in the gallery, and the web build proves the package carries no
-      # imports that fail to compile for web.
+      # The example consumes the package by path, so analyzing it catches API
+      # breaks, and the web build proves the package carries no imports that
+      # fail to compile for web.
       - name: Install dependencies
         working-directory: example
         run: flutter pub get
@@ -183,10 +183,6 @@ jobs:
       - name: Analyze
         working-directory: example
         run: flutter analyze --fatal-infos
-
-      - name: Test
-        working-directory: example
-        run: flutter test
 
       - name: Build web
         working-directory: example

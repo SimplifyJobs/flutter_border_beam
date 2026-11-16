@@ -6,10 +6,8 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for the report. If you can reproduce it in the
-        [live playground](https://simplifyjobs.github.io/flutter_border_beam/),
-        paste the share link — it carries the exact configuration and saves
-        everyone a round trip.
+        Thanks for the report. A minimal reproduction below saves everyone a
+        round trip.
 
         Security issues do **not** belong here — see
         [SECURITY.md](https://github.com/SimplifyJobs/flutter_border_beam/blob/main/SECURITY.md).
@@ -28,8 +26,7 @@ body:
       label: Minimal reproduction
       description: >-
         The smallest widget tree that shows the problem — ideally one that
-        drops straight into a fresh `flutter create` app. A playground share
-        link works too.
+        drops straight into a fresh `flutter create` app.
       render: dart
       placeholder: |
         BorderBeam(

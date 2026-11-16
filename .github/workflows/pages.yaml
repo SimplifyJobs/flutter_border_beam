@@ -1,14 +1,12 @@
-# Deploy the example gallery to GitHub Pages.
+# Deploy the example app to GitHub Pages.
 #
-# The site is `example/` — the demo gallery and the interactive playground —
-# built for web and served at
+# The site is `example/` — the one-screen effect showcase — built for web and
+# served at
 #
 #     https://simplifyjobs.github.io/flutter_border_beam/
 #
-# That URL is not incidental: `example/lib/src/playground/share_codec.dart`
-# hardcodes it as `playgroundSiteUrl` when it builds a share link, so the
-# `--base-href` below must stay `/flutter_border_beam/` (the repo name) for
-# shared links to resolve.
+# The root README links to that URL. Pages serves a project site under the
+# repo name, so the `--base-href` below must stay `/flutter_border_beam/`.
 #
 # ── ONE-TIME SETUP THE MAINTAINER MUST DO ────────────────────────────────────
 #
@@ -21,12 +19,9 @@
 # ── WHY THE 404 COPY ─────────────────────────────────────────────────────────
 #
 # Pages serves static files and has no rewrite rule, so any path that is not a
-# real file 404s. The playground puts its state in the URL and the gallery
-# uses path-shaped routes (`/pulse`, …), so a deep link would land on the
-# Pages 404 page instead of the app. Copying `index.html` to `404.html` makes
-# the 404 response *be* the app: Flutter boots, reads the location, and routes
-# to it. `#state` fragments survive the redirect for free (fragments are never
-# sent to the server).
+# real file 404s. A mistyped or stale deep link would land on the Pages 404
+# page instead of the app. Copying `index.html` to `404.html` makes the 404
+# response *be* the app: Flutter boots on any path under the site.
 #
 # The Flutter pin matches ci.yaml's FLUTTER_VERSION — the site should be built
 # by the same SDK the package is tested on.

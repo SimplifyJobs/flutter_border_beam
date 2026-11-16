@@ -8,7 +8,7 @@ import 'demo_harness.dart';
 ///   tool/record_demo.sh --target lib/showcase.dart --prefix SHOWCASE --contact
 ///
 /// Each scene holds for ~2 full animation cycles on the dark demo backdrop:
-/// the eight effects, then palettes and a squircle.
+/// the four effects, then palettes and a squircle.
 Future<void> main() => runDemoReel(
   prefix: 'SHOWCASE',
   hold: const Duration(seconds: 7),
@@ -43,31 +43,6 @@ Future<void> main() => runDemoReel(
         _card(const BorderBeam(effect: BeamEffect.pulse(), child: _Surface())),
     'halo': () =>
         _card(const BorderBeam(effect: BeamEffect.halo(), child: _Surface())),
-    'flow': () => _card(
-      const BorderBeam(
-        effect: BeamEffect.flow(),
-        colors: BeamColors.cosmic,
-        child: _Surface(label: 'Listening…'),
-      ),
-    ),
-    'spin': () => const BorderBeam(
-      effect: BeamEffect.spin(),
-      shape: BeamShape.stadium(),
-      child: _Pill('Get started'),
-    ),
-    'shimmer': () => const BorderBeam(
-      effect: BeamEffect.shimmer(),
-      colors: BeamColors.gold,
-      shape: BeamShape.stadium(),
-      child: _Pill('Upgrade to Pro'),
-    ),
-    'charge': () => _card(
-      const BorderBeam(
-        effect: BeamEffect.charge(),
-        colors: BeamColors.lagoon,
-        child: _Surface(label: 'Uploading…'),
-      ),
-    ),
     'palettes': () => const _PaletteSweep(),
     'squircle': () => _card(
       const BorderBeam(
@@ -95,38 +70,15 @@ const TextStyle _labelStyle = TextStyle(
 );
 
 class _Surface extends StatelessWidget {
-  const _Surface({this.radius = 16, this.label = 'Build anything...'});
+  const _Surface({this.radius = 16});
 
   final double radius;
-  final String label;
 
   @override
   Widget build(BuildContext context) => Container(
     decoration: _surfaceDecoration(radius),
     alignment: Alignment.center,
-    child: Text(label, style: _labelStyle),
-  );
-}
-
-/// A 44-tall pill button.
-class _Pill extends StatelessWidget {
-  const _Pill(this.label);
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    height: 44,
-    padding: const EdgeInsets.symmetric(horizontal: 24),
-    decoration: _surfaceDecoration(22),
-    alignment: Alignment.center,
-    child: Text(
-      label,
-      style: _labelStyle.copyWith(
-        color: const Color(0xFFFFFFFF),
-        fontWeight: FontWeight.w500,
-      ),
-    ),
+    child: const Text('Build anything...', style: _labelStyle),
   );
 }
 
