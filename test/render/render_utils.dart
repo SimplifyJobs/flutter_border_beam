@@ -362,7 +362,8 @@ String _symbolName(Symbol symbol) {
 
 /// Checks the invariants every written frame must hold, whatever the
 /// effect: every uniform finite, blob counts within their slots, opacities
-/// and table alphas in range, table stops ascending, blob radii positive,
+/// and table alphas in range, table stops ascending and in 0–1 for every
+/// table in use (and every table a lit layer reads), blob radii positive,
 /// and — when [drawBounds] is given — the outline inside the draw.
 void expectSaneFrame(BeamFrameData d, String label, {Rect? drawBounds}) {
   for (var i = 0; i < beamUniformFloats; i++) {
@@ -381,14 +382,35 @@ void expectSaneFrame(BeamFrameData d, String label, {Rect? drawBounds}) {
     }
   }
   expect(lit, greaterThan(0), reason: '$label: some layer is lit');
+  // The tables a lit layer reads through, as its window or its overlay.
+  final read = <BeamTable>{
+    for (var k = 0; k < beamLayerCount; k++)
+      if (d.geometryOf(k) != BeamGeometry.none && d.opacityOf(k) > 0) ...[
+        if (d.windowOf(k) == BeamWindow.conicA) BeamTable.windowA,
+        if (d.windowOf(k) == BeamWindow.conicB) BeamTable.windowB,
+        ?d.overlayOf(k),
+      ],
+  };
   for (final t in BeamTable.values) {
-    var previous = -1.0;
     for (var i = 0; i <= 64; i++) {
       final a = d.tableAt(t, i / 64);
       expect(a, inInclusiveRange(0, 1), reason: '$label: $t at ${i / 64}');
     }
+    // A table in use holds conic coordinates, its padding included; an
+    // unused one is all the 2 it is cleared to. A first stop past 1 reads
+    // as unused, so a table a layer reads must be in use.
+    final used = d.tableStop(t, 0) <= 1;
+    if (read.contains(t)) {
+      expect(used, isTrue, reason: '$label: $t is read but unused');
+    }
+    var previous = -1.0;
     for (var i = 0; i < tableStops; i++) {
       final stop = d.tableStop(t, i);
+      expect(
+        stop,
+        used ? inInclusiveRange(0, 1) : 2,
+        reason: '$label: $t stop $i',
+      );
       expect(stop, greaterThanOrEqualTo(previous), reason: '$label: $t');
       previous = stop;
     }
