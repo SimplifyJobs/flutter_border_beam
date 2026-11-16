@@ -140,7 +140,7 @@ Two inputs take the travel off the clock without stopping the clock.
 BorderBeam(progress: received / total, child: card);
 ```
 
-The travel sits where the value says: `rotate` becomes a glowing progress ring, `line` a progress bar. A driven value maps linearly — no easing — and keeps the beam fully lit. The clock keeps running underneath, so the fade, the hue drift, and `line`'s spikes stay alive. Changing it repaints without re-resolving the configuration, so driving it from an `AnimationController` every frame is cheap.
+The travel sits where the value says: `rotate` becomes a glowing progress ring, `line` a progress bar. A driven value maps linearly — no easing — and the travel stays lit: no rest from a `cycleGap`, and no fade at the ends of `line`'s run. The clock keeps running underneath, so the fade in and out, the hue drift, and `line`'s spikes stay alive, and `style.strength` still scales the light. Changing it repaints without re-resolving the configuration, so driving it from an `AnimationController` every frame is cheap.
 
 ### `follow`
 
