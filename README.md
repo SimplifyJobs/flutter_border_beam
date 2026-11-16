@@ -230,7 +230,7 @@ A palette is a ring of 1–8 colour stops around the border: position 0 is top-c
 | `sky` | cerulean, periwinkle, white-blue | |
 | `lavender` | lilac, lavender, soft pink | |
 
-`BeamColors.presets` maps every preset's name to its value, in this order. Every `BeamColors` is a value type and resolution is memoized by value, so building `BeamColors([...])` inline in `build` costs nothing after the first frame.
+`BeamColors.presets` maps every preset's name to its value, in this order. Every `BeamColors` is a value type and resolution is memoized by value in a bounded LRU, so building `BeamColors([...])` inline in `build` costs nothing after the first frame; an app that cycles through more distinct palettes than the memo holds rebuilds an evicted one when it comes back.
 
 [Full documentation →](doc/palettes.md)
 
