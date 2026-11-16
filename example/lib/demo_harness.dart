@@ -1,6 +1,6 @@
 import 'package:flutter/services.dart';
-import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:prismatic/prismatic.dart';
 
 /// A single named scene in a demo reel: the widget (usually a `BorderBeam`
 /// around a mock surface) that should be shown centered on the stage while

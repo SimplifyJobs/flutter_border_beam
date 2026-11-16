@@ -1,8 +1,8 @@
 import 'dart:ui' show Brightness;
 
 import 'package:flutter/painting.dart';
-import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:prismatic/prismatic.dart';
 
 import 'render_utils.dart';
 

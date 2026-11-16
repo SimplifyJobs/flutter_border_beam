@@ -2,8 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:prismatic/prismatic.dart';
 
 import 'surfaces.dart' show squircle;
 import 'tokens.dart';

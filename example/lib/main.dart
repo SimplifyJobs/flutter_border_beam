@@ -1,7 +1,7 @@
 import 'dart:ui' show PointerDeviceKind;
 
-import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:prismatic/prismatic.dart';
 
 import 'src/home.dart';
 import 'src/tokens.dart';
@@ -13,7 +13,7 @@ Future<void> main() async {
   runApp(const ExampleApp());
 }
 
-/// The flutter_border_beam example: one screen showing each effect on the
+/// The prismatic example: one screen showing each effect on the
 /// surface it is made for. Dark by default.
 class ExampleApp extends StatefulWidget {
   /// Creates the app.

@@ -85,4 +85,4 @@ To fade a beam, use `style.strength` (static), `strengthListenable` (per frame, 
 
 ## Web
 
-The package compiles and runs on web — the [live demo](https://simplifyjobs.github.io/flutter_border_beam/) is a web build of the example app, and CI builds it on every commit. The renderer is the same single shader draw there.
+The package compiles and runs on web — the [live demo](https://simplifyjobs.github.io/prismatic/) is a web build of the example app, and CI builds it on every commit. The renderer is the same single shader draw there.

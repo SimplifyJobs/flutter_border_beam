@@ -1,9 +1,9 @@
 import 'dart:math' as math;
 
 import 'package:flutter/painting.dart';
-import 'package:flutter_border_beam/flutter_border_beam.dart';
-import 'package:flutter_border_beam/src/render/beam_outline.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:prismatic/prismatic.dart';
+import 'package:prismatic/src/render/beam_outline.dart';
 
 /// Distance between two perimeter coordinates around the ring.
 double _ringDistance(double a, double b) => ((a - b + 0.5) % 1 - 0.5).abs();

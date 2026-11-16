@@ -13,7 +13,7 @@ abstract final class BeamProgram {
   // A consuming app resolves package assets under `packages/<name>/`; the
   // package's own tests resolve them at the bare path.
   static const List<String> _keys = [
-    'packages/flutter_border_beam/shaders/beam.frag',
+    'packages/prismatic/shaders/beam.frag',
     'shaders/beam.frag',
   ];
 
@@ -73,7 +73,7 @@ abstract final class BeamProgram {
         FlutterErrorDetails(
           exception: lastError,
           stack: lastStack,
-          library: 'flutter_border_beam',
+          library: 'prismatic',
           context: ErrorDescription('while loading the beam shader'),
         ),
       );

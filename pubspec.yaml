@@ -1,13 +1,13 @@
-name: flutter_border_beam
+name: prismatic
 description: >-
   Animated light around any widget's border: three effects drawn by a
   single-pass fragment shader at the display rate, 19 palettes, squircle
   corners, and theming.
-version: 0.2.0
-repository: https://github.com/SimplifyJobs/flutter_border_beam
-issue_tracker: https://github.com/SimplifyJobs/flutter_border_beam/issues
-homepage: https://github.com/SimplifyJobs/flutter_border_beam
-documentation: https://github.com/SimplifyJobs/flutter_border_beam/tree/main/doc
+version: 0.3.0
+repository: https://github.com/SimplifyJobs/prismatic
+issue_tracker: https://github.com/SimplifyJobs/prismatic/issues
+homepage: https://github.com/SimplifyJobs/prismatic
+documentation: https://github.com/SimplifyJobs/prismatic/tree/main/doc
 topics:
   - animation
   - border

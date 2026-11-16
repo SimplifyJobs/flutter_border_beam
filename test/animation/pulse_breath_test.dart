@@ -1,5 +1,5 @@
-import 'package:flutter_border_beam/src/look/pulse_look.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:prismatic/src/look/pulse_look.dart';
 
 /// The pulse's breathing: the per-frame oscillator bank its emitter samples,
 /// and the breath its corners swing on — a quicker swell and a slower fade.

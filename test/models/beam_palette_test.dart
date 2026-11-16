@@ -1,10 +1,10 @@
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart' show describeIdentity;
-import 'package:flutter_border_beam/src/look/palette_tables.dart';
-import 'package:flutter_border_beam/src/models/beam_palette.dart';
-import 'package:flutter_border_beam/src/render/color_math.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:prismatic/src/look/palette_tables.dart';
+import 'package:prismatic/src/models/beam_palette.dart';
+import 'package:prismatic/src/render/color_math.dart';
 
 const Color _red = Color(0xFFFF0000);
 const Color _green = Color(0xFF00FF00);

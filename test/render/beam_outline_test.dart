@@ -2,11 +2,11 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/painting.dart';
-import 'package:flutter_border_beam/flutter_border_beam.dart';
-import 'package:flutter_border_beam/src/render/beam_frame.dart';
-import 'package:flutter_border_beam/src/render/beam_outline.dart';
-import 'package:flutter_border_beam/src/render/beam_program.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:prismatic/prismatic.dart';
+import 'package:prismatic/src/render/beam_frame.dart';
+import 'package:prismatic/src/render/beam_outline.dart';
+import 'package:prismatic/src/render/beam_program.dart';
 
 void main() {
   for (final squircle in [false, true]) {

@@ -1,5 +1,5 @@
-import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:prismatic/prismatic.dart';
 
 /// `BeamEffect` is the sealed "what the beam does" value: three effects in
 /// two families, each carrying its own defaults, and the parameterised ones

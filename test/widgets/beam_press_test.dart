@@ -1,6 +1,6 @@
-import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:prismatic/prismatic.dart';
 
 /// [BeamPress] observes raw pointers and only flips `active` on the
 /// [BorderBeam] it wraps. The two things it must never get wrong: a tap

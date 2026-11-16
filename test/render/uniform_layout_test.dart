@@ -1,9 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter/painting.dart';
-import 'package:flutter_border_beam/src/render/beam_frame.dart';
-import 'package:flutter_border_beam/src/render/beam_outline.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:prismatic/src/render/beam_frame.dart';
+import 'package:prismatic/src/render/beam_outline.dart';
 
 /// The Dart packer writes uniforms by float index, so the shader's declared
 /// layout and `beamUniformFloats` must agree float for float — a uniform

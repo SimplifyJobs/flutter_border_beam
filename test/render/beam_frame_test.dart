@@ -1,16 +1,16 @@
 import 'dart:ui' show Brightness;
 
 import 'package:flutter/painting.dart';
-import 'package:flutter_border_beam/flutter_border_beam.dart';
-import 'package:flutter_border_beam/src/animation/beam_phases.dart';
-import 'package:flutter_border_beam/src/effects/effect_emitters.dart';
-import 'package:flutter_border_beam/src/look/beam_look.dart';
-import 'package:flutter_border_beam/src/look/palette_tables.dart';
-import 'package:flutter_border_beam/src/look/rotate_look.dart';
-import 'package:flutter_border_beam/src/render/beam_frame.dart';
-import 'package:flutter_border_beam/src/render/beam_outline.dart';
-import 'package:flutter_border_beam/src/render/beam_renderer.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:prismatic/prismatic.dart';
+import 'package:prismatic/src/animation/beam_phases.dart';
+import 'package:prismatic/src/effects/effect_emitters.dart';
+import 'package:prismatic/src/look/beam_look.dart';
+import 'package:prismatic/src/look/palette_tables.dart';
+import 'package:prismatic/src/look/rotate_look.dart';
+import 'package:prismatic/src/render/beam_frame.dart';
+import 'package:prismatic/src/render/beam_outline.dart';
+import 'package:prismatic/src/render/beam_renderer.dart';
 
 import 'render_utils.dart';
 

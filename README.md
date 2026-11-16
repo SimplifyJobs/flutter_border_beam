@@ -1,28 +1,28 @@
 <div align="center">
-  <h1><b>flutter_border_beam</b></h1>
+  <h1><b>prismatic</b></h1>
   <p>
     Animated light around any widget's border — cards, buttons, inputs, search bars.
   </p>
 </div>
 
 <p align="center">
-  <a href="https://pub.dev/packages/flutter_border_beam"><img src="https://img.shields.io/pub/v/flutter_border_beam?logo=dart&logoColor=white&color=0175C2" alt="pub package"></a>
-  <a href="https://pub.dev/packages/flutter_border_beam/score"><img src="https://img.shields.io/pub/points/flutter_border_beam?logo=dart&logoColor=white&color=0175C2" alt="pub points"></a>
+  <a href="https://pub.dev/packages/prismatic"><img src="https://img.shields.io/pub/v/prismatic?logo=dart&logoColor=white&color=0175C2" alt="pub package"></a>
+  <a href="https://pub.dev/packages/prismatic/score"><img src="https://img.shields.io/pub/points/prismatic?logo=dart&logoColor=white&color=0175C2" alt="pub points"></a>
   <a href="https://docs.flutter.dev"><img src="https://img.shields.io/badge/Flutter-3.47+-02569B?logo=flutter&logoColor=white" alt="Flutter 3.47+"></a>
   <a href="https://dart.dev"><img src="https://img.shields.io/badge/Dart-3.9+-0175C2?logo=dart&logoColor=white" alt="Dart 3.9+"></a>
-  <a href="https://github.com/SimplifyJobs/flutter_border_beam/actions/workflows/ci.yaml"><img src="https://github.com/SimplifyJobs/flutter_border_beam/actions/workflows/ci.yaml/badge.svg" alt="CI"></a>
-  <a href="https://codecov.io/gh/SimplifyJobs/flutter_border_beam"><img src="https://codecov.io/gh/SimplifyJobs/flutter_border_beam/branch/main/graph/badge.svg" alt="codecov"></a>
+  <a href="https://github.com/SimplifyJobs/prismatic/actions/workflows/ci.yaml"><img src="https://github.com/SimplifyJobs/prismatic/actions/workflows/ci.yaml/badge.svg" alt="CI"></a>
+  <a href="https://codecov.io/gh/SimplifyJobs/prismatic"><img src="https://codecov.io/gh/SimplifyJobs/prismatic/branch/main/graph/badge.svg" alt="codecov"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
 </p>
 
 <div align="center">
-  <img width="600" src="https://raw.githubusercontent.com/SimplifyJobs/flutter_border_beam/main/assets/showcase/showcase.gif" alt="Border beams animating in the demo reel">
+  <img width="600" src="https://raw.githubusercontent.com/SimplifyJobs/prismatic/main/assets/showcase/showcase.gif" alt="Border beams animating in the demo reel">
 </div>
 
 
 ## Overview
 
-`flutter_border_beam` draws light that travels or breathes around a widget's border. Wrap a widget in `BorderBeam`, pick an effect, and the beam paints over it — matched to its corner radius, adapted to a dark or light surface, and animated by one ticker.
+`prismatic` draws light that travels or breathes around a widget's border. Wrap a widget in `BorderBeam`, pick an effect, and the beam paints over it — matched to its corner radius, adapted to a dark or light surface, and animated by one ticker.
 
 The whole beam is **one fragment shader drawn in one pass**: no `saveLayer`, no blur filters, no clips, and no offscreen render targets. It runs at the display's refresh rate, 120Hz included, and is cheap enough to leave on a card while the user scrolls.
 
@@ -69,17 +69,17 @@ Around the effects:
 
 ### Live demo
 
-**<https://simplifyjobs.github.io/flutter_border_beam/>** — the example app built for web: each effect on the kind of widget it is made for, recoloured with any preset, in either theme. Built from [`example/`](example).
+**<https://simplifyjobs.github.io/prismatic/>** — the example app built for web: each effect on the kind of widget it is made for, recoloured with any preset, in either theme. Built from [`example/`](example).
 
 
 ## Installation
 
 ```console
-flutter pub add flutter_border_beam
+flutter pub add prismatic
 ```
 
 ```dart
-import 'package:flutter_border_beam/flutter_border_beam.dart';
+import 'package:prismatic/prismatic.dart';
 ```
 
 | Requirement | Version |
@@ -630,7 +630,7 @@ No. Every effect paints in one pass over the child and nothing behind it, so a t
 Segments always run clockwise from `start` to `end`, wrapping through top-centre. Swap the anchors for the other side of the border.
 
 **Does it work on web?**
-Yes — the [live demo](https://simplifyjobs.github.io/flutter_border_beam/) is a web build of the example app, and CI builds it on every commit.
+Yes — the [live demo](https://simplifyjobs.github.io/prismatic/) is a web build of the example app, and CI builds it on every commit.
 
 **Can I animate between two configurations?**
 With `BorderBeam`, yes: changing `cycle` retimes in place, and `BeamColors.lerp` driven by an animation crossfades palettes. `BeamDecoration` does not interpolate, so an `AnimatedContainer` snaps.
@@ -638,7 +638,7 @@ With `BorderBeam`, yes: changing `cycle` retimes in place, and `BeamColors.lerp`
 
 ## Example app
 
-[`example/`](example) is the one-screen showcase behind the [live demo](https://simplifyjobs.github.io/flutter_border_beam/): swipe between the three effects, each on the kind of widget it is made for — a task card, a chat composer, a "thinking" card — and recolour them with any preset in either theme.
+[`example/`](example) is the one-screen showcase behind the [live demo](https://simplifyjobs.github.io/prismatic/): swipe between the three effects, each on the kind of widget it is made for — a task card, a chat composer, a "thinking" card — and recolour them with any preset in either theme.
 
 ```console
 cd example && flutter run

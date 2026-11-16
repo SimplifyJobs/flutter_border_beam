@@ -1,7 +1,7 @@
 import 'dart:async';
 
-import 'package:flutter_border_beam/src/render/beam_program.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:prismatic/src/render/beam_program.dart';
 
 /// `BeamProgram`: one shader load, shared by every caller that asks while it
 /// is in flight. Nothing else in this file loads the program, so it starts

@@ -1,10 +1,10 @@
 import 'dart:ui' show Brightness;
 
 import 'package:flutter/painting.dart';
-import 'package:flutter_border_beam/flutter_border_beam.dart';
-import 'package:flutter_border_beam/src/models/beam_config.dart';
-import 'package:flutter_border_beam/src/models/beam_palette.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:prismatic/prismatic.dart';
+import 'package:prismatic/src/models/beam_config.dart';
+import 'package:prismatic/src/models/beam_palette.dart';
 
 double _seconds(Duration d) =>
     d.inMicroseconds / Duration.microsecondsPerSecond;

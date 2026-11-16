@@ -1,4 +1,4 @@
-# flutter_border_beam — agent guide
+# prismatic — agent guide
 
 Flutter package: animated light around a widget's border. Three effects
 (`rotate`, `line`, `pulse`), all drawn by **one fragment shader in one draw
@@ -18,7 +18,7 @@ renderer that does not track upstream.
 - `tool/record_demo.sh --target lib/showcase.dart --prefix SHOWCASE --contact` — record a demo reel mp4 into `.demos/` (needs a booted iOS simulator + ffmpeg). Reels use `example/lib/demo_harness.dart`'s marker contract (`<PREFIX>:<name>:START/END`, `<PREFIX>:DONE`); new reels are just a map of name → scene widget.
 - `dart pub publish --dry-run` — pre-publish validation. `shaders/beam.frag` must be in the archive (`.pubignore` must never exclude `shaders/`).
 - **Cutting a release** — bump `version:` in `pubspec.yaml`, add a `## <version>` section to `CHANGELOG.md`, merge to `main`, then push the matching tag: `git tag v<version> && git push origin v<version>`. `.github/workflows/release.yaml` verifies the tag against the pubspec and the changelog, re-runs format/analyze/test, publishes to pub.dev over GitHub OIDC (no secrets), and creates the GitHub Release from that changelog section; a version with a `-suffix` is marked prerelease. Goldens are verified only by the macOS `goldens` job in `ci.yaml` — the release job runs on ubuntu and skips them, so tag a commit that is green on `main`.
-- **One-time, before the first automated release** — publish manually with `flutter pub publish` (pub.dev only automates publishing for packages that already exist), then enable pub.dev Admin → Automated publishing for `SimplifyJobs/flutter_border_beam` with tag pattern `v{{version}}`.
+- **One-time, before the first automated release** — publish manually with `flutter pub publish` (pub.dev only automates publishing for packages that already exist), then enable pub.dev Admin → Automated publishing for `SimplifyJobs/prismatic` with tag pattern `v{{version}}`.
 - **Bumping the Flutter pin** — change `FLUTTER_VERSION` in `ci.yaml`, `release.yaml`, and `pages.yaml` together, in the same commit as regenerated goldens.
 
 ## Architecture
@@ -48,7 +48,7 @@ prose:
 **[doc/architecture.md](doc/architecture.md)** — update it when the layout
 moves. The map below is the index.
 
-- `lib/flutter_border_beam.dart` — barrel; ONLY `BorderBeam`, `BorderBeamController`, `BorderBeamTheme`/`BorderBeamThemeData`, `BeamSync`, `BeamEffect` + its three subclasses (`RotateEffect`, `LineEffect`, `PulseEffect`), `BeamColors`/`BeamSeedHarmony`, the option types (`BeamDirection`, `BeamEdge`, `BeamHueMode`, `BeamReducedMotion`, `BeamRepeat`), `BeamAnchor`/`BeamCorner`/`BeamSegment`, `BeamTheme`, the four value objects (`BeamStyle`, `BeamShape`, `BeamTiming`, `BeamPlayback`), and the four widgets are public. Nothing in `render/` or `effects/effect_emitters.dart` is exported.
+- `lib/prismatic.dart` — the package barrel; it re-exports each effect's library. `lib/border_beam.dart` — the beam's library; ONLY `BorderBeam`, `BorderBeamController`, `BorderBeamTheme`/`BorderBeamThemeData`, `BeamSync`, `BeamEffect` + its three subclasses (`RotateEffect`, `LineEffect`, `PulseEffect`), `BeamColors`/`BeamSeedHarmony`, the option types (`BeamDirection`, `BeamEdge`, `BeamHueMode`, `BeamReducedMotion`, `BeamRepeat`), `BeamAnchor`/`BeamCorner`/`BeamSegment`, `BeamTheme`, the four value objects (`BeamStyle`, `BeamShape`, `BeamTiming`, `BeamPlayback`), and the four widgets are public. Nothing in `render/` or `effects/effect_emitters.dart` is exported.
 - `lib/src/border_beam.dart` — widget: `BorderBeam({effect, …})` and `BorderBeam.overlay`; three shorthands (`colors`/`active`/`borderRadius`) over the value objects; the driven inputs (`progress`, `follow`, `strengthListenable`, `speedListenable`); `BorderBeam.precache()`; scheduling/lifecycle. Controller attached ⇒ it owns playback exclusively (the resolved playback asserts `startAfter`/`duration` are null, and the controller's `speed` replaces `timing.speed`). `speed` never reaches `BeamConfig` — it is applied to the clock and kept out of the config-cache key.
 - `lib/src/border_beam_theme.dart` — `BorderBeamTheme` (`InheritedWidget`) + `BorderBeamThemeData` (`effect`, `style`, `shape`, `timing`, `playback`). `of` walks every enclosing scope, depends on each, and merges them outside-in.
 - `lib/src/beam_sync.dart` — `BeamSync` + its internal scope: one clock for a subtree. The group owns playback; a member's `BorderBeamController` asserts.

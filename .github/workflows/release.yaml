@@ -1,4 +1,4 @@
-# Publish flutter_border_beam to pub.dev and cut a GitHub Release.
+# Publish prismatic to pub.dev and cut a GitHub Release.
 #
 # Trigger: pushing a `vX.Y.Z` tag (a `-suffix` prerelease tag is allowed).
 #
@@ -13,10 +13,10 @@
 #     the first version is on pub.dev there is nothing to attach automated
 #     publishing to.
 #  2. On pub.dev, open
-#         https://pub.dev/packages/flutter_border_beam/admin
+#         https://pub.dev/packages/prismatic/admin
 #     → "Automated publishing" → "Enable publishing from GitHub Actions", and
 #     set:
-#         Repository:   SimplifyJobs/flutter_border_beam
+#         Repository:   SimplifyJobs/prismatic
 #         Tag pattern:  v{{version}}
 #     (You must be an uploader on the package to see the Admin tab.)
 #  3. Nothing else. There is no PUB_CREDENTIALS / CREDENTIAL_JSON secret to

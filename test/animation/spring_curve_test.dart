@@ -1,8 +1,8 @@
 import 'dart:math' as math;
 
-import 'package:flutter_border_beam/src/animation/beam_clock.dart';
-import 'package:flutter_border_beam/src/animation/spring_curve.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:prismatic/src/animation/beam_clock.dart';
+import 'package:prismatic/src/animation/spring_curve.dart';
 
 /// A critically damped unit spring released from rest, at time [t] seconds
 /// for a [response]: `1 − (1 + ω₀t)·e^(−ω₀t)`, ω₀ = 2π / response.

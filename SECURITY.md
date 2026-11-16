@@ -2,9 +2,9 @@
 
 ## Supported versions
 
-Fixes land on the latest published minor of `flutter_border_beam`. Older
+Fixes land on the latest published minor of `prismatic`. Older
 minors are not patched — upgrade to the newest release on
-[pub.dev](https://pub.dev/packages/flutter_border_beam) before reporting.
+[pub.dev](https://pub.dev/packages/prismatic) before reporting.
 
 | Version | Supported |
 | --- | --- |
@@ -16,7 +16,7 @@ minors are not patched — upgrade to the newest release on
 **Do not open a public issue for a security report.**
 
 Use GitHub's private vulnerability reporting: go to the
-[Security tab](https://github.com/SimplifyJobs/flutter_border_beam/security)
+[Security tab](https://github.com/SimplifyJobs/prismatic/security)
 of the repository and press **Report a vulnerability**. That opens a private
 advisory visible only to you and the maintainers.
 
@@ -59,7 +59,7 @@ In scope:
 Out of scope:
 
 - Visual bugs, jank, and performance that is merely disappointing — those are
-  ordinary [issues](https://github.com/SimplifyJobs/flutter_border_beam/issues).
+  ordinary [issues](https://github.com/SimplifyJobs/prismatic/issues).
 - Frame-rate or battery cost of an animation configured to be expensive.
 - Vulnerabilities in Flutter, Dart, or a browser engine — report those to
   their own projects.

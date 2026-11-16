@@ -1,6 +1,6 @@
-# flutter_border_beam example
+# prismatic example
 
-A one-screen showcase for the [`flutter_border_beam`](../) package: each of the
+A one-screen showcase for the [`prismatic`](../) package: each of the
 three effects on the kind of widget it is made for, big enough to see.
 
 ```bash

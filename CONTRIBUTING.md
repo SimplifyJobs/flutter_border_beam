@@ -1,4 +1,4 @@
-# Contributing to flutter_border_beam
+# Contributing to prismatic
 
 Thanks for helping out. This package draws every beam with one fragment
 shader in a single draw call, and most of its rules exist to keep it that
@@ -14,8 +14,8 @@ by `material_ui`; CI tests that exact version in its `min-sdk` job) and, for gol
 3.50.0 on macOS**.
 
 ```bash
-git clone https://github.com/SimplifyJobs/flutter_border_beam.git
-cd flutter_border_beam
+git clone https://github.com/SimplifyJobs/prismatic.git
+cd prismatic
 flutter pub get
 
 # The one-screen showcase. It consumes the package by path, so it picks up
@@ -24,7 +24,7 @@ cd example && flutter pub get && flutter run
 ```
 
 The showcase is also live at
-<https://simplifyjobs.github.io/flutter_border_beam/> — useful for comparing
+<https://simplifyjobs.github.io/prismatic/> — useful for comparing
 your build against `main`.
 
 ## Commands
@@ -127,7 +127,7 @@ Two pieces of shader maths also run in Dart, and must match exactly:
 `lib/src/effects/beam_effect.dart` (with a `const factory` on `BeamEffect`, a
 doc comment, `travels`, `defaultCycle`, and any non-default `defaultCycleGap` /
 `defaultHueMode` / `defaultHuePeriod`, plus `==` / `hashCode`), an entry in
-`BeamEffect.values`, the export in `lib/flutter_border_beam.dart`, and an
+`BeamEffect.values`, the export in `lib/prismatic.dart`, and an
 emitter in `lib/src/effects/effect_emitters.dart`. The `switch` statements over
 `BeamEffect` (the emitter dispatch, `BorderBeam.follow`) are exhaustive, so the
 analyzer lists every place that needs a case; `BeamConfig.beamCount` falls

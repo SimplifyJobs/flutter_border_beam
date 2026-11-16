@@ -3,6 +3,22 @@
 All notable changes to this package are documented here, following
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 0.3.0
+
+### Renamed to `prismatic`
+
+The package is now **`prismatic`**: one home for the shader effects, with
+`BorderBeam` the first of them. `flutter_border_beam` was never published, so
+nothing is left behind on pub.dev.
+
+| Before | After |
+| --- | --- |
+| `flutter_border_beam` in `pubspec.yaml` | `prismatic` |
+| `import 'package:flutter_border_beam/flutter_border_beam.dart'` | `import 'package:prismatic/prismatic.dart'` (everything) or `import 'package:prismatic/border_beam.dart'` (the beam alone) |
+| `github.com/SimplifyJobs/flutter_border_beam` | `github.com/SimplifyJobs/prismatic` |
+
+The API itself is unchanged.
+
 ## 0.2.0
 
 A new renderer and a new effect model. This is the first release since 0.1.0
@@ -280,7 +296,7 @@ design data rather than transcriptions.
 - [`example/`](example) is a one-screen showcase of the three effects, each
   on the kind of widget it is made for, with palette swatches and a theme
   toggle; its web build is the
-  [live demo](https://simplifyjobs.github.io/flutter_border_beam/).
+  [live demo](https://simplifyjobs.github.io/prismatic/).
 
 ## 0.1.0
 

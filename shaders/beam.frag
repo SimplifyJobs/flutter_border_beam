@@ -1,4 +1,4 @@
-// flutter_border_beam — the whole effect in one fragment shader.
+// prismatic — the whole effect in one fragment shader.
 //
 // A beam is up to three layers composited bottom to top, each evaluated per
 // pixel in this one pass:

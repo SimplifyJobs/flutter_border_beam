@@ -22,7 +22,7 @@ Ticker ─► BeamClock ─► BeamPhaseResolver ─► effect emitter ─► Be
 
 `BeamPainter` (`lib/src/render/beam_painter.dart`) is the `CustomPainter` that runs this as `BorderBeam`'s foreground painter. Its repaint listenable is the clock merged with the shader-ready signal and the driven `progress` / `strength` listenables, so frames never rebuild widgets. `BeamDecoration` runs the same renderer from a `BoxPainter`.
 
-`BeamProgram` (`lib/src/render/beam_program.dart`) loads `shaders/beam.frag` once per process (`FragmentProgram.fromAsset`, trying the `packages/flutter_border_beam/` key a consuming app uses and the bare key the package's own tests use). Until it resolves, beams paint nothing; `BorderBeam.precache()` awaits it.
+`BeamProgram` (`lib/src/render/beam_program.dart`) loads `shaders/beam.frag` once per process (`FragmentProgram.fromAsset`, trying the `packages/prismatic/` key a consuming app uses and the bare key the package's own tests use). Until it resolves, beams paint nothing; `BorderBeam.precache()` awaits it.
 
 ## The layer model
 
@@ -104,7 +104,7 @@ That is 672 floats, `beamUniformFloats` — inside the 896 (224 `vec4`s) GLES 3.
 
 | File | Contents |
 | --- | --- |
-| `lib/flutter_border_beam.dart` | The barrel. It exports `BorderBeam`, `BorderBeamController`, `BorderBeamTheme` / `BorderBeamThemeData`, `BeamSync`, `BeamEffect` and its three subclasses (`RotateEffect`, `LineEffect`, `PulseEffect`), `BeamColors` / `BeamSeedHarmony`, the option types (`BeamDirection`, `BeamEdge`, `BeamHueMode`, `BeamReducedMotion`, `BeamRepeat`), `BeamAnchor` / `BeamCorner` / `BeamSegment`, `BeamTheme`, the four value objects, and the four widgets. Nothing under `render/` is public. |
+| `lib/prismatic.dart`, `lib/border_beam.dart` | `prismatic.dart` is the package barrel and re-exports `border_beam.dart`, which exports `BorderBeam`, `BorderBeamController`, `BorderBeamTheme` / `BorderBeamThemeData`, `BeamSync`, `BeamEffect` and its three subclasses (`RotateEffect`, `LineEffect`, `PulseEffect`), `BeamColors` / `BeamSeedHarmony`, the option types (`BeamDirection`, `BeamEdge`, `BeamHueMode`, `BeamReducedMotion`, `BeamRepeat`), `BeamAnchor` / `BeamCorner` / `BeamSegment`, `BeamTheme`, the four value objects, and the four widgets. Nothing under `render/` is public. |
 | `lib/src/border_beam.dart` | The widget: `BorderBeam` and `BorderBeam.overlay`, the three shorthands (`colors`, `active`, `borderRadius`), the driven inputs (`progress`, `follow`, `strengthListenable`, `speedListenable`), `BorderBeam.precache()`, and all scheduling and lifecycle. A controller attached ⇒ it owns playback. |
 | `lib/src/border_beam_controller.dart` | `BorderBeamController`, a `ChangeNotifier` over one clock. |
 | `lib/src/border_beam_theme.dart` | `BorderBeamTheme` (an `InheritedWidget`) and `BorderBeamThemeData`, with an `effect` slot and one per value object. `of` walks every enclosing scope, depends on each, and merges them outside-in. |

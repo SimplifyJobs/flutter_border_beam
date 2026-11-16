@@ -1,7 +1,7 @@
 import 'package:flutter/animation.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_border_beam/src/animation/beam_clock.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:prismatic/src/animation/beam_clock.dart';
 
 /// A step comfortably below one display frame at 120Hz.
 const Duration _frame = Duration(milliseconds: 8);
