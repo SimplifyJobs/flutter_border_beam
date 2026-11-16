@@ -1,5 +1,7 @@
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart' show describeIdentity;
+import 'package:flutter_border_beam/src/look/palette_tables.dart';
 import 'package:flutter_border_beam/src/models/beam_palette.dart';
 import 'package:flutter_border_beam/src/render/color_math.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -133,8 +135,39 @@ void main() {
     test('toString names every field', () {
       final s = palette.toString();
       expect(s, startsWith('BeamPalette('));
+      expect(s, contains('colors: ${palette.colors}'));
       expect(s, contains('stops: [0.1, 0.4, 0.7]'));
       expect(s, contains('fixedHue: false'));
+      expect(s, contains('mono: false'));
+      // Unset tables are left out, as an unset value-object field is.
+      expect(s, isNot(contains('tables')));
+
+      const drawn = BeamPalette(
+        colors: [_red],
+        stops: [0],
+        tables: colorfulTables,
+        tableColors: [_green, _blue],
+        mono: true,
+      );
+      final d = drawn.toString();
+      expect(d, contains('mono: true'));
+      expect(d, contains('tables: ${describeIdentity(colorfulTables)}'));
+      expect(d, contains('tableColors: [$_green, $_blue]'));
+    });
+
+    test('toString tells apart palettes that paint differently', () {
+      // Equal colours and stops, each drawn another way: every one of these
+      // compares unequal, so none may print the same.
+      const plain = BeamPalette(colors: [_red], stops: [0]);
+      final variants = [
+        plain,
+        const BeamPalette(colors: [_red], stops: [0], mono: true),
+        const BeamPalette(colors: [_red], stops: [0], tables: colorfulTables),
+        const BeamPalette(colors: [_red], stops: [0], tables: monoTables),
+        const BeamPalette(colors: [_red], stops: [0], tableColors: [_blue]),
+      ];
+      final printed = {for (final p in variants) p.toString()};
+      expect(printed, hasLength(variants.length));
     });
   });
 }

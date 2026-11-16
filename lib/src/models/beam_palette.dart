@@ -91,7 +91,18 @@ class BeamPalette {
     tableColors == null ? null : Object.hashAll(tableColors!),
   );
 
+  // Tables are dozens of blobs, so they print as an identity: their hash is
+  // structural, so equal tables print alike and different ones apart.
   @override
-  String toString() =>
-      'BeamPalette(colors: $colors, stops: $stops, fixedHue: $fixedHue)';
+  String toString() {
+    final fields = <String>[
+      'colors: $colors',
+      'stops: $stops',
+      'fixedHue: $fixedHue',
+      'mono: $mono',
+      if (tables != null) 'tables: ${describeIdentity(tables)}',
+      if (tableColors != null) 'tableColors: $tableColors',
+    ];
+    return 'BeamPalette(${fields.join(', ')})';
+  }
 }
