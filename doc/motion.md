@@ -4,7 +4,7 @@ Timing, direction, rest, synchronization, and taking the travel off the clock. T
 
 ## The clock
 
-One `Ticker` accumulates elapsed seconds. Every animated value — the travel position, the hue, the breathing of the ambient effects — is recomputed from that one number each frame. There are no `AnimationController`s and no per-track state, which is what makes a beam a pure function of time: the same instant always paints the same frame.
+One `Ticker` accumulates elapsed seconds. Every value on the timeline — the travel position, the hue, the breathing of the ambient effects — is recomputed from that one number each frame. There are no `AnimationController`s and no per-track state, so the same instant always puts the travel, the hue, and the breath in the same place. A frame also carries what sits beside the timeline: the fades and the controller's accents, which run on real time (below), and a [`follow`](#follow) easing toward its target.
 
 The clock ticks on every frame the engine produces. Nothing is capped, so a beam runs at 120Hz on a 120Hz display (on ProMotion iPhones, once the app opts in — see [performance](performance.md#120hz)).
 
