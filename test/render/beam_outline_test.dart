@@ -1,9 +1,11 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/painting.dart';
-import 'package:flutter_border_beam/src/models/beam_options.dart';
-import 'package:flutter_border_beam/src/models/beam_segment.dart';
+import 'package:flutter_border_beam/flutter_border_beam.dart';
+import 'package:flutter_border_beam/src/render/beam_frame.dart';
 import 'package:flutter_border_beam/src/render/beam_outline.dart';
+import 'package:flutter_border_beam/src/render/beam_program.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -99,45 +101,234 @@ void main() {
       }
     });
 
-    test('superellipse corners span radius × inset, capped by the box', () {
+    test('superellipse corners reach radius × squircleReach along each '
+        'edge, capped at half that side', () {
       final o = BeamOutline(
         rect,
-        BorderRadius.circular(20),
+        BorderRadius.circular(16),
         superellipse: true,
       );
-      expect(o.cornerSizes, everyElement(closeTo(20 * squircleInset, 1e-9)));
-      final capped = BeamOutline(
-        rect,
-        BorderRadius.circular(45),
+      expect(o.cornerSizes, everyElement(closeTo(16 * squircleReach, 1e-9)));
+      // A pill's corners take the full height but still ease into the long
+      // edges: each side caps the reach separately.
+      final pill = BeamOutline(
+        const Rect.fromLTWH(0, 0, 270, 56),
+        BorderRadius.circular(28),
         superellipse: true,
       );
-      expect(capped.cornerSizes, everyElement(closeTo(50, 1e-9)));
+      expect(pill.cornerSizes, everyElement(closeTo(28 * squircleReach, 1e-9)));
+      final top = pill.edgeRange(BeamEdge.top);
+      expect(pill.pointAt(top.to).dx, closeTo(270 - 28 * squircleReach, 1e-6));
+      expect(pill.pointAt(top.to).dy, closeTo(0, 1e-9));
+      final right = pill.edgeRange(BeamEdge.right);
+      expect(BeamOutline.wrapFraction(right.to - right.from), lessThan(1e-9));
     });
   });
 
-  test('the superellipse follows RoundedSuperellipseBorder', () {
-    // The beam's stroke must sit on the edge of a child clipped by
-    // Flutter's own superellipse, or the two visibly part at the corners.
-    for (final r in [8.0, 24.0, 40.0]) {
-      const box = Rect.fromLTWH(10, 10, 320, 120);
-      final o = BeamOutline(box, BorderRadius.circular(r), superellipse: true);
-      final path = Path()
-        ..addRSuperellipse(
-          RSuperellipse.fromRectAndRadius(box, Radius.circular(r)),
-        );
-      var sampled = 0;
-      for (final metric in path.computeMetrics()) {
-        for (var s = 0.0; s < metric.length; s += 2) {
-          final p = metric.getTangentForOffset(s)!.position;
-          expect(
-            o.locate(p).distance.abs(),
-            lessThan(0.02 * r + 0.05),
-            reason: 'r=$r at $p',
-          );
-          sampled++;
+  group("the superellipse is Flutter's RSuperellipse", () {
+    // The beam's stroke must sit on the edge of a child clipped or decorated
+    // by RoundedSuperellipseBorder with the same radii, at every aspect
+    // ratio: Flutter's corner changes shape as the radius nears half the
+    // side, so one fixed corner curve parts from it on pills and circles.
+    final shapes = <String, (Rect, BorderRadius)>{
+      'card r8': (const Rect.fromLTWH(10, 10, 300, 200), _r(8)),
+      'card r24': (const Rect.fromLTWH(10, 10, 300, 200), _r(24)),
+      'wide card r16': (const Rect.fromLTWH(0, 0, 350, 140), _r(16)),
+      'large card r4': (const Rect.fromLTWH(0, 0, 1000, 600), _r(4)),
+      'square r16': (const Rect.fromLTWH(0, 0, 100, 100), _r(16)),
+      'r = 0.3 short side': (const Rect.fromLTWH(0, 0, 300, 200), _r(60)),
+      'r = 0.4 short side': (const Rect.fromLTWH(0, 0, 300, 200), _r(80)),
+      'square, r = 0.4 side': (const Rect.fromLTWH(0, 0, 200, 200), _r(80)),
+      'chip, r = 0.4 short side': (const Rect.fromLTWH(0, 0, 120, 60), _r(24)),
+      'pill 270×56': (const Rect.fromLTWH(0, 0, 270, 56), _r(28)),
+      // BeamShape.stadium: Flutter spells the same pill with half the
+      // short side (it reads an infinite radius as no radius at all).
+      'stadium pill': (const Rect.fromLTWH(0, 0, 270, 56), _stadium),
+      'stadium circle': (const Rect.fromLTWH(0, 0, 120, 120), _stadium),
+      'thin pill 300×40': (const Rect.fromLTWH(0, 0, 300, 40), _r(20)),
+      'short pill 70×56': (const Rect.fromLTWH(0, 0, 70, 56), _r(28)),
+      'tall pill 56×270': (const Rect.fromLTWH(0, 0, 56, 270), _r(28)),
+      'stadium 200×100': (const Rect.fromLTWH(0, 0, 200, 100), _r(50)),
+      'circle 56': (const Rect.fromLTWH(0, 0, 56, 56), _r(28)),
+      'circle 200': (const Rect.fromLTWH(0, 0, 200, 200), _r(100)),
+      'uneven radii': (
+        const Rect.fromLTWH(0, 0, 300, 180),
+        const BorderRadius.only(
+          topLeft: Radius.circular(40),
+          topRight: Radius.circular(12),
+          bottomRight: Radius.circular(8),
+          bottomLeft: Radius.circular(20),
+        ),
+      ),
+      'chat bubble': (
+        const Rect.fromLTWH(0, 0, 200, 60),
+        const BorderRadius.only(
+          topLeft: Radius.circular(16),
+          topRight: Radius.circular(16),
+          bottomRight: Radius.circular(4),
+          bottomLeft: Radius.circular(16),
+        ),
+      ),
+    };
+
+    for (final MapEntry(key: name, value: (box, radius)) in shapes.entries) {
+      test("$name: the outline lies on Flutter's path", () {
+        final o = BeamOutline(box, radius, superellipse: true);
+        final flutter = _flutterOutline(box, radius);
+        // Flutter's points are on the outline...
+        var worst = 0.0;
+        for (final p in flutter) {
+          worst = math.max(worst, o.locate(p).distance.abs());
+        }
+        // ...and the outline's points are on Flutter's path. Flutter's own
+        // path approximates its curve with conics to within ~0.06 px here.
+        for (var i = 0; i < 1500; i++) {
+          worst = math.max(worst, _distanceTo(flutter, o.pointAt(i / 1500)));
+        }
+        expect(worst, lessThan(0.1), reason: name);
+      });
+    }
+
+    test('inside and outside agree with RSuperellipse.contains', () {
+      for (final MapEntry(key: name, value: (box, radius)) in shapes.entries) {
+        final o = BeamOutline(box, radius, superellipse: true);
+        final rse = _flutterRadius(box, radius).toRSuperellipse(box);
+        for (var y = box.top - 3; y <= box.bottom + 3; y += 1.5) {
+          for (var x = box.left - 3; x <= box.right + 3; x += 1.5) {
+            final p = Offset(x, y);
+            final d = o.locate(p).distance;
+            if (d.abs() < 0.1) continue;
+            expect(d < 0, rse.contains(p), reason: '$name at $p (d = $d)');
+          }
         }
       }
-      expect(sampled, greaterThan(100));
+    });
+
+    test('distance is continuous near the border, inside and out', () {
+      // A soft glow or inset shadow shades by the distance tens of px from
+      // the stroke; a step where the curve's pieces meet would show as a
+      // seam. Neighbouring samples may differ by at most their spacing.
+      for (final name in ['card r24', 'r = 0.4 short side', 'pill 270×56']) {
+        final (box, radius) = shapes[name]!;
+        final o = BeamOutline(box, radius, superellipse: true);
+        const step = 0.5;
+        final corner = box.topRight;
+        double at(double x, double y) => o.locate(Offset(x, y)).distance;
+        for (var y = corner.dy - 30; y <= corner.dy + 60; y += step) {
+          for (var x = corner.dx - 160; x <= corner.dx + 30; x += step) {
+            final d = at(x, y);
+            if (d < -20 || d > 30) continue;
+            expect(
+              (at(x + step, y) - d).abs(),
+              lessThan(step + 0.02),
+              reason: '$name at ($x, $y)',
+            );
+            expect(
+              (at(x, y + step) - d).abs(),
+              lessThan(step + 0.02),
+              reason: '$name at ($x, $y)',
+            );
+          }
+        }
+      }
+    });
+
+    test('distance off the border matches the nearest point of the path', () {
+      for (final name in ['card r24', 'pill 270×56', 'circle 56']) {
+        final (box, radius) = shapes[name]!;
+        final o = BeamOutline(box, radius, superellipse: true);
+        final flutter = _flutterOutline(box, radius);
+        for (var i = 0; i < 200; i++) {
+          final u = i / 200;
+          for (final offset in [-12.0, -4.0, 4.0, 12.0, 24.0]) {
+            final p = o.pointAt(u) + o.normalAt(u) * offset;
+            expect(
+              o.locate(p).distance,
+              closeTo(offset.sign * _distanceTo(flutter, p), 0.2),
+              reason: '$name u=$u offset $offset',
+            );
+          }
+        }
+      }
+    });
+  });
+
+  group("the shader's outline() is BeamOutline", () {
+    // Rule 3: the GPU and the CPU must agree on where the outline is, or
+    // lights placed along it on the CPU drift off the stroke the GPU draws.
+    // A filled layer's anti-aliased edge encodes the shader's distance:
+    // alpha = 0.5 − d / px.
+    setUpAll(BorderBeam.precache);
+
+    final shapes = <String, (Size, BorderRadius)>{
+      'pill': (const Size(270, 56), _r(28)),
+      'card': (const Size(300, 200), _r(24)),
+      'r = 0.4 short side': (const Size(300, 200), _r(80)),
+      'circle': (const Size(120, 120), _r(60)),
+      'uneven radii': (
+        const Size(300, 180),
+        const BorderRadius.only(
+          topLeft: Radius.circular(40),
+          topRight: Radius.circular(12),
+          bottomRight: Radius.circular(8),
+          bottomLeft: Radius.circular(20),
+        ),
+      ),
+    };
+
+    for (final superellipse in [false, true]) {
+      for (final MapEntry(key: name, value: (size, radius)) in shapes.entries) {
+        test('$name, superellipse: $superellipse', () async {
+          // An iPhone's 3x, where a few device px of gap show.
+          const scale = 3.0;
+          const margin = 6.0;
+          final box = const Offset(margin, margin) & size;
+          final o = BeamOutline(box, radius, superellipse: superellipse);
+          final frame = BeamFrameData()
+            ..reset()
+            ..setOutline(o, 1, 1 / scale)
+            ..setLayer(0, BeamGeometry.fill, opacity: 1)
+            ..setTable(BeamTable.overlayA, const [0, 1], const [1, 1], 2)
+            ..setOverlay(0, BeamTable.overlayA, white: true)
+            ..finish();
+          final shader = BeamProgram.program!.fragmentShader();
+          for (var i = 0; i < beamUniformFloats; i++) {
+            shader.setFloat(i, frame.data[i]);
+          }
+          final recorder = ui.PictureRecorder();
+          ui.Canvas(recorder)
+            ..scale(scale)
+            ..drawRect(box.inflate(margin), ui.Paint()..shader = shader);
+          final picture = recorder.endRecording();
+          final w = (box.inflate(margin).width * scale).ceil();
+          final h = (box.inflate(margin).height * scale).ceil();
+          final image = await picture.toImage(w, h);
+          final bytes = (await image.toByteData())!.buffer.asUint8List();
+          picture.dispose();
+          image.dispose();
+          shader.dispose();
+
+          var edge = 0;
+          for (var y = 0; y < h; y++) {
+            for (var x = 0; x < w; x++) {
+              final alpha = bytes[(y * w + x) * 4 + 3] / 255;
+              final p = Offset((x + 0.5) / scale, (y + 0.5) / scale);
+              final d = o.locate(p).distance;
+              if (alpha > 0.02 && alpha < 0.98) {
+                edge++;
+                expect(
+                  (0.5 - alpha) / scale,
+                  closeTo(d, 0.02),
+                  reason: '$name at $p',
+                );
+              } else if (d.abs() > 1 / scale) {
+                expect(alpha > 0.5, d < 0, reason: '$name at $p (d = $d)');
+              }
+            }
+          }
+          expect(edge, greaterThan(300));
+        });
+      }
     }
   });
 
@@ -231,4 +422,43 @@ void main() {
       isNot(BeamOutline(rect.inflate(1), BorderRadius.circular(12))),
     );
   });
+}
+
+BorderRadius _r(double radius) => BorderRadius.circular(radius);
+
+const BorderRadius _stadium = BorderRadius.all(
+  Radius.circular(double.infinity),
+);
+
+/// The radii Flutter needs for the shape the beam draws with [radius]:
+/// the same, except a stadium's infinite radius is half the short side.
+BorderRadius _flutterRadius(Rect box, BorderRadius radius) =>
+    radius == _stadium ? _r(box.shortestSide / 2) : radius;
+
+/// Flutter's own superellipse for [box], sampled every quarter pixel.
+List<Offset> _flutterOutline(Rect box, BorderRadius radius) {
+  final path = RoundedSuperellipseBorder(
+    borderRadius: _flutterRadius(box, radius),
+  ).getOuterPath(box);
+  return [
+    for (final metric in path.computeMetrics())
+      for (var s = 0.0; s < metric.length; s += 0.25)
+        metric.getTangentForOffset(s)!.position,
+  ];
+}
+
+/// Distance from [p] to the closed polyline through [points].
+double _distanceTo(List<Offset> points, Offset p) {
+  var best = double.infinity;
+  for (var i = 0; i < points.length; i++) {
+    final a = points[i];
+    if ((a - p).distance > best + 1) continue;
+    final ab = points[(i + 1) % points.length] - a;
+    final t = ab.distanceSquared == 0
+        ? 0.0
+        : (((p - a).dx * ab.dx + (p - a).dy * ab.dy) / ab.distanceSquared)
+              .clamp(0.0, 1.0);
+    best = math.min(best, (p - (a + ab * t)).distance);
+  }
+  return best;
 }

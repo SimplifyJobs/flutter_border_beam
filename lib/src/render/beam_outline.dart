@@ -6,17 +6,14 @@ import 'package:flutter/painting.dart';
 import '../models/beam_options.dart';
 import '../models/beam_segment.dart';
 
-/// Corner inset of the superellipse fit: the corner curve spans `k · r` along
-/// each edge for a corner radius `r`.
+/// How far a superellipse corner reaches along each edge, in corner radii
+/// (capped at half that side).
 ///
-/// Fitted against Flutter's own `RSuperellipse` (`Path.addRSuperellipse`):
-/// with [squircleInset] and [squircleExponent] the p-norm corner stays within
-/// 0.006 · r of it (0.14 px at r = 24), so the beam's stroke sits on the edge
-/// of a child clipped by `RoundedSuperellipseBorder`.
-const double squircleInset = 1.42;
-
-/// Exponent of the superellipse corner fit (see [squircleInset]).
-const double squircleExponent = 3.04;
+/// Flutter's rounded superellipse never runs exactly straight: its corner
+/// eases into each edge over a long tail. Past this reach the tail is under
+/// 1.4e-4 radii from the edge (0.004 px at a 28 px radius), so the outline
+/// runs straight from there.
+const double squircleReach = 2.5;
 
 /// The outline every beam is drawn along, and the perimeter coordinate the
 /// shader shades by — mirrored here in Dart so the CPU can place lights,
@@ -24,14 +21,32 @@ const double squircleExponent = 3.04;
 /// GPU uses (`shaders/beam.frag`, `outline()`).
 ///
 /// The outline is a rectangle with four corners, each either a circular arc
-/// or a superellipse curve. The perimeter coordinate `u` runs over `[0, 1)`
-/// from top-centre, clockwise, by arc length.
+/// or Flutter's rounded superellipse (`RSuperellipse`, as drawn by
+/// `RoundedSuperellipseBorder`). The perimeter coordinate `u` runs over
+/// `[0, 1)` from top-centre, clockwise, by arc length.
+///
+/// Each corner is two halves, each running from the middle of one edge to the
+/// corner's diagonal. A circular half is a straight run and an eighth of a
+/// circle. A superellipse half is Flutter's construction
+/// (`impeller/geometry/round_superellipse_param.cc`): a superellipse whose
+/// exponent and hand-over point come from Flutter's own table for the
+/// ratio of that edge to the radius, then a circular arc to the diagonal, where
+/// it meets the other half. So the outline sits on a child clipped or
+/// decorated with `RoundedSuperellipseBorder` of the same radii at every
+/// aspect ratio — a card, a pill, a circle.
 @immutable
 class BeamOutline {
   /// The outline of [rect] with [radii], scaled the way `RRect.scaleRadii`
   /// scales them when two radii on one side add up to more than that side.
   ///
-  /// Elliptical radii are approximated by the mean of their two axes.
+  /// Elliptical radii are approximated by the mean of their two axes, and a
+  /// corner's radius is capped at half the shorter side.
+  ///
+  /// Each corner keeps to its own quarter of the box. Flutter instead splits
+  /// each side between its two corners in proportion to their radii, so with
+  /// uneven superellipse radii the two shapes part slightly: within ~0.1 px
+  /// for ordinary mixes, up to ~2% of the radius where a corner of half the
+  /// short side meets a square corner across that side.
   factory BeamOutline(
     Rect rect,
     BorderRadius radii, {
@@ -41,27 +56,51 @@ class BeamOutline {
     return BeamOutline._(rect, scaled, superellipse);
   }
 
-  BeamOutline._(this.rect, this.radii, this.superellipse)
-    : inset = superellipse ? squircleInset : 1,
-      exponent = superellipse ? squircleExponent : 2,
-      arcFactor = superellipse ? _squircleArcFactor : math.pi / 2 {
+  BeamOutline._(this.rect, this.radii, this.superellipse) {
     final hx = rect.width / 2;
     final hy = rect.height / 2;
     final limit = math.min(hx, hy);
-    double size(double r) => math.max(math.min(r * inset, limit), 1e-3);
-    cornerSizes = List<double>.unmodifiable([
-      size(radii[0]),
-      size(radii[1]),
-      size(radii[2]),
-      size(radii[3]),
+    final horizontal = <_Half>[];
+    final vertical = <_Half>[];
+    // Quadrant order used by the shader: 0 TR, 1 BR, 2 BL, 3 TL. Radii are
+    // stored TL, TR, BR, BL.
+    for (var quad = 0; quad < 4; quad++) {
+      final r = math.min(radii[(quad + 1) % 4], limit);
+      if (superellipse && r >= 0.5) {
+        horizontal.add(_Half.superellipse(hx, r));
+        vertical.add(_Half.superellipse(hy, r));
+      } else {
+        final size = math.max(r, 1e-3);
+        horizontal.add(_Half.circular(hx, size));
+        vertical.add(_Half.circular(hy, size));
+      }
+    }
+    _horizontal = List.unmodifiable(horizontal);
+    _vertical = List.unmodifiable(vertical);
+    final lengths = [
+      for (var quad = 0; quad < 4; quad++)
+        _horizontal[quad].length + _vertical[quad].length,
+    ];
+    quadStarts = List<double>.unmodifiable([
+      0.0,
+      lengths[0],
+      lengths[0] + lengths[1],
+      lengths[0] + lengths[1] + lengths[2],
     ]);
-    double quad(double r) => (hx - r) + r * arcFactor + (hy - r);
-    final tr = quad(cornerSizes[1]);
-    final br = quad(cornerSizes[2]);
-    final bl = quad(cornerSizes[3]);
-    final tl = quad(cornerSizes[0]);
-    quadStarts = List<double>.unmodifiable([0.0, tr, tr + br, tr + br + bl]);
-    length = tr + br + bl + tl;
+    length = lengths[0] + lengths[1] + lengths[2] + lengths[3];
+    double corner(int quad) =>
+        math.max(_horizontal[quad].reach, _vertical[quad].reach);
+    double arc(int quad) =>
+        lengths[quad] -
+        (hx - _horizontal[quad].reach) -
+        (hy - _vertical[quad].reach);
+    cornerSizes = List<double>.unmodifiable([
+      corner(3),
+      corner(0),
+      corner(1),
+      corner(2),
+    ]);
+    cornerArcs = List<double>.unmodifiable([arc(3), arc(0), arc(1), arc(2)]);
   }
 
   /// The box the outline is inscribed in.
@@ -71,22 +110,24 @@ class BeamOutline {
   /// bottom-right, bottom-left.
   final List<double> radii;
 
-  /// Whether the corners are superellipse curves rather than circular arcs.
+  /// Whether the corners are Flutter's rounded superellipse rather than
+  /// circular arcs.
   final bool superellipse;
 
-  /// Corner inset factor: 1 for circular corners, [squircleInset] otherwise.
-  final double inset;
+  // Each quadrant's two halves (0 TR, 1 BR, 2 BL, 3 TL): the one along the
+  // horizontal edge and the one along the vertical edge.
+  late final List<_Half> _horizontal;
+  late final List<_Half> _vertical;
 
-  /// Corner curve exponent: 2 for circular corners, [squircleExponent]
-  /// otherwise.
-  final double exponent;
-
-  /// Arc length of one corner curve divided by its corner size.
-  final double arcFactor;
-
-  /// The size of each corner curve along the edges (radius × [inset], capped
-  /// at half the shorter side), in the order of [radii].
+  /// How far each corner's curve reaches along the edges from the box's
+  /// corner, in the order of [radii]: the radius for a circular corner,
+  /// radius × [squircleReach] for a superellipse — each capped at half the
+  /// side it runs along; where the two sides differ, the longer reach.
   late final List<double> cornerSizes;
+
+  /// The arc length of each corner's curve between the straight runs it
+  /// joins, in the order of [radii].
+  late final List<double> cornerArcs;
 
   /// Arc length at which each quadrant starts: top-right, bottom-right,
   /// bottom-left, top-left.
@@ -99,16 +140,8 @@ class BeamOutline {
   double get _hx => rect.width / 2;
   double get _hy => rect.height / 2;
 
-  // Quadrant order used by the shader: 0 TR, 1 BR, 2 BL, 3 TL. Corner sizes
-  // are stored TL, TR, BR, BL.
-  double _quadSize(int quad) => cornerSizes[(quad + 1) % 4];
-
-  double _quadLength(int quad) {
-    final r = _quadSize(quad);
-    return (_hx - r) + r * arcFactor + (_hy - r);
-  }
-
-  double _exponentFor(double r) => r < 0.5 ? 2 : exponent;
+  double _quadLength(int quad) =>
+      _horizontal[quad].length + _vertical[quad].length;
 
   /// Signed distance from [point] to the outline (negative inside) and the
   /// perimeter coordinate of the outline piece nearest to it.
@@ -121,31 +154,26 @@ class BeamOutline {
     final right = p.dx > 0;
     final bottom = p.dy > 0;
     final quad = right ? (bottom ? 1 : 0) : (bottom ? 2 : 3);
-    final r = _quadSize(quad);
-    final n = _exponentFor(r);
     final ax = p.dx.abs();
     final ay = p.dy.abs();
-    final qx = ax - (_hx - r);
-    final qy = ay - (_hy - r);
-    final legX = _hx - r;
-    final arc = r * arcFactor;
+    // The halves meet on the 45° line through the corner's diagonal.
+    final c = _hx - _hy;
+    final quadLength = _quadLength(quad);
     double d;
     double s;
-    if (qx > 0 && qy > 0) {
-      final circle = math.sqrt(qx * qx + qy * qy) - r;
-      if (n == 2) {
-        d = circle;
-      } else {
-        final sq = _pnormDistance(qx, qy, r, n);
-        d = _mix(sq, circle, _smoothstep(0.25, 0.6, -circle / r));
-      }
-      s = legX + arc * (math.atan2(qx, qy) / (math.pi / 2));
+    if (ax - ay <= c) {
+      final hit = _horizontal[quad].locate(ax, ay + c);
+      d = hit.d;
+      s = hit.s;
     } else {
-      d = math.max(qx, qy) - r;
-      s = qx > qy ? legX + arc + (_hy - r - ay) : ax;
+      final hit = _vertical[quad].locate(ay, ax - c);
+      d = hit.d;
+      s = quadLength - hit.s;
     }
+    // TR and BL run horizontal edge → vertical edge clockwise; BR and TL run
+    // the other way, so their local arc length is mirrored.
     final mirrored = quad == 1 || quad == 3;
-    if (mirrored) s = _quadLength(quad) - s;
+    if (mirrored) s = quadLength - s;
     final u = length <= 0 ? 0.0 : _wrap((quadStarts[quad] + s) / length);
     return (distance: d, u: u);
   }
@@ -172,40 +200,27 @@ class BeamOutline {
       }
     }
     s -= quadStarts[quad];
+    final quadLength = _quadLength(quad);
     final mirrored = quad == 1 || quad == 3;
-    if (mirrored) s = _quadLength(quad) - s;
-    final r = _quadSize(quad);
-    final n = _exponentFor(r);
-    final legX = _hx - r;
-    final arc = r * arcFactor;
+    if (mirrored) s = quadLength - s;
+    final c = _hx - _hy;
     double ax;
     double ay;
     double nx;
     double ny;
-    if (s <= legX) {
-      ax = s;
-      ay = _hy;
-      nx = 0;
-      ny = 1;
-    } else if (s < legX + arc) {
-      final theta = (s - legX) / arc * (math.pi / 2);
-      final dx = math.sin(theta);
-      final dy = math.cos(theta);
-      final norm = math
-          .pow(math.pow(dx, n) + math.pow(dy, n), 1 / n)
-          .toDouble();
-      ax = (_hx - r) + r * dx / norm;
-      ay = (_hy - r) + r * dy / norm;
-      final gx = math.pow(dx / norm, n - 1).toDouble();
-      final gy = math.pow(dy / norm, n - 1).toDouble();
-      final gl = math.sqrt(gx * gx + gy * gy);
-      nx = gl == 0 ? 0 : gx / gl;
-      ny = gl == 0 ? 1 : gy / gl;
+    final horizontal = _horizontal[quad];
+    if (s <= horizontal.length) {
+      final at = horizontal.sample(s);
+      ax = at.x;
+      ay = at.y - c;
+      nx = at.nx;
+      ny = at.ny;
     } else {
-      ax = _hx;
-      ay = (_hy - r) - (s - legX - arc);
-      nx = 1;
-      ny = 0;
+      final at = _vertical[quad].sample(quadLength - s);
+      ax = at.y + c;
+      ay = at.x;
+      nx = at.ny;
+      ny = at.nx;
     }
     final right = quad == 0 || quad == 1;
     final bottom = quad == 1 || quad == 2;
@@ -220,36 +235,29 @@ class BeamOutline {
   /// The perimeter coordinates at which the straight run of [edge] starts and
   /// ends, clockwise.
   ({double from, double to}) edgeRange(BeamEdge edge) {
-    final c = _centre;
-    final tl = cornerSizes[0];
-    final tr = cornerSizes[1];
-    final br = cornerSizes[2];
-    final bl = cornerSizes[3];
-    final (a, b) = switch (edge) {
-      BeamEdge.top => (
-        Offset(c.dx - (_hx - tl), rect.top),
-        Offset(c.dx + (_hx - tr), rect.top),
-      ),
-      BeamEdge.right => (
-        Offset(rect.right, c.dy - (_hy - tr)),
-        Offset(rect.right, c.dy + (_hy - br)),
-      ),
-      BeamEdge.bottom => (
-        Offset(c.dx + (_hx - br), rect.bottom),
-        Offset(c.dx - (_hx - bl), rect.bottom),
-      ),
-      BeamEdge.left => (
-        Offset(rect.left, c.dy + (_hy - bl)),
-        Offset(rect.left, c.dy - (_hy - tl)),
-      ),
+    // Where each quadrant's run along its horizontal or vertical edge ends,
+    // as arc length from the start of the quadrant.
+    double horizontal(int quad) {
+      final run = _hx - _horizontal[quad].reach;
+      return quad == 1 || quad == 3 ? _quadLength(quad) - run : run;
+    }
+
+    double vertical(int quad) {
+      final run = _hy - _vertical[quad].reach;
+      return quad == 1 || quad == 3 ? run : _quadLength(quad) - run;
+    }
+
+    final (fromQuad, from, toQuad, to) = switch (edge) {
+      BeamEdge.top => (3, horizontal(3), 0, horizontal(0)),
+      BeamEdge.right => (0, vertical(0), 1, vertical(1)),
+      BeamEdge.bottom => (1, horizontal(1), 2, horizontal(2)),
+      BeamEdge.left => (2, vertical(2), 3, vertical(3)),
     };
-    return (from: _onEdge(a, edge), to: _onEdge(b, edge));
+    return (from: _fraction(fromQuad, from), to: _fraction(toQuad, to));
   }
 
-  // The coordinate of a point known to lie on [edge]'s straight run. A joint
-  // point sits exactly where a straight piece meets a corner, and both pieces
-  // give it the same coordinate, so no tie-break is needed.
-  double _onEdge(Offset point, BeamEdge edge) => locate(point).u;
+  double _fraction(int quad, double s) =>
+      length <= 0 ? 0.0 : _wrap((quadStarts[quad] + s) / length);
 
   /// The perimeter coordinates at which [corner]'s curve starts and ends,
   /// clockwise.
@@ -297,44 +305,6 @@ class BeamOutline {
     return r < 0 ? r + 1 : r;
   }
 
-  static double _mix(double a, double b, double t) => a + (b - a) * t;
-
-  static double _smoothstep(double e0, double e1, double x) {
-    final t = ((x - e0) / (e1 - e0)).clamp(0.0, 1.0);
-    return t * t * (3 - 2 * t);
-  }
-
-  static double _pnormDistance(double qx, double qy, double r, double n) {
-    final ax = math.max(qx / r, 1e-4);
-    final ay = math.max(qy / r, 1e-4);
-    final sum = math.pow(ax, n) + math.pow(ay, n);
-    final norm = math.pow(sum, 1 / n).toDouble();
-    final scale = math.pow(math.max(norm, 1e-4), n - 1).toDouble();
-    final gx = math.pow(ax, n - 1) / scale;
-    final gy = math.pow(ay, n - 1) / scale;
-    final gl = math.max(math.sqrt(gx * gx + gy * gy), 1e-4);
-    return r * (norm - 1) / gl;
-  }
-
-  // Arc length of the unit p-norm quarter curve (n = squircleExponent),
-  // measured once.
-  static final double _squircleArcFactor = () {
-    const steps = 2048;
-    const n = squircleExponent;
-    var total = 0.0;
-    Offset? prev;
-    for (var i = 0; i <= steps; i++) {
-      final theta = i / steps * (math.pi / 2);
-      final dx = math.sin(theta);
-      final dy = math.cos(theta);
-      final norm = math.pow(math.pow(dx, n) + math.pow(dy, n), 1 / n);
-      final point = Offset(dx / norm, dy / norm);
-      if (prev != null) total += (point - prev).distance;
-      prev = point;
-    }
-    return total;
-  }();
-
   /// The `RRect.scaleRadii` clamp, then each corner's elliptical radius
   /// reduced to the mean of its axes. Order: TL, TR, BR, BL.
   static List<double> _scaleRadii(Rect rect, BorderRadius radii) {
@@ -369,4 +339,221 @@ class BeamOutline {
 
   @override
   int get hashCode => Object.hash(rect, superellipse, Object.hashAll(radii));
+}
+
+/// Flutter's `kGapFactor`: the corner's diagonal point sits this many radii
+/// in from both sides, where a circular corner of the same radius would.
+const double _gapFactor = 0.29289321881;
+
+/// Flutter's precomputed `(n, 1 / (1 - xJ / a))` for ratios `2a / radius` of
+/// 2.0–2.5 in steps of 0.1, then 3.0–5.0 in steps of 0.5; linear beyond.
+const List<(double, double)> _rseTable = [
+  (2.00000000, 1.13276676),
+  (2.18349805, 1.20311921),
+  (2.33888662, 1.28698796),
+  (2.48660575, 1.36351941),
+  (2.62226596, 1.44717976),
+  (2.75148990, 1.53385819),
+  (3.36298265, 1.98288283),
+  (4.08649929, 2.23811846),
+  (4.85481134, 2.47563463),
+  (5.62945551, 2.72948597),
+  (6.43023796, 2.98020421),
+];
+
+/// Half of a corner, in a frame where its edge runs along `y = a`, `x` is
+/// measured from the middle of that edge, and the corner's diagonal is the
+/// line `x = y`.
+///
+/// Along the edge the outline runs straight to [a] − [reach], then curves —
+/// for a superellipse half along `|x/a|ⁿ + |y/a|ⁿ = 1` to the joint `(xJ,
+/// yJ)` — and finishes with a circular arc of [radius] about `(cx, cy)` through
+/// [span] radians to the diagonal. A circular half is the straight run and an
+/// eighth of a circle.
+@immutable
+class _Half {
+  const _Half._({
+    required this.a,
+    required this.reach,
+    required this.n,
+    required this.xJ,
+    required this.yJ,
+    required this.nJx,
+    required this.nJy,
+    required this.cx,
+    required this.cy,
+    required this.radius,
+    required this.span,
+  });
+
+  /// A circular half of radius [r].
+  factory _Half.circular(double a, double r) => _Half._(
+    a: a,
+    reach: r,
+    n: 0,
+    xJ: a - r,
+    yJ: a,
+    nJx: 0,
+    nJy: 1,
+    cx: a - r,
+    cy: a - r,
+    radius: r,
+    span: math.pi / 4,
+  );
+
+  /// Flutter's superellipse half for radius [r] (`ComputeOctant`).
+  factory _Half.superellipse(double a, double r) {
+    final (n, xJOverA) = _exponentAndJoint(2 * a / r);
+    final joint = _onCurve(xJOverA, n);
+    final xJ = xJOverA * a;
+    final yJ = joint.y * a;
+    // Flutter sizes the arc by where the superellipse's normal at the joint
+    // crosses the diagonal, then centres it on the joint and the diagonal
+    // point `g` in from both sides.
+    final tanPhi = joint.nx / joint.ny;
+    final onDiagonal = (xJ - tanPhi * yJ) / (1 - tanPhi);
+    final g = _gapFactor * r;
+    final radius = (a - onDiagonal - g) * math.sqrt2;
+    final mx = a - g;
+    final chordX = mx - xJ;
+    final chordY = mx - yJ;
+    final chord = math.sqrt(chordX * chordX + chordY * chordY);
+    final rise = math.sqrt(math.max(radius * radius - chord * chord / 4, 0));
+    final cx = (xJ + mx) / 2 + rise * chordY / chord;
+    final cy = (yJ + mx) / 2 - rise * chordX / chord;
+    // The arc turns clockwise from the joint to the diagonal point.
+    final jx = xJ - cx;
+    final jy = yJ - cy;
+    final ex = mx - cx;
+    final ey = mx - cy;
+    final span = math.atan2(jy * ex - jx * ey, jx * ex + jy * ey);
+    return _Half._(
+      a: a,
+      reach: math.min(squircleReach * r, a),
+      n: n,
+      xJ: xJ,
+      yJ: yJ,
+      nJx: joint.nx,
+      nJy: joint.ny,
+      cx: cx,
+      cy: cy,
+      radius: radius,
+      span: span,
+    );
+  }
+
+  /// Flutter's `ComputeNAndXj`: the exponent and `xJ / a` for [ratio].
+  static (double, double) _exponentAndJoint(double ratio) {
+    double n;
+    double k;
+    if (ratio > 5) {
+      final (n5, k5) = _rseTable.last;
+      n = n5 + 1.559599389 * (ratio - 5);
+      k = k5 + 0.522807185 * (ratio - 5);
+    } else {
+      final clamped = ratio.clamp(2.0, 5.0);
+      final steps = clamped < 2.5
+          ? (clamped - 2) * 10
+          : (clamped - 2.5) * 2 + 5;
+      final left = steps.floor().clamp(0, _rseTable.length - 2);
+      final frac = steps - left;
+      final (n0, k0) = _rseTable[left];
+      final (n1, k1) = _rseTable[left + 1];
+      n = n0 + (n1 - n0) * frac;
+      k = k0 + (k1 - k0) * frac;
+    }
+    return (n, 1 - 1 / k);
+  }
+
+  /// The unit superellipse of exponent [n] above `x = t` (`0 < t < 1`): its
+  /// height and outward normal.
+  static ({double y, double nx, double ny}) _onCurve(double t, double n) {
+    final tn = math.pow(t, n).toDouble();
+    final y = math.pow(1 - tn, 1 / n).toDouble();
+    final gx = tn / t;
+    final gy = (1 - tn) / y;
+    final gl = math.sqrt(gx * gx + gy * gy);
+    return (y: y, nx: gx / gl, ny: gy / gl);
+  }
+
+  final double a;
+  final double reach;
+
+  /// The superellipse exponent, or 0 for a circular half.
+  final double n;
+  final double xJ;
+  final double yJ;
+
+  /// The superellipse's outward normal at the joint.
+  final double nJx;
+  final double nJy;
+  final double cx;
+  final double cy;
+  final double radius;
+  final double span;
+
+  /// Arc length from the middle of the edge to the diagonal. The run up to
+  /// the joint is measured along `x`: the superellipse there stays within a
+  /// few degrees of level, so this is short of its true length by under
+  /// 0.1 px.
+  double get length => xJ + radius * span;
+
+  /// Signed distance to this half, arc length from the middle of the edge,
+  /// and outward normal, for a point `(x, y)` on its side of the diagonal.
+  ///
+  /// The shape is convex, so the signed distance to any line it rests
+  /// against never exceeds the signed distance to the shape. Off the arc the
+  /// distance is the largest of a few such lines: the tangent above or below
+  /// the point, the tangent at the joint, and the box's two sides — exact on
+  /// the curve, and continuous across the joint inside and out.
+  ({double d, double s, double nx, double ny}) locate(double x, double y) {
+    if (x <= a - reach) return (d: y - a, s: x, nx: 0, ny: 1);
+    final box = math.max(x - a, y - a);
+    final jx = xJ - cx;
+    final jy = yJ - cy;
+    final px = x - cx;
+    final py = y - cy;
+    if (n == 0 || jx * py - jy * px <= 0) {
+      // Past the joint, clockwise: the arc.
+      final l = math.max(math.sqrt(px * px + py * py), 1e-4);
+      final theta = math.atan2(jy * px - jx * py, jx * px + jy * py);
+      return (
+        d: math.max(l - radius, box),
+        s: xJ + radius * theta,
+        nx: px / l,
+        ny: py / l,
+      );
+    }
+    // The superellipse: the tangent at the curve point straight above or
+    // below, up to the joint.
+    final xb = math.min(x, xJ);
+    final b = _onCurve(math.max(xb / a, 1e-4), n);
+    final along = (x - xb) * b.nx + (y - b.y * a) * b.ny;
+    final atJoint = (x - xJ) * nJx + (y - yJ) * nJy;
+    return (
+      d: math.max(math.max(along, atJoint), box),
+      s: x - along * b.nx,
+      nx: b.nx,
+      ny: b.ny,
+    );
+  }
+
+  /// The point at arc length [s] from the middle of the edge, and the
+  /// outward normal there.
+  ({double x, double y, double nx, double ny}) sample(double s) {
+    if (s <= xJ) {
+      if (n == 0 || s <= a - reach) return (x: s, y: a, nx: 0, ny: 1);
+      final b = _onCurve(math.max(s / a, 1e-4), n);
+      return (x: s, y: b.y * a, nx: b.nx, ny: b.ny);
+    }
+    final theta = (s - xJ) / radius;
+    final cos = math.cos(theta);
+    final sin = math.sin(theta);
+    final jx = (xJ - cx) / radius;
+    final jy = (yJ - cy) / radius;
+    // Rotate the joint's radius clockwise by theta.
+    final vx = jx * cos + jy * sin;
+    final vy = jy * cos - jx * sin;
+    return (x: cx + radius * vx, y: cy + radius * vy, nx: vx, ny: vy);
+  }
 }

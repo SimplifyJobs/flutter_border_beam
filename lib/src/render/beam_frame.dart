@@ -161,8 +161,8 @@ final class BeamFrameData {
     final r = o.rect;
     _v4(_rect, r.left, r.top, r.width, r.height);
     _v4(_radii, o.radii[0], o.radii[1], o.radii[2], o.radii[3]);
-    _v4(_shape, o.inset, o.exponent, borderWidth, px);
-    _v4(_perim, o.length, o.arcFactor, 1, 0);
+    _v4(_shape, o.superellipse ? 1 : 0, 0, borderWidth, px);
+    _v4(_perim, o.length, 0, 1, 0);
     _v4(
       _quads,
       o.quadStarts[0],

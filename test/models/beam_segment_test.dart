@@ -180,7 +180,7 @@ void main() {
 
       test('the edge segments cover one straight run and both corners', () {
         // One corner curve's share of the perimeter.
-        final arc = corner * outline.arcFactor / outline.length;
+        final arc = outline.cornerArcs.first / outline.length;
         final horizontal = (rect.width - 2 * corner) / outline.length;
         final vertical = (rect.height - 2 * corner) / outline.length;
         for (final (segment, run) in [
