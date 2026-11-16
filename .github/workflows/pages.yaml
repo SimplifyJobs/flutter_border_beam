@@ -34,14 +34,13 @@ on:
     paths:
       - "example/**"
       - "lib/**"
+      - "shaders/**"
       - "pubspec.yaml"
       - ".github/workflows/pages.yaml"
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+# Least privilege: nothing by default; each job asks for what it uses.
+permissions: {}
 
 # One deployment at a time. Queued rather than cancelled: a half-finished
 # deploy that loses its slot would leave the live site on an older build.
@@ -57,10 +56,18 @@ jobs:
   build:
     name: Build the example for web
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      # configure-pages reads the repo's Pages settings to fail early when
+      # Pages is not set to deploy from GitHub Actions.
+      pages: read
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
@@ -80,9 +87,9 @@ jobs:
         working-directory: example
         run: cp build/web/index.html build/web/404.html
 
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: example/build/web
 
@@ -90,10 +97,16 @@ jobs:
     name: Deploy to GitHub Pages
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The minimum deploy-pages documents: write the deployment, and mint the
+    # OIDC token that proves it came from this workflow.
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Deploy
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5

@@ -3,7 +3,9 @@
 version: 2
 
 updates:
-  # GitHub Actions used by ci.yaml and release.yaml.
+  # GitHub Actions used by ci.yaml, release.yaml, and pages.yaml. They are
+  # pinned to commit SHAs with the release in a trailing comment; Dependabot
+  # bumps both together.
   - package-ecosystem: github-actions
     directory: /
     schedule:

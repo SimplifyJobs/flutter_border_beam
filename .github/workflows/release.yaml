@@ -71,19 +71,24 @@ jobs:
   publish:
     name: Publish to pub.dev
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       # Mints the pub.dev OIDC credential.
       id-token: write
       # Lets `gh release create` write the GitHub Release.
       contents: write
     steps:
-      - uses: actions/checkout@v5
+      # Every action here is pinned to a commit SHA (see ci.yaml's header):
+      # this job holds a credential that can publish to pub.dev.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
       # Order matters — see the header. This step configures the pub.dev
       # credential; the Flutter SDK installed next provides the toolchain.
-      - uses: dart-lang/setup-dart@v1
+      - uses: dart-lang/setup-dart@2286a0c042b44434fe26d292bbce8d34f7ec662b # v1.8.2
 
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable

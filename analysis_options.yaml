@@ -10,7 +10,25 @@ analyzer:
 
 linter:
   rules:
+    # Style the codebase already follows.
     - public_member_api_docs
+    - comment_references
     - prefer_single_quotes
     - directives_ordering
     - unnecessary_lambdas
+    # Correctness. A dropped `await` on `tester.pump()` is the classic source
+    # of widget tests that pass for the wrong reason; the rest guard the
+    # value objects' `==`, listeners, and public signatures.
+    - unawaited_futures
+    - avoid_dynamic_calls
+    - avoid_void_async
+    - cancel_subscriptions
+    - close_sinks
+    - test_types_in_equals
+    - throw_in_finally
+    - only_throw_errors
+    - unnecessary_statements
+    - always_declare_return_types
+    - type_annotate_public_apis
+    - no_adjacent_strings_in_list
+    - missing_whitespace_between_adjacent_strings

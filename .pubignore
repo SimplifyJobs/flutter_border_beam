@@ -1,13 +1,37 @@
 # Repo-only files, excluded from the published pub package.
+#
+# A `.pubignore` REPLACES the `.gitignore` in its directory as far as pub is
+# concerned — pub reads one or the other, never both — so everything the root
+# `.gitignore` keeps out of git must be listed here again, or `dart pub
+# publish` ships it (a stray `flutter_01.log`, a local `coverage/`). Hidden
+# files and directories (`.dart_tool/`, `.github/`, `.demos/`, `.DS_Store`)
+# are always left out by pub itself, and `example/.gitignore` still applies
+# inside `example/`.
+#
 # `screenshots/` stays in the archive — pub.dev renders the images the
 # pubspec's `screenshots:` section points at, so they must ship with the package.
 # `shaders/` must stay in the archive too: `beam.frag` is declared under
 # `flutter: shaders:` and compiled into every consuming app. Never ignore it.
+
+# ── Mirrors of the root .gitignore ──────────────────────────────────────────
+*.class
+*.log
+*.pyc
+*.swp
+*.iml
+*.ipr
+*.iws
+migrate_working_dir/
+**/doc/api/
+**/build/
+coverage/
+
+# ── Repo-only sources and tooling ───────────────────────────────────────────
 assets/
 tool/
 CLAUDE.md
-.demos/
-**/.dart_tool/
-**/build/
+# codecov.yml, plus the uploader binary and its checksums that
+# codecov/codecov-action downloads into the working tree in CI.
+/codecov*
 # Golden reference images only matter to the repo's own CI, not to consumers.
 test/golden/
