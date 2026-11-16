@@ -7,6 +7,7 @@ import 'package:prismatic/prismatic.dart';
 import 'controls.dart';
 import 'surfaces.dart';
 import 'tokens.dart';
+import 'wave_page.dart';
 
 /// The one screen: a stage you swipe between the three effects, each on the
 /// surface it is made for, with a caption, an effect selector, and the
@@ -110,6 +111,20 @@ class _HomeState extends State<Home> {
                           onTap: _toggleActive,
                         ),
                         const SizedBox(width: 8),
+                        // The distortion wave page, which opens on a wave
+                        // from this button. An anchor, so it leans with the
+                        // touch.
+                        DistortionWaveAnchor(
+                          child: Builder(
+                            builder: (context) => RoundToggle(
+                              key: const ValueKey('wave-toggle'),
+                              icon: Icons.waves_rounded,
+                              label: 'Distortion wave',
+                              onTap: () => _openWaves(context),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
                         RoundToggle(
                           key: const ValueKey('theme-toggle'),
                           icon: widget.dark
@@ -148,6 +163,19 @@ class _HomeState extends State<Home> {
   }
 
   void _toggleActive() => setState(() => _active = !_active);
+
+  // Pushes the distortion wave page on a wave from the button at [context]:
+  // a ring, as the center wave makes from a small round source.
+  void _openWaves(BuildContext context) {
+    Navigator.of(context).push(
+      DistortionWaveRoute<void>(
+        source: WaveSource.of(context),
+        type: WaveType.center,
+        palette: WavePalette.colorful,
+        builder: (_) => WavePage(onToggleTheme: widget.onToggleTheme),
+      ),
+    );
+  }
 
   // The swipeable stage; a tap fades the beam out and back in. Neighbouring
   // pages dim and shrink a little as they leave, so a swipe reads as moving

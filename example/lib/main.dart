@@ -8,13 +8,15 @@ import 'src/tokens.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Load the beam shader before the first frame, so the first beam is lit.
-  await BorderBeam.precache();
+  // Load the shaders before the first frame, so the first beam is lit and
+  // the first wave bends.
+  await Future.wait([BorderBeam.precache(), DistortionWave.precache()]);
   runApp(const ExampleApp());
 }
 
-/// The prismatic example: one screen showing each effect on the
-/// surface it is made for. Dark by default.
+/// The prismatic example: one screen showing each beam effect on the
+/// surface it is made for, and a second, a tap away, showing each distortion
+/// wave on the screen it is made for. Dark by default.
 class ExampleApp extends StatefulWidget {
   /// Creates the app.
   const ExampleApp({super.key});
