@@ -135,10 +135,11 @@ design data rather than transcriptions.
   12s as 0.1 — so `bloomHuePeriod` is gone.
 - **Palettes are stop rings.** A palette is a ring of colour stops rather
   than a list of blob specs. The four original presets and the seven extras
-  are given as stops placed where 0.1 put their glows, and keep their
-  hand-tuned blob tables behind them; every other palette is drawn by
-  sampling its stops over `colorful`'s tables. `mono` keeps its half-opacity
-  layers.
+  are given as stops placed where 0.1 put their glows. The originals keep
+  their hand-tuned blob tables behind them, and the extras keep cycling their
+  own colours over `colorful`'s tables, as in 0.1; every other palette is
+  drawn by sampling its stops over `colorful`'s tables. `mono` keeps its
+  half-opacity layers.
 - **`BeamColors.lerp`** clamps `t` to 0–1 and mixes gamma-aware at eight
   sampled positions; **`scaleAlpha`** scales each stop's alpha.
 - **`hueRange` is `hueShift`.**
