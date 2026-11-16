@@ -113,9 +113,13 @@ void main() {
       },
       frameByFrame: true,
     );
-    // Leave, and let the hold and the fade-out run down.
+    // Leave, and let the hold and the fade-out run down. One long pump only
+    // starts the fade on its single frame: wait out the hold, then play the
+    // fade frame by frame.
     await mouse.removePointer();
-    await tester.pump(const Duration(seconds: 2));
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(tester.binding.transientCallbackCount, 0);
   });
 
   testWidgets('press held down', (tester) async {
@@ -138,7 +142,10 @@ void main() {
       },
     );
     await finger.up();
-    // Let the release fade out and the minimum-duration timer run down.
-    await tester.pump(const Duration(seconds: 2));
+    // Let the minimum-duration timer and the release's fade-out run down,
+    // the fade frame by frame.
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(tester.binding.transientCallbackCount, 0);
   });
 }
