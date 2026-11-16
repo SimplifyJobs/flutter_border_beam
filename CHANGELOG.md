@@ -17,7 +17,52 @@ nothing is left behind on pub.dev.
 | `import 'package:flutter_border_beam/flutter_border_beam.dart'` | `import 'package:prismatic/prismatic.dart'` (everything) or `import 'package:prismatic/border_beam.dart'` (the beam alone) |
 | `github.com/SimplifyJobs/flutter_border_beam` | `github.com/SimplifyJobs/prismatic` |
 
-The API itself is unchanged.
+The beam's API itself is unchanged.
+
+### New: `DistortionWave`
+
+A colourful, refractive wave that opens from the widget that started it — a
+button, a screen edge, an avatar — and carries one view into another,
+reimplementing the look of Jakub Antalik's
+[Distortion waves](https://github.com/Jakubantalik/Libraries.dev/tree/main/packages/distortion-waves)
+for Flutter.
+
+- `DistortionWave(revealed:, revealedChild:, child:)` — flip `revealed` to
+  send the wave out, flip it back to collapse it. Three types
+  (`WaveType.vertical`, `horizontal`, `center`), each with tuned defaults.
+- `DistortionWaveRoute` — the wave between routes: from the button that
+  pushed it into the new page, collapsing back on pop.
+- `DistortionWaveAnchor` and `WaveSource` — the wave finds its button and
+  the touch it leans toward by itself.
+- `DistortionWaveController`, `progress:` (hold the wave at any point),
+  `onFinish`, `DistortionWaveTheme`.
+- `WaveStyle` with grouped, all-nullable value objects (`WaveTiming`,
+  `WaveMotion`, `WaveLens`, `WaveGlow`, `WaveDots`) and `WavePalette`
+  (`colorful`, `green`, `ocean`, `sunset`, `mono`, `single`,
+  `fromBeamColors`).
+- Rendering: both views are drawn from GPU pictures of themselves — taken
+  when the wave needs them and again only when a view repaints — by one
+  fragment shader (`shaders/wave.frag`) in one draw, plus one atlas draw
+  for the sparks. No `saveLayer`, `BackdropFilter` or `ImageFilter` per
+  frame; runs on Impeller, Skia and the web. `WaveSnapshots.everyFrame`
+  keeps content in nested repaint boundaries moving too.
+- Reduced motion makes it a 0.3 s crossfade; a view holding a platform
+  view crossfades too.
+- `DistortionWave.precache()` also draws the wave's shaders once out of
+  sight, so the GPU has built their pipelines before the first wave.
+- While the wave bends the views neither takes a touch; once a reveal no
+  longer bends the revealed view, it answers while the colour lingers.
+- Calibrated against the original by rendering both at the same moments
+  over the same screens (mean difference about 1/255), and pinned by
+  goldens.
+
+### Changed
+
+- The beam's library is also importable on its own as
+  `package:prismatic/border_beam.dart` (and the wave's as
+  `package:prismatic/distortion_wave.dart`).
+- `shaders/common/outline.glsl` holds the rounded-superellipse outline every
+  shader shares; the beam renders byte-identically.
 
 ## 0.2.0
 

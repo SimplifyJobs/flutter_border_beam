@@ -1,7 +1,7 @@
 <div align="center">
   <h1><b>prismatic</b></h1>
   <p>
-    Animated light around any widget's border — cards, buttons, inputs, search bars.
+    Shader-driven light and motion for Flutter: a beam of light around any border,<br/>and a refractive wave that carries one screen into another.
   </p>
 </div>
 
@@ -22,7 +22,61 @@
 
 ## Overview
 
-`prismatic` draws light that travels or breathes around a widget's border. Wrap a widget in `BorderBeam`, pick an effect, and the beam paints over it — matched to its corner radius, adapted to a dark or light surface, and animated by one ticker.
+`prismatic` is a home for shader effects that feel native on Flutter's Impeller renderer. Each is drawn by a fragment shader written for it, with the work per frame kept to a draw or two.
+
+| Effect | What it does | Use it for |
+| --- | --- | --- |
+| [`BorderBeam`](#borderbeam) | Light that travels or breathes around a widget's border: three effects, 19 palettes, squircle corners, theming. One shader, one draw per frame. | Cards, inputs, search bars, focus and "thinking" states. |
+| [`DistortionWave`](#distortionwave) | A colourful, refractive wave that opens from a button, an edge or an avatar and carries one view into another, with a progressive blur, colour fringing and colour lingering on the view's edges. One shader draw (plus one for its sparks) per frame. | Confirming a payment, sending, going to the next step, a success state; between routes. |
+
+<table>
+  <tr>
+    <td width="33%" align="center">
+      <img src="screenshots/rotate.png" width="300" alt="BorderBeam's rotate effect on a card" /><br/>
+      <sub><b>BorderBeam</b> — a beam laps a card's border</sub>
+    </td>
+    <td width="33%" align="center">
+      <img src="screenshots/distortion_wave.png" width="200" alt="A distortion wave crossing a phone screen" /><br/>
+      <sub><b>DistortionWave</b> — the front crossing a screen</sub>
+    </td>
+    <td width="33%" align="center">
+      <img src="screenshots/distortion_wave_center.png" width="230" alt="A center distortion wave spreading from an avatar" /><br/>
+      <sub><b>DistortionWave</b> — a ring from an avatar</sub>
+    </td>
+  </tr>
+</table>
+
+### Live demo
+
+**<https://simplifyjobs.github.io/prismatic/>** — the example app built for web: each effect on the kind of widget it is made for, recoloured with any preset, in either theme. Built from [`example/`](example).
+
+
+## Installation
+
+```console
+flutter pub add prismatic
+```
+
+```dart
+import 'package:prismatic/prismatic.dart';        // everything
+import 'package:prismatic/border_beam.dart';      // or one effect alone
+import 'package:prismatic/distortion_wave.dart';
+```
+
+| Requirement | Version |
+| --- | --- |
+| Flutter | ≥ 3.47 |
+| Dart | ≥ 3.13 |
+| Dependencies | [`material_ui`](https://pub.dev/packages/material_ui) |
+
+The shaders are declared in the package's own `pubspec.yaml`, so Flutter compiles and bundles them into your app. There is nothing to add to your app's pubspec.
+
+The package reads Material through [`material_ui`](https://pub.dev/packages/material_ui), not the `package:flutter/material.dart` that Flutter 3.47 deprecated. The two libraries' `Theme` and `ColorScheme` are separate types, so an app still on `package:flutter/material.dart` should migrate (`dart fix --apply --code=migrate_design_widgets`) or set `BeamStyle.theme` explicitly: until then, `BeamTheme.auto` finds no `material_ui` theme and tunes for a light surface, and `BeamColors.fromScheme` takes `material_ui`'s `ColorScheme`.
+
+
+## BorderBeam
+
+`BorderBeam` draws light that travels or breathes around a widget's border. Wrap a widget in `BorderBeam`, pick an effect, and the beam paints over it — matched to its corner radius, adapted to a dark or light surface, and animated by one ticker.
 
 The whole beam is **one fragment shader drawn in one pass**: no `saveLayer`, no blur filters, no clips, and no offscreen render targets. It runs at the display's refresh rate, 120Hz included, and is cheap enough to leave on a card while the user scrolls.
 
@@ -66,34 +120,6 @@ Around the effects:
 - **Synchronized groups** — `BeamSync` puts a subtree on one ticker and one timeline.
 - **Surfaces and interactions** — `BorderBeam.overlay`, `BeamDecoration` for an existing `Container`, and `BeamFocusRing` / `BeamHover` / `BeamPress`.
 - **Accessible** — four reduced-motion behaviours; beams add no semantics and never intercept a pointer.
-
-### Live demo
-
-**<https://simplifyjobs.github.io/prismatic/>** — the example app built for web: each effect on the kind of widget it is made for, recoloured with any preset, in either theme. Built from [`example/`](example).
-
-
-## Installation
-
-```console
-flutter pub add prismatic
-```
-
-```dart
-import 'package:prismatic/prismatic.dart';
-```
-
-| Requirement | Version |
-| --- | --- |
-| Flutter | ≥ 3.47 |
-| Dart | ≥ 3.13 |
-| Dependencies | [`material_ui`](https://pub.dev/packages/material_ui) |
-
-The shader is declared in the package's own `pubspec.yaml`, so Flutter compiles and bundles it into your app. There is nothing to add to your app's pubspec.
-
-The package reads Material through [`material_ui`](https://pub.dev/packages/material_ui), not the `package:flutter/material.dart` that Flutter 3.47 deprecated. The two libraries' `Theme` and `ColorScheme` are separate types, so an app still on `package:flutter/material.dart` should migrate (`dart fix --apply --code=migrate_design_widgets`) or set `BeamStyle.theme` explicitly: until then, `BeamTheme.auto` finds no `material_ui` theme and tunes for a light surface, and `BeamColors.fromScheme` takes `material_ui`'s `ColorScheme`.
-
-
-## Usage
 
 ### Quick start
 
@@ -376,9 +402,9 @@ BorderBeam(
 `pauseWhenOffscreen` (default on) stops a beam's clock while it is scrolled more than 256px out of its nearest `Scrollable`, and resumes it where it left off. `fadeCurve` replaces the critically damped springs that ease the fades. `debugFrozenAt` pins the beam to one instant of its timeline — for screenshots and golden tests, not product code.
 
 
-## Advanced
+### Advanced
 
-### Theming
+#### Theming
 
 ```dart
 BorderBeamTheme(
@@ -397,7 +423,7 @@ BorderBeamTheme(
 
 [Full documentation →](doc/theming.md)
 
-### Controller
+#### Controller
 
 A `BorderBeamController` takes **full ownership** of playback: `playback.startAfter` and `playback.duration` must not be set (on the widget or a theme — it is asserted), `active` and `autoPlay` are ignored, the controller's `speed` replaces `timing.speed`, and the beam starts hidden until you call `start()`.
 
@@ -418,7 +444,7 @@ controller.stop();                       // fade out, halt
 
 `speed` and `seek` move the animation, never a fade or an accent, which run in real time; a `speedListenable` still wins over the controller's rate, and reduced motion's `slow` still quarters it. `isAttached`, `isActive`, and `isRunning` report state, and the controller is a `ChangeNotifier`. **One controller drives one beam** at a time; handing it to another beam in the same frame is fine. A beam under a `BeamSync` runs on the group's clock and cannot also take a controller.
 
-### Driving the beam yourself
+#### Driving the beam yourself
 
 ```dart
 // A glowing progress ring; with BeamEffect.line() a progress bar.
@@ -444,7 +470,7 @@ BorderBeam(
 
 Ambient effects ignore `progress` and `follow`. `BeamHover` wires `follow` to the mouse for you.
 
-### Synchronized groups
+#### Synchronized groups
 
 Each beam owns its own ticker, so beams started at different moments drift apart. `BeamSync` gives a subtree **one clock** — one ticker, one timeline, identical phases:
 
@@ -464,7 +490,7 @@ BeamSync(
 
 Effect, palette, shape, and `phaseOffset` stay per beam, but **the group owns playback**: `active`, `autoPlay`, `startAfter`, `duration`, `repeat`, `fadeCurve`, `pauseWhenOffscreen`, and `timing.speed` are ignored below a `BeamSync`. Use its own `active`, `speed`, and `reducedMotion` instead. A member that changes its `cycle` retimes only itself.
 
-### Overlay and decoration
+#### Overlay and decoration
 
 `BorderBeam.overlay` is a beam with no child of its own, sized by its parent:
 
@@ -498,7 +524,7 @@ Container(
 
 A `BoxPainter` has no `BuildContext`, so the decoration form gives up four things the widget has: ambient theming is passed in (`brightness` is required, `theme:` takes `BorderBeamTheme.of(context)`); its ticker is not muted by `TickerMode`; reduced motion and `pauseWhenOffscreen` are not observed; and `active` is a starting state, not a toggle. Prefer `BorderBeam` when any of those matter.
 
-### Interaction wrappers
+#### Interaction wrappers
 
 ```dart
 BeamFocusRing(borderRadius: 12, child: TextField(decoration: decoration));
@@ -515,11 +541,11 @@ BeamPress(borderRadius: 20, onTap: submit, child: card);
 Each flips `BorderBeam`'s `active` (and `BeamHover` feeds `follow`), so transitions use the beam's own fades, and each passes `effect`, `style`, `shape`, and `timing` through. `BeamPress` listens through a translucent `Listener` and never enters the gesture arena, so buttons inside keep their taps and scrollables above keep their drags.
 
 
-## Reference
+### Reference
 
 Every field is nullable and null means *inherit*; the defaults below are what you get when nothing sets a field.
 
-### `BeamStyle`
+#### `BeamStyle`
 
 | Field | Type | Default |
 | --- | --- | --- |
@@ -531,7 +557,7 @@ Every field is nullable and null means *inherit*; the defaults below are what yo
 | `hueShift` | `double?` | `30` |
 | `hueBase` | `double?` | `0` |
 
-### `BeamShape`
+#### `BeamShape`
 
 | Field | Type | Default |
 | --- | --- | --- |
@@ -542,7 +568,7 @@ Every field is nullable and null means *inherit*; the defaults below are what yo
 | `segment` | `BeamSegment?` | the whole border |
 | `dashes` | `int?` | `0` (solid) |
 
-### `BeamTiming`
+#### `BeamTiming`
 
 | Field | Type | Default |
 | --- | --- | --- |
@@ -553,7 +579,7 @@ Every field is nullable and null means *inherit*; the defaults below are what yo
 | `phaseOffset` | `double?` | `0` (fraction of a cycle, 0–1) |
 | `huePeriod` | `Duration?` | per effect (see [Effects](#effects)) |
 
-### `BeamPlayback`
+#### `BeamPlayback`
 
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
@@ -567,13 +593,119 @@ Every field is nullable and null means *inherit*; the defaults below are what yo
 | `fadeCurve` | `Curve?` | critically damped springs | The easing of both fades. `BeamPlayback.cssEase` is the web's `ease`. |
 | `debugFrozenAt` | `Duration?` | none | Pin the beam to one instant and never start its clock. |
 
-### Shorthands and precedence
+#### Shorthands and precedence
 
 `colors`, `active`, and `borderRadius` sit directly on the widget as shorthands for `style.colors`, `playback.active`, and a uniform `shape.radius`. A field resolves in one order:
 
 ```text
 shorthand  >  value object on the widget  >  BorderBeamTheme (inner over outer)  >  effect default
 ```
+
+
+## DistortionWave
+
+A colourful, refractive wave that opens from the widget that started it — a button, a screen edge, an avatar — and carries one view into another. Everything falls toward the source for a moment, tiny white sparks with it. Then the front leaves the source as one soft swell, lifting and bending what it passes, with a progressive blur and colour fringing peaking on it. Its colour stays on the view's edges, with a hairline on the glass, after the middle has cleared.
+
+It reimplements the look of Jakub Antalik's [Distortion waves](https://github.com/Jakubantalik/Libraries.dev/tree/main/packages/distortion-waves) (SwiftUI) for Flutter, with a renderer of its own: both views are drawn from GPU pictures of themselves by **one fragment shader in one draw**, with no `saveLayer`, `BackdropFilter` or `ImageFilter` per frame. It runs on Impeller, Skia and the web alike.
+
+### Quick start
+
+Flip `revealed` to send the wave out; flip it back to collapse it into its source. A `DistortionWaveAnchor` around the button gives the wave its source and the touch it leans toward — no geometry plumbing:
+
+```dart
+DistortionWave(
+  revealed: sent,
+  revealedChild: const ReceiptScreen(),
+  child: ReviewScreen(
+    send: DistortionWaveAnchor(
+      child: FilledButton(
+        onPressed: () => setState(() => sent = true),
+        child: const Text('Send'),
+      ),
+    ),
+  ),
+)
+```
+
+Give both views an opaque background. `await DistortionWave.precache()` in `main()` loads the shaders and has the GPU build their pipelines ahead of the first wave.
+
+### Between routes
+
+`DistortionWaveRoute` plays the wave from the button that pushed it into the new page, and collapses it back on pop:
+
+```dart
+FilledButton(
+  onPressed: () => Navigator.of(context).push(
+    DistortionWaveRoute<void>(
+      source: WaveSource.of(context),
+      builder: (context) => const ReceiptScreen(),
+    ),
+  ),
+  child: const Text('Send'),
+)
+```
+
+Inside a `DistortionWaveAnchor`, `WaveSource.of(context)` carries the touch too.
+
+### Types
+
+| `type:` | From | Use it for |
+| --- | --- | --- |
+| `WaveType.vertical` (default) | a wide source at the bottom, up the view | confirming a payment, sending, submitting |
+| `WaveType.horizontal` | a tall source at the left, across the view | an edge swipe, a side tab, going on to the next step |
+| `WaveType.center` | the centre of a round source, as a ring | a success on an avatar or icon, inside a sheet or card |
+
+Each type comes with its own tuned defaults. `center` is tuned for a sheet about 500 pt tall, in greens, and leaves its source sharp and in place, so the avatar can change in plain view while the ring spreads from it. The vertical and horizontal waves lean toward where the source was touched (`WaveMotion.orientation`).
+
+### Palettes
+
+`palette:` takes `WavePalette.colorful` (the default), `green`, `ocean`, `sunset`, `mono`, `WavePalette.single(color)`, or any border-beam palette through `WavePalette.fromBeamColors(BeamColors.aurora)`. The colours flow along the front and round the edges, with a fringe riding ahead of the front and one trailing behind it, mixed in OKLab so neighbours never pass through grey.
+
+### Style
+
+Everything else is a `WaveStyle`, grouped the way you tune it. Every field is nullable: what you leave out comes from the nearest `DistortionWaveTheme`, then from the type's tuned defaults.
+
+| Group | Fields |
+| --- | --- |
+| `WaveTiming` | `anticipation`, `travel`, `easing`, `returnSpeed`, `linger`, `rimFade`, `rimEasing`, `hairlineLinger`, `hairlineFade` |
+| `WaveMotion` | `pull`, `inhale`, `gatherGlow`, `gatherDots`, `launchGap`, `orientation` |
+| `WaveLens` | `amplitude`, `width`, `aberration`, `swell`, `blur`, `blurAhead`, `blurBehind` |
+| `WaveGlow` | `lead`, `tail`, `strength`, `rimWidth`, `rimUnevenness`, `rimStrength`, `rimSoftness`, `rimPulse`, `hairlineWidth`, `hairlineOpacity`, `hairlineWhite`, `cornerRadius` |
+| `WaveDots` | `count`, `size`, `reach`, `flight`, `gap`, `life`, `spread` |
+
+```dart
+DistortionWave(
+  type: WaveType.center,
+  style: const WaveStyle(
+    palette: WavePalette.ocean,
+    glow: WaveGlow(cornerRadius: 32), // the corners of the view the wave fills
+    lens: WaveLens(aberration: 0),    // no colour fringing
+  ),
+  revealedChild: done,
+  child: sheet,
+)
+```
+
+Set `WaveGlow.cornerRadius` to the corners of the view the wave fills — a phone's screen, or a sheet's — so the colour on the edges and its hairline sit on them. The corners are Flutter's rounded superellipse, as a phone's screen is.
+
+### Control
+
+- **`DistortionWaveController`** — `reveal({source})`, `collapse({source})`, `toggle()`, `seek(progress)`. Attached, it owns playback and `revealed` is ignored.
+- **`progress:`** — holds the wave at any point of its life, 0–1, for screenshots, tests, or driving it from a gesture; set it back to null and the wave plays on from there.
+- **`onFinish`** — called when a run arrives (not when it is interrupted by another).
+- **`source:`** — `WaveSource.rect(rect, focus:)`, `WaveSource.key(globalKey)` or `WaveSource.of(context)`; by default the anchor pressed last, or the usual spot for the type.
+- **`maintainState`** — the hidden view stays mounted, with its tickers muted (default), or is built only while the wave runs.
+- **`DistortionWaveTheme`** — defaults for every wave and wave route below it.
+
+### How it renders
+
+At rest, the visible view is drawn as itself and the wave adds nothing. While the wave bends content, each view is pictured to a GPU image — when the wave first needs it, and again only when that view repaints — with two small blurred copies baked from it once. One fragment shader then draws the frame: the swell, the progressive blur (mixed from the sharp picture and its blurred copies by the radius each pixel should have), the crossfade at the front, five-tap colour fringing along the displacement, and the band, rim and hairline over them. The sparks are one `drawRawAtlas`. Once the front has crossed and bends nothing, the revealed view is drawn as itself again, with only the lingering colour drawn over it.
+
+- **Content inside a nested `RepaintBoundary`** (a list item, a spinner wrapped in one) repaints without the wave hearing of it, so it holds still for the second or so the wave bends it. Pass `snapshots: WaveSnapshots.everyFrame` to picture both views every frame instead.
+- **A view holding a platform view** (a map, a web view) cannot be pictured; the wave crossfades for that run.
+- **Reduced motion** makes it a 0.3 s crossfade.
+
+[How it is built →](doc/distortion_wave.md)
 
 
 ## Accessibility
@@ -583,6 +715,8 @@ shorthand  >  value object on the widget  >  BorderBeamTheme (inner over outer) 
 - **Never let the beam be the only signal.** A beam emphasizes a state that is stated elsewhere — a label, helper text, a status line.
 - **Pointers pass through.** Nothing the beam paints takes part in hit-testing.
 - **`BeamFocusRing` complements the focused widget's own semantics** and follows `FocusManager.highlightMode`, so a tapped field does not get a keyboard focus ring.
+- **A distortion wave becomes a 0.3 s crossfade** when the platform asks for reduced motion.
+- **While a wave bends the views, neither takes a touch**; once a reveal no longer bends the revealed view, it takes touches while the colour lingers on the edges. The semantics tree shows the view the wave is heading for.
 
 [Full documentation →](doc/accessibility.md)
 
@@ -603,6 +737,8 @@ shorthand  >  value object on the widget  >  BorderBeamTheme (inner over outer) 
 - **`BorderBeam.precache()`** loads the shader once, ahead of the first beam.
 - **One ticker per beam**, or one per `BeamSync` group, and **an offscreen pause** that stops beams scrolled out of view.
 - **`RepaintBoundary` isolation.** The child sits in its own repaint boundary, so the beam animating never re-rasterizes your content.
+
+**DistortionWave** keeps its frame to one shader draw plus one atlas draw while it bends content, with no offscreen layers or render-pass breaks; each view is pictured only when its content changes, and the pictures are released as soon as the content no longer bends. A test asserts the budget for every phase of every type.
 
 Keep the beam out from under widgets that force an offscreen pass, which costs more than the beam itself: `Opacity` / `AnimatedOpacity` / `FadeTransition` with a value between 0 and 1, `ShaderMask`, `BackdropFilter`, `ColorFiltered`, and `ImageFiltered`. To fade a beam, use `style.strength`, `strengthListenable`, or `active` instead of wrapping it in `Opacity`.
 
@@ -632,6 +768,12 @@ Segments always run clockwise from `start` to `end`, wrapping through top-centre
 **Does it work on web?**
 Yes — the [live demo](https://simplifyjobs.github.io/prismatic/) is a web build of the example app, and CI builds it on every commit.
 
+**The wave shows a black or empty area.**
+Give both views of a `DistortionWave` (and a `DistortionWaveRoute`'s page) an opaque background: the wave draws them from pictures of themselves, and what is transparent in a view shows nothing behind it while the wave runs.
+
+**Part of my screen holds still while the wave passes.**
+It sits in a nested `RepaintBoundary` (a list item, a spinner). Pass `snapshots: WaveSnapshots.everyFrame`.
+
 **Can I animate between two configurations?**
 With `BorderBeam`, yes: changing `cycle` retimes in place, and `BeamColors.lerp` driven by an animation crossfades palettes. `BeamDecoration` does not interpolate, so an `AnimatedContainer` snaps.
 
@@ -650,7 +792,11 @@ Demo reels live in `example/lib/*.dart` and use the marker-based harness in `exa
 tool/record_demo.sh --target lib/showcase.dart --prefix SHOWCASE --contact
 ```
 
-Outputs land in `.demos/` (gitignored).
+Outputs land in `.demos/` (gitignored). The distortion-wave page has its own reel:
+
+```console
+tool/record_demo.sh --target lib/wave_reel.dart --prefix WAVE --contact
+```
 
 
 ## Contributing
@@ -664,7 +810,9 @@ This package was originally ported from, and remains inspired by, **[border-beam
 
 Version 0.2.0 replaced the port with an independent native renderer: a single fragment shader written for Flutter, which no longer tracks the original's source.
 
+`DistortionWave` reimplements **[Distortion waves](https://github.com/Jakubantalik/Libraries.dev/tree/main/packages/distortion-waves)** (DistortionWavesKit, SwiftUI) by **Jakub Antalik**, released under the MIT license. The wave's look — its timeline, field, colour, palettes and tuned styles — is his design; the renderer is written for Flutter, and was calibrated against the original by rendering both at the same moments over the same screens.
+
 
 ## License
 
-MIT. See [LICENSE](LICENSE) — it includes the original work's copyright notice.
+MIT. See [LICENSE](LICENSE) — it includes the original works' copyright notices.

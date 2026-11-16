@@ -29,3 +29,10 @@ This package was originally a Flutter port of, and remains inspired by, the
 Copyright (c) 2026 Jakub Antalik (https://github.com/Jakubantalik/border-beam),
 released under the MIT License. All visual designs, color palettes, gradient
 geometry, and animation timings are derived from that work.
+
+The DistortionWave effect reimplements the look of the "Distortion waves"
+library (DistortionWavesKit, packages/distortion-waves in
+https://github.com/Jakubantalik/Libraries.dev):
+Copyright (c) 2026 Jakub Antalik, released under the MIT License. Its
+timeline, field, colour model, palettes and tuned styles are derived from
+that work.

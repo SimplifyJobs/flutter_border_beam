@@ -1,11 +1,14 @@
 # Contributing to prismatic
 
 Thanks for helping out. This package draws every beam with one fragment
-shader in a single draw call, and most of its rules exist to keep it that
+shader in a single draw call, and every frame of a distortion wave with one
+shader draw plus one atlas draw; most of its rules exist to keep them that
 cheap. Read [the rendering rules](#the-rendering-rules) before changing
-anything under `lib/src/border_beam/render/`, `lib/src/border_beam/effects/`, or `shaders/` — they are
-what a reviewer will check first. [doc/architecture.md](doc/architecture.md)
-explains how a frame is built.
+anything under `lib/src/border_beam/render/`, `lib/src/border_beam/effects/`,
+`lib/src/distortion_wave/render/`, or `shaders/` — they are what a reviewer
+will check first. [doc/architecture.md](doc/architecture.md) explains how a
+beam's frame is built, [doc/distortion_wave.md](doc/distortion_wave.md) a
+wave's.
 
 ## Setup
 
@@ -120,6 +123,17 @@ Two pieces of shader maths also run in Dart, and must match exactly:
   write into the renderer's reused `BeamFrameData`; table transforms use
   scratch lists, oscillator banks are cached per tuning, and derived tables
   are memoized per palette.
+
+### The distortion wave
+
+The wave keeps its own budget: while it bends content, one shader `drawRect`
+plus at most one `drawRawAtlas` per frame, with no layer, clip, filter or
+`BackdropFilter`, and a side is pictured only when its content changed.
+`WaveFrame` stays a pure function of progress, and the uniform block in
+`shaders/common/wave_uniforms.glsl` changes with `WaveFrameData` in one
+commit. When retuning its look, compare against the reference as
+[doc/distortion_wave.md](doc/distortion_wave.md#calibration) describes, then
+regenerate its goldens. CLAUDE.md lists the full rules.
 
 ## Where things go
 

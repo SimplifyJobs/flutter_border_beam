@@ -1,11 +1,23 @@
 # prismatic — agent guide
 
-Flutter package: animated light around a widget's border. Three effects
-(`rotate`, `line`, `pulse`), all drawn by **one fragment shader in one draw
-call per frame** — no `saveLayer`, blurs, or clips. Originally ported from the
-[border-beam](https://github.com/Jakubantalik/Libraries/tree/main/packages/border-beam)
-React library (MIT, by Jakub Antalik); since 0.2.0 an independent native
-renderer that does not track upstream.
+Flutter package of shader effects built for Impeller (renamed from
+`flutter_border_beam` in 0.3.0), with two effects:
+
+- **`BorderBeam`** — animated light around a widget's border. Three effects
+  (`rotate`, `line`, `pulse`), all drawn by **one fragment shader in one draw
+  call per frame** — no `saveLayer`, blurs, or clips. Originally ported from
+  the [border-beam](https://github.com/Jakubantalik/Libraries/tree/main/packages/border-beam)
+  React library (MIT, by Jakub Antalik); since 0.2.0 an independent native
+  renderer that does not track upstream.
+- **`DistortionWave`** — a refractive wave that opens from a button, edge or
+  avatar and carries one view into another, in place or between routes
+  (`DistortionWaveRoute`). It reimplements the look of Jakub Antalik's SwiftUI
+  [Distortion waves](https://github.com/Jakubantalik/Libraries.dev/tree/main/packages/distortion-waves)
+  (MIT): both views are drawn from GPU pictures of themselves by **one shader
+  draw plus one atlas draw per frame** while the wave bends them.
+
+Code shared by both lives in `lib/src/core/` (`ShaderProgram`, OKLab) and
+`shaders/common/` (the rounded-superellipse `outline()`).
 
 ## Commands
 
@@ -15,13 +27,16 @@ renderer that does not track upstream.
 - `flutter test --update-goldens --tags golden` — regenerate goldens (macOS only, on the Flutter version `ci.yaml` pins — 3.50.0). Regenerate only the scenes you touched (`--plain-name`).
 - `dart format .` — formatting.
 - `cd example && flutter run` — one-screen showcase app: swipe between the three effects, each on its own mock surface with continuous (superellipse) corners; palette swatches and a theme toggle (tokens in `example/lib/src/tokens.dart`); `--dart-define`s `START`, `PALETTE`, `THEME` set the opening state for captures. No tests — CI gates it on `flutter analyze --fatal-infos` and a web build.
+- `tool/record_demo.sh --target lib/wave_reel.dart --prefix WAVE --contact` — the distortion-wave reel.
 - `tool/record_demo.sh --target lib/showcase.dart --prefix SHOWCASE --contact` — record a demo reel mp4 into `.demos/` (needs a booted iOS simulator + ffmpeg). Reels use `example/lib/demo_harness.dart`'s marker contract (`<PREFIX>:<name>:START/END`, `<PREFIX>:DONE`); new reels are just a map of name → scene widget.
-- `dart pub publish --dry-run` — pre-publish validation. `shaders/beam.frag` must be in the archive (`.pubignore` must never exclude `shaders/`).
+- `dart pub publish --dry-run` — pre-publish validation. `shaders/*.frag` and `shaders/common/*.glsl` must be in the archive (`.pubignore` must never exclude `shaders/`). The `.glsl` includes are not listed under `flutter: shaders:`; impellerc gets `shaders/` as an include path.
 - **Cutting a release** — bump `version:` in `pubspec.yaml`, add a `## <version>` section to `CHANGELOG.md`, merge to `main`, then push the matching tag: `git tag v<version> && git push origin v<version>`. `.github/workflows/release.yaml` verifies the tag against the pubspec and the changelog, re-runs format/analyze/test, publishes to pub.dev over GitHub OIDC (no secrets), and creates the GitHub Release from that changelog section; a version with a `-suffix` is marked prerelease. Goldens are verified only by the macOS `goldens` job in `ci.yaml` — the release job runs on ubuntu and skips them, so tag a commit that is green on `main`.
 - **One-time, before the first automated release** — publish manually with `flutter pub publish` (pub.dev only automates publishing for packages that already exist), then enable pub.dev Admin → Automated publishing for `SimplifyJobs/prismatic` with tag pattern `v{{version}}`.
 - **Bumping the Flutter pin** — change `FLUTTER_VERSION` in `ci.yaml`, `release.yaml`, and `pages.yaml` together, in the same commit as regenerated goldens.
 
 ## Architecture
+
+### BorderBeam
 
 Everything animated is a **pure function of elapsed time** — one `Ticker` per
 widget (`BeamClock`), or one per `BeamSync` group. No `AnimationController`s.
@@ -43,11 +58,51 @@ an opacity. Every blur of the design is analytic: a blurred ring is
 `w/σ·φ(d/σ)`, a blurred blob is an energy-preserving gaussian (truncated where
 the design cuts it), a blurred outside glow is `Φ`.
 
+### DistortionWave
+
+Everything is a **pure function of one progress value, 0–1** —
+`WaveFrame.at(progress, source, size, spec, focus)` — so the wave scrubs,
+reverses and freezes for goldens. One `Ticker` per wave (`WaveClock`), or the
+route's own animation. A frame:
+
+```text
+WaveClock / route animation → RenderWaveStage → WaveFrame.at → phase → WaveFrameData → wave.frag (one drawRect) + DotAtlas (one drawRawAtlas)
+```
+
+`RenderWaveStage` picks a **phase** per frame: `rest` (the visible side as
+itself, nothing else), `distorting` (both sides from `WaveSideImages` through
+`wave.frag`), `glowing` (the revealed side as itself under
+`wave_glow.frag`, once the front has crossed and bends nothing), or
+`crossfading` (reduced motion, or a side that cannot be rasterised). A side is
+pictured — painted into a detached `OffsetLayer` and `toImageSync`ed, as
+`SnapshotWidget` does — when first needed and again only when its content
+repaints (`RenderWaveSide.markNeedsPaint` flags it), or every frame with
+`WaveSnapshots.everyFrame`; each picture bakes two small blurred copies
+(near ≈ 7 pt, far = the spec's blur) once. The shader mixes sharp/near/far by
+the blur radius each pixel should have — Swift's stacked blurred copies, in
+one pass. Pictures are released when the phase leaves `distorting`.
+
+The look (timeline, field, colour model, palettes, per-type tuned styles) is
+the reference's; `WaveSpec.resolve` settles widget style ⊕ theme ⊕ type
+defaults into seconds and pixels. It was calibrated by building
+DistortionWavesKit in a throwaway SwiftUI harness and rendering both at the
+same progress over the same mock screens (mean difference ≈ 1/255); the
+goldens pin those scenes.
+
 Full pipeline, layer model, design data, uniform layout, and invariants in
 prose:
-**[doc/architecture.md](doc/architecture.md)** — update it when the layout
-moves. The map below is the index.
+**[doc/architecture.md](doc/architecture.md)** (the beam) and
+**[doc/distortion_wave.md](doc/distortion_wave.md)** (the wave) — update them
+when the layout moves. The map below is the index.
 
+- `lib/src/core/` — `shader_program.dart` (`ShaderProgram`: one instance per `.frag`, loaded once per process, per-zone load sharing, retry after a failed load, `ready`), `oklab.dart` (`Oklab`).
+- `lib/distortion_wave.dart` — the wave's library: `DistortionWave`, `DistortionWaveRoute`, `DistortionWaveController`, `DistortionWaveTheme`/`DistortionWaveThemeData`, `DistortionWaveAnchor`/`DistortionWaveAnchorState`, `WaveSource`, `WaveStyle` and its groups (`WaveTiming`, `WaveMotion`, `WaveLens`, `WaveGlow`, `WaveDots`), `WavePalette`/`maxWavePaletteColors`, `WaveType`, `WaveSnapshots`. Nothing in `render/`, `timeline/` or `look/` is exported.
+- `lib/src/distortion_wave/` — `distortion_wave.dart` (the widget + its state: clock, controller binding, anchors, theme/shorthand resolution, `maintainState`/`TickerMode` for the hidden side; also the `WaveStage` slotted widget and `WaveSide`/`RenderWaveSide`), `distortion_wave_route.dart` (`DistortionWaveRoute`: pictures the previous route's page `RepaintBoundary` after the push's first frame and again on pop; `canTransitionFrom` false; collapse on `spec.easing.flipped`), `distortion_wave_controller.dart` (+ the unexported `WaveDriver`/binding), `distortion_wave_theme.dart`, `wave_source.dart` (`WaveSource.rect/key/of`, `DistortionWaveAnchor`, `WaveAnchorRegistry`/`WaveAnchorScope`, `defaultWaveSource`).
+- `lib/src/distortion_wave/models/` — the public value objects (all-nullable, `const`, `copyWith`/`merge`/`==`), `wave_palette.dart`, `wave_type.dart`, `wave_snapshots.dart`, and the internal `wave_spec.dart` (`WaveSpec`: everything settled, value-equal, `duration`/`returnDuration`).
+- `lib/src/distortion_wave/look/wave_defaults.dart` — the per-type tuned styles (owned and tunable; goldens move when it does).
+- `lib/src/distortion_wave/timeline/` — `wave_frame.dart` (`WaveFrame.at`, `waveCoverZone`, `waveSmooth`), `wave_particles.dart` (`WaveParticle`, memoized per spec), `wave_rim.dart` (`WaveRim.lumps`/`thickness`), `wave_clock.dart` (`WaveClock`: runs from wherever it is at a full run's speed; interruptible).
+- `lib/src/distortion_wave/render/` — `render_wave_stage.dart` (`RenderWaveStage`, `WaveSlot`, `WavePhase`; touches go to the side at rest, and mid-reveal to the revealed side once the phase is `glowing`; semantics visits the side at rest or being headed for), `wave_snapshot.dart` (`WaveSideImages`), `wave_frame_data.dart` (`WaveFrameData`, `waveUniformFloats` = 120, `wavePaletteSlots` = 8, `waveNearBlur`), `wave_programs.dart` (`waveProgram`, `waveGlowProgram`), `dot_atlas.dart` (`DotAtlas`: one cached AA disc sprite per pixel size), `wave_warm_up.dart` (`warmUpWaveRendering`, run by `DistortionWave.precache`: draws both shaders, a blur bake and an atlas into a 4 × 4 image so pipelines exist before the first wave).
+- `shaders/wave.frag`, `shaders/wave_glow.frag`, `shaders/common/wave_uniforms.glsl` (the block both declare — a contract with `wave_frame_data.dart`), `wave_field.glsl`, `wave_colour.glsl`, `outline.glsl`.
 - `lib/prismatic.dart` — the package barrel; it re-exports each effect's library. `lib/border_beam.dart` — the beam's library; ONLY `BorderBeam`, `BorderBeamController`, `BorderBeamTheme`/`BorderBeamThemeData`, `BeamSync`, `BeamEffect` + its three subclasses (`RotateEffect`, `LineEffect`, `PulseEffect`), `BeamColors`/`BeamSeedHarmony`, the option types (`BeamDirection`, `BeamEdge`, `BeamHueMode`, `BeamReducedMotion`, `BeamRepeat`), `BeamAnchor`/`BeamCorner`/`BeamSegment`, `BeamTheme`, the four value objects (`BeamStyle`, `BeamShape`, `BeamTiming`, `BeamPlayback`), and the four widgets are public. Nothing in `render/` or `effects/effect_emitters.dart` is exported.
 - `lib/src/border_beam/border_beam.dart` — widget: `BorderBeam({effect, …})` and `BorderBeam.overlay`; three shorthands (`colors`/`active`/`borderRadius`) over the value objects; the driven inputs (`progress`, `follow`, `strengthListenable`, `speedListenable`); `BorderBeam.precache()`; scheduling/lifecycle. Controller attached ⇒ it owns playback exclusively (the resolved playback asserts `startAfter`/`duration` are null, and the controller's `speed` replaces `timing.speed`). `speed` never reaches `BeamConfig` — it is applied to the clock and kept out of the config-cache key.
 - `lib/src/border_beam/border_beam_theme.dart` — `BorderBeamTheme` (`InheritedWidget`) + `BorderBeamThemeData` (`effect`, `style`, `shape`, `timing`, `playback`). `of` walks every enclosing scope, depends on each, and merges them outside-in.
@@ -63,19 +118,30 @@ moves. The map below is the index.
 
 ## Hard rules
 
+### BorderBeam
+
 1. **One draw call per frame; zero `saveLayer`, clip, `ImageFilter`, `MaskFilter`.** A lit frame is exactly one `drawRect`/`drawDRRect` whose paint carries the beam shader; a frame with no lit layer (fade, gap) draws nothing; saves and restores balance. `test/border_beam/render/frame_budget_test.dart` asserts this across every effect × theme × palette subset × shape family × instant, plus effect options and driven progress. A blur in the design becomes analytic shader maths — never a layer, a blur, or a second draw.
 2. **The uniform layout is a contract.** The `uniform` block in `shaders/beam.frag` and the offsets/slot counts in `lib/src/border_beam/render/beam_frame.dart` change together, in one commit. Uniforms are `vec4`s and `vec4` arrays only (identical float layout on every backend), ≤ 896 floats (the 224 `vec4`s GLES 3.0 guarantees). Arrays are indexed only by constants and loop indices (SkSL strict ES2), so each layer has its own blob array and each table its own uniform. `test/border_beam/render/uniform_layout_test.dart` parses the shader and checks types, array lengths against the Dart constants, loop bounds, the total, and the order: every `BeamFrameData` writer must land in the uniform the shader declares at that offset.
 3. **`BeamOutline` mirrors the shaders' `outline()` (`shaders/common/outline.glsl`, included by every shader) exactly** — corner model, distance, nearest-piece choice, and arc-length `u`. Emitters lay blobs along the outline with it, segments resolve against it, and `follow` maps the pointer with it.
 4. **Fixed slots.** 14 blobs in layer 0, 10 in layers 1 and 2, 16 stops per conic table, ≤ 8 palette stops. `addBlob` drops extras silently; palettes with more stops are rejected at resolve.
 5. **Nothing inside the shape reads `u`.** Inside the shape `u` jumps across the medial axis; inner glows are planar blobs (blobs laid along the outline are planar ellipses whose axes follow the normal) or path-space blobs kept within the edge fade.
 6. **Emitters are pure and allocation-light per frame.** An emitter is a function of config, phases, outline, and the palette's tables; it writes into the renderer's reused `BeamFrameData`; table transforms use scratch lists, oscillator banks are cached per tuning, derived tables memoized per palette.
-7. **Parity with the reference look is checked by eye, then pinned by goldens.** The original look (old goldens at `git show 85be4f8:test/border_beam/golden/goldens/`) is the calibration: render side by side when retuning rotate/line/pulse.
-8. **Don't quote or hard-code look values in docs** — tuning lives in `lib/src/border_beam/look/` and the emitters and changes; docs describe behaviour.
+7. **Parity with the reference look is checked by eye, then pinned by goldens.** The original look (old goldens at `git show 85be4f8:test/golden/goldens/`, from before the `test/border_beam/` move) is the calibration: render side by side when retuning rotate/line/pulse.
+8. **Don't quote or hard-code look values in docs** — tuning lives in `lib/src/border_beam/look/` and the emitters (and `lib/src/distortion_wave/look/` for the wave) and changes; docs describe behaviour.
+
+### DistortionWave
+
+1. **Distortion window: one shader `drawRect` plus at most one `drawRawAtlas` per frame; zero `saveLayer`, clip, `ImageFilter`, `BackdropFilter`, `MaskFilter`, image draws.** At rest the wave paints the visible child and nothing else; in the glow phase, the revealed child plus one `drawRect` and at most one atlas. `test/distortion_wave/render/wave_frame_budget_test.dart` asserts this per phase × type. Never reach for `ImageFilter.shader`/`BackdropFilter`: they are Impeller-only, need a new filter object every frame, and hit open engine bugs (flutter#185175, #187820).
+2. **A side is pictured only when its content changed** (or every frame under `WaveSnapshots.everyFrame`), and pictures are released when the phase leaves `distorting`. The snapshot-count and lifecycle tests pin both.
+3. **The uniform block is a contract.** `shaders/common/wave_uniforms.glsl` (declared once, included by both wave shaders) and `WaveFrameData`'s offsets change together, in one commit; vec4s only, samplers after it in `wave.frag` in the order the renderer binds them (out sharp/near/far, in sharp/near/far). `test/distortion_wave/render/wave_uniform_layout_test.dart` checks both shaders through `test/support/shader_source.dart`, which inlines `#include`s.
+4. **`WaveFrame` stays a pure function of progress.** Scrubbing, reversing, the route and the goldens depend on it; anything per-frame that is not (a ticker, an image) lives in the clock or the stage.
+5. **Parity with the reference look is checked by rendering both, then pinned by goldens.** When retuning, rebuild the SwiftUI harness (DistortionWavesKit + `ImageRenderer` at fixed `scrub:`, built with `xcodebuild`, which needs the Metal Toolchain) and compare at the golden scenes' progress values.
+6. **SkSL strict ES2 in every shader** — loops with constant bounds, arrays indexed by constants or loop indices — so the wave also runs on Skia and the web.
 
 ## Testing conventions
 
-- **Directories** — `test/core/` (code shared by every effect: `ShaderProgram`); the beam's tests under `test/border_beam/`: `test/border_beam/models/` (value objects, config resolution, colours/palettes, effects, segments), `test/border_beam/animation/` (clock, spring, phases, travel, seeded property test), `test/border_beam/render/` (frame budget, uniform layout, `BeamOutline`, `beam_frame_test.dart` for frame sanity and per-effect layer structure, boundaries, paint smoke, `paint_structure_test.dart` for where light lands; helpers in `render_utils.dart`), `test/border_beam/widget/` (`BorderBeam` itself: lifecycle, updates, shorthands, theming, sync, speed, progress, follow, motion, playback, cycle gap, shape), `test/border_beam/widgets/` (the four widgets), `test/border_beam/golden/`.
-- **Pixel tests need the shader.** Anything that reads pixels or counts draws awaits `BorderBeam.precache()` in `setUpAll` (`setUpAll(BorderBeam.precache)`); before it resolves a beam paints nothing.
+- **Directories** — `test/core/` (code shared by every effect: `ShaderProgram`, `Oklab`); `test/support/` (helpers shared by both effects' tests: `shader_source.dart`); the wave's under `test/distortion_wave/`: `models/` (value objects, `WaveSpec` resolution, palettes), `timeline/` (`WaveFrame` — ports of every `WaveFrontTests` case — particles, rim, clock, seeded property sweep), `render/` (uniform layout, frame budget + snapshot counts, `wave_paint_structure_test.dart` for where pixels land in real frames), `widget/` (behaviour, lifecycle, route; helpers in `wave_test_utils.dart`), `golden/` (`wave_golden_test.dart`: each type at its telling moments, palettes; scenes held with `progress:`); the beam's tests under `test/border_beam/`: `test/border_beam/models/` (value objects, config resolution, colours/palettes, effects, segments), `test/border_beam/animation/` (clock, spring, phases, travel, seeded property test), `test/border_beam/render/` (frame budget, uniform layout, `BeamOutline`, `beam_frame_test.dart` for frame sanity and per-effect layer structure, boundaries, paint smoke, `paint_structure_test.dart` for where light lands; helpers in `render_utils.dart`), `test/border_beam/widget/` (`BorderBeam` itself: lifecycle, updates, shorthands, theming, sync, speed, progress, follow, motion, playback, cycle gap, shape), `test/border_beam/widgets/` (the four widgets), `test/border_beam/golden/`.
+- **Pixel tests need the shader.** Anything that reads pixels or counts draws awaits `BorderBeam.precache()` (or `DistortionWave.precache()`) in `setUpAll`; before it resolves a beam paints nothing and a wave shows its sides plainly.
 - **Golden families** (one file each, `@Tags(['golden'])`, staged by `test/border_beam/golden/golden_scene.dart`): `beam_golden_test.dart` (effect × theme × palette, effect options), `palette_golden_test.dart` (every preset, the constructors and transforms), `motion_golden_test.dart` (direction, gap, count, phase offset, driven progress), `surface_golden_test.dart` (radii, superellipse, stadium, ring offset, border width, segments, dashes, line edges), `widgets_golden_test.dart` (`BeamDecoration` and the three wrappers). A new scene belongs in the family that names its axis; add a file only for an axis none of them names.
 - **Goldens are macOS-generated on Flutter 3.50.0** (the `ci.yaml` pin) and run with `--tags golden`. Scenes freeze the fake clock at t = 1.3s (post fade-in, mid-cycle); travelling effects get a second `_late` capture at 2.0s. Regenerating on another OS or SDK produces diffs.
 - **Structure tests over pixel pins.** `paint_structure_test.dart` compares regions of real frames against each other (lit here, dark there) rather than pinning values, so retuning the look leaves it standing. Prefer that style for new rendering behaviour; leave exact pixels to goldens.

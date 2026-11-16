@@ -1,6 +1,11 @@
 # Architecture
 
-Two ideas carry the whole package:
+This document covers the border beam. The distortion wave has its own:
+**[distortion_wave.md](distortion_wave.md)**. Code both share lives in
+`lib/src/core/` (`ShaderProgram`, `Oklab`) and `shaders/common/`
+(`outline.glsl`, the rounded-superellipse outline every shader includes).
+
+Two ideas carry the border beam:
 
 1. **Everything animated is a pure function of elapsed time.** One `Ticker` produces a number of seconds; every visual value is recomputed from it each frame. There are no `AnimationController`s and no per-track state to keep in step, which is what makes goldens, property tests, and `BeamPlayback.debugFrozenAt` possible.
 2. **Every frame is one shader draw.** An effect writes the layers of its look — blob tables, conic windows, masks, colour filters — into one uniform buffer; one fragment shader evaluates every layer per pixel and composites them in a single pass, with no offscreen layers, blurs, or clips.
