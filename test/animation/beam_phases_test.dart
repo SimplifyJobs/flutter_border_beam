@@ -209,8 +209,15 @@ void main() {
     }
 
     test('the gap does not stretch the ambient clock', () {
-      final r = _resolver(cycleGap: const Duration(seconds: 1));
-      expect(r.sample(6, 1).cycles, closeTo(3, 1e-12));
+      // Ambient effects ignore the gap outright; a travelling one rests in
+      // it between sweeps, but its ambient clock runs straight through.
+      for (final effect in BeamEffect.values) {
+        final r = _resolver(
+          effect: effect,
+          cycleGap: const Duration(seconds: 1),
+        );
+        expect(r.sample(6, 1).cycles, closeTo(3, 1e-12), reason: effect.name);
+      }
     });
 
     test('phaseOffset puts an ambient beam out of step', () {
