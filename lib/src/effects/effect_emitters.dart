@@ -551,9 +551,7 @@ void _line(BeamFrame f, LineEffect e) {
   // ambient glow (or, on a light surface, a soft shadow), seen through a
   // tall window that travels with the streak.
   final mono = f.mono;
-  final blur =
-      (mono ? lineBloomBlurMono : (f.staticHue ? 0.0 : lineBloomBlur)) *
-      f.glowSize;
+  final blur = (mono ? lineBloomBlurMono : lineBloomBlur) * f.glowSize;
   d.setLayer(
     2,
     BeamGeometry.fill,

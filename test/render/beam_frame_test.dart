@@ -239,6 +239,26 @@ void main() {
   });
 
   group('line', () {
+    // A fixed hue (the gold preset, or hueMode: none) once dropped the
+    // bloom's blur, leaving the spikes as hard needles.
+    test('the bloom stays blurred when the hue is fixed', () {
+      final r = renderer();
+      double bloomBlur(BeamColors colors, {BeamHueMode? hueMode}) {
+        final config = configFor(
+          const BeamEffect.line(),
+          colors: colors,
+          style: BeamStyle(hueMode: hueMode),
+        );
+        recordFrame(r, config, phasesAt(config, 1.3));
+        return r.debugFrame.blobBlurOf(2);
+      }
+
+      final drifting = bloomBlur(BeamColors.ember);
+      expect(drifting, greaterThan(0));
+      expect(bloomBlur(BeamColors.gold), drifting);
+      expect(bloomBlur(BeamColors.ember, hueMode: BeamHueMode.none), drifting);
+    });
+
     test('the windows ride the edge with the streak', () {
       final r = renderer();
       for (final edge in BeamEdge.values) {

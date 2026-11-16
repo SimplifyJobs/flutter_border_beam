@@ -375,6 +375,9 @@ final class BeamFrameData {
   /// Layer [k]'s blob space.
   BeamBlobSpace blobSpaceOf(int k) => _space[k];
 
+  /// Layer [k]'s blob blur, px (see [setBlobSpace]).
+  double blobBlurOf(int k) => _blobBlur[k];
+
   /// An inset shadow on layer [k]: [color], solid to [depth] px in, blurred
   /// by [sigma].
   void setShadow(
