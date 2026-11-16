@@ -76,9 +76,11 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 500));
       await tester.pumpWidget(const SizedBox());
-      // A timer left running would fail the test as pending at its end, and
-      // firing would start a ticker on a disposed clock.
-      await tester.pump(const Duration(seconds: 3));
+      // Stay short of the 2s deadline: a timer the beam failed to cancel is
+      // still pending when the test ends, and the binding fails the test for
+      // it. Pumping past the deadline would let it fire into the State's
+      // `mounted` guard and pass whether or not it was cancelled.
+      await tester.pump(const Duration(milliseconds: 500));
       expect(tester.takeException(), isNull);
       expect(tester.binding.transientCallbackCount, 0);
     });
