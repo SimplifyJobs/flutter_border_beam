@@ -225,8 +225,41 @@ void main() {
   });
 
   test("the shader's loop bounds match the slot counts", () {
+    // A macro's parameters, and the bounds of the loops in its body (its
+    // continuation lines).
+    ({List<String> params, List<String> bounds}) macro(String name) {
+      final m = RegExp(
+        r'#define\s+' + name + r'\(([^)]*)\)((?:[^\n]*\\\n)*[^\n]*)',
+      ).firstMatch(source);
+      expect(m, isNotNull, reason: 'no $name macro');
+      return (
+        params: [for (final p in m![1]!.split(',')) p.trim()],
+        bounds: [
+          for (final loop in RegExp(
+            r'for\s*\(\s*int\s+i\s*=\s*0\s*;\s*i\s*<\s*(\w+)\s*;',
+          ).allMatches(m[2]!))
+            loop[1]!,
+        ],
+      );
+    }
+
+    // A blob stack visits every slot it is handed...
+    final blobStack = macro('BLOB_STACK');
+    expect(blobStack.params[1], 'SLOTS');
+    expect(blobStack.bounds, ['SLOTS']);
+    // ...and each layer hands it its slot count.
     expect(source, contains('BLOB_STACK(uBlobA, $blobSlotsA,'));
     expect(source, contains('BLOB_STACK(uBlobB, $blobSlotsB,'));
     expect(source, contains('BLOB_STACK(uBlobC, $blobSlotsC,'));
+
+    // A table lookup visits every stop, two to a vec4, and reads the last
+    // one past the end.
+    final lookup = macro('TABLE_LOOKUP');
+    expect(lookup.bounds, ['${tableStops ~/ 2}']);
+    expect(
+      source,
+      contains('TABLE[${tableStops ~/ 2 - 1}].w'),
+      reason: 'the padding stop',
+    );
   });
 }
