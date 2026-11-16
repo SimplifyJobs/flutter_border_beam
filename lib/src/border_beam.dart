@@ -669,7 +669,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
     // is delivered, as is the enclosing BeamSync.
     final first = !_autoPlayScheduled;
     final previousPlayback = _playback;
-    _adoptSharedClock(BeamSync.clockOf(context));
+    _adoptSharedClock(BeamSyncScope.clockOf(context));
     _resolveScheduling(retime: !first);
     if (first) {
       _autoPlayScheduled = true;
@@ -914,7 +914,7 @@ class _BorderBeamState extends State<BorderBeam> with TickerProviderStateMixin {
   BeamReducedMotion? get _reduced {
     if (!(MediaQuery.maybeDisableAnimationsOf(context) ?? false)) return null;
     final mode =
-        BeamSync.reducedMotionOf(context) ??
+        BeamSyncScope.reducedMotionOf(context) ??
         _playback.reducedMotion ??
         BeamReducedMotion.staticFrame;
     return mode == BeamReducedMotion.animate ? null : mode;

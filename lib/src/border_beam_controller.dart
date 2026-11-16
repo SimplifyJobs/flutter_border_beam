@@ -119,9 +119,14 @@ class BorderBeamController extends ChangeNotifier {
     _clock?.seek(position.inMicroseconds / Duration.microsecondsPerSecond);
     notifyListeners();
   }
+}
 
-  /// Called by [BorderBeam] when it starts using this controller. Internal —
-  /// do not call from application code.
+/// Binds a [BorderBeamController] to the clock of the beam it drives.
+///
+/// Package-internal: the library exports only [BorderBeamController], so
+/// application code never sees these. [BorderBeam] is the only caller.
+extension BorderBeamControllerBinding on BorderBeamController {
+  /// Called by [BorderBeam] when it starts using this controller.
   ///
   /// The beam applies [speed] to [clock] itself, so it can fold in its own
   /// `speedListenable` and reduced-motion rate.
@@ -134,8 +139,7 @@ class BorderBeamController extends ChangeNotifier {
     _clock = clock;
   }
 
-  /// Called by [BorderBeam] when it stops using this controller. Internal —
-  /// do not call from application code.
+  /// Called by [BorderBeam] when it stops using this controller.
   void detach(BeamClock clock) {
     if (_clock == clock) _clock = null;
   }

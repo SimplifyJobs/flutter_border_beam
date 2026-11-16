@@ -74,17 +74,6 @@ class BeamSync extends StatefulWidget {
   /// Default [BeamReducedMotion.staticFrame].
   final BeamReducedMotion reducedMotion;
 
-  /// The shared clock for [context], or null when there is no enclosing
-  /// [BeamSync]. Internal — do not call from application code.
-  static BeamClock? clockOf(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<BeamSyncScope>()?.clock;
-
-  /// The reduced-motion policy owned by the nearest group, or null when the
-  /// beam is not synchronized. Internal — do not call from application code.
-  static BeamReducedMotion? reducedMotionOf(BuildContext context) => context
-      .dependOnInheritedWidgetOfExactType<BeamSyncScope>()
-      ?.reducedMotion;
-
   @override
   State<BeamSync> createState() => _BeamSyncState();
 
@@ -185,8 +174,10 @@ class _BeamSyncState extends State<BeamSync>
   );
 }
 
-/// Carries a [BeamSync]'s shared clock down the tree. Internal — read it
-/// through [BeamSync.clockOf].
+/// Carries a [BeamSync]'s shared clock down the tree.
+///
+/// Package-internal: the library exports only [BeamSync], so these lookups
+/// stay out of the public API. [BorderBeam] is their only caller.
 class BeamSyncScope extends InheritedWidget {
   /// Creates the scope for [clock].
   const BeamSyncScope({
@@ -195,6 +186,17 @@ class BeamSyncScope extends InheritedWidget {
     required this.reducedMotion,
     required super.child,
   });
+
+  /// The shared clock for [context], or null when there is no enclosing
+  /// [BeamSync].
+  static BeamClock? clockOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<BeamSyncScope>()?.clock;
+
+  /// The reduced-motion policy owned by the nearest group, or null when the
+  /// beam is not synchronized.
+  static BeamReducedMotion? reducedMotionOf(BuildContext context) => context
+      .dependOnInheritedWidgetOfExactType<BeamSyncScope>()
+      ?.reducedMotion;
 
   /// The clock every beam in this subtree runs on.
   final BeamClock clock;

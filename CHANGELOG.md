@@ -172,6 +172,10 @@ design data rather than transcriptions.
   supported.
 - `BeamTiming`: `beamCount`, `bloomHuePeriod`, `breatheFactor`,
   `spikeFactor`, and `spike2Factor`.
+- `BorderBeamController.attach`/`detach` and `BeamSync.clockOf`/
+  `reducedMotionOf`. They were plumbing between the widgets, documented as
+  "do not call", and took or returned a clock type the package never
+  exported.
 - The frame-rate cap on the pulse variants.
 - The transcribed upstream constants (`lib/src/constants/`), the vendored
   upstream spec and its parity test, `tool/spec/`, and the upstream-drift
