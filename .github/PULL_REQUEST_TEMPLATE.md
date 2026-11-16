@@ -33,7 +33,7 @@ What you actually ran, and what it said. Do not claim a check you skipped —
 <!--
 If you regenerated any: list which scenes, and why the pixels legitimately
 moved (a retuned effect, a shader fix, a Flutter pin bump). Goldens are
-macOS-only and pinned to Flutter 3.47.4; regenerate only the scenes you
+macOS-only and pinned to Flutter 3.50.0; regenerate only the scenes you
 touched, with `--plain-name`.
 -->
 

@@ -255,7 +255,7 @@ design data rather than transcriptions.
 
 ### Tooling & CI
 
-- CI pins Flutter 3.47.4, the SDK the goldens are generated on; the `min-sdk`
+- CI pins Flutter 3.50.0, the SDK the goldens are generated on; the `min-sdk`
   job builds and tests the declared 3.47.0 lower bound.
 - `test/render/` holds the renderer's contracts: the frame budget (one draw,
   no `saveLayer`, clip, or image / mask filter), the uniform layout (parsed

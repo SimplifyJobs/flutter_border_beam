@@ -65,7 +65,7 @@ permissions:
 
 env:
   # Must match ci.yaml's pin.
-  FLUTTER_VERSION: 3.47.4
+  FLUTTER_VERSION: 3.50.0
 
 jobs:
   publish:

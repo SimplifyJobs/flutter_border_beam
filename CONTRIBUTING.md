@@ -11,7 +11,7 @@ explains how a frame is built.
 
 You need **Flutter ≥ 3.47** (the lower bound declared in `pubspec.yaml`, set
 by `material_ui`; CI tests that exact version in its `min-sdk` job) and, for goldens, **Flutter
-3.47.4 on macOS**.
+3.50.0 on macOS**.
 
 ```bash
 git clone https://github.com/SimplifyJobs/flutter_border_beam.git
@@ -48,7 +48,7 @@ signal, and CI's `pana` job fails when the score drops.
 
 ### Goldens
 
-Golden files are **macOS-generated and pinned to Flutter 3.47.4**. Shader
+Golden files are **macOS-generated and pinned to Flutter 3.50.0**. Shader
 compilation and rasterization shift between Flutter releases and between
 platforms, so a golden regenerated anywhere else produces a diff that has
 nothing to do with your change. CI runs them in a single `macos-latest` job.
