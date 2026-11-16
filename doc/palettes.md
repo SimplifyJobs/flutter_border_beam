@@ -69,7 +69,7 @@ const BeamColors.solid(Color(0xFF18A8F0));
 
 `BeamColors(colors, {stops})` takes 1–8 colours. `stops`, when given, has one entry per colour, ascending, each in `[0, 1)`; two equal neighbours make a hard edge. Alpha is honoured: a translucent stop glows more faintly. The lists are checked when the palette first resolves — in release builds too — and a malformed one throws an `ArgumentError`.
 
-Colours blend **gamma-aware**: squared channels (close to linear light) are interpolated and the square root taken, so the midpoint between two saturated colours stays bright instead of turning muddy. The blending runs on the CPU once per palette — the results are memoized — never per frame.
+Colours blend **gamma-aware**: squared channels (close to linear light) are interpolated and the square root taken, so the midpoint between two saturated colours stays bright instead of turning muddy. The blending runs on the CPU when a palette resolves, and the results are memoized, so a palette that stays the same is never blended again. One that changes every frame — a `BeamColors.lerp` on a running animation — is blended anew for each value.
 
 ## From a brand colour
 
