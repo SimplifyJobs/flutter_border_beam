@@ -222,6 +222,54 @@ void main() {
       }
     });
 
+    test('reverse mirrors the windows on screen', () {
+      // Where the light sits, and which way its tail runs: every table read
+      // at a screen angle (clockwise from 12 o'clock) through the conic
+      // start and repeats, as the shader reads it, is the forward one
+      // reflected left to right, at every instant and beam count.
+      final r = renderer();
+      double seen(BeamTable table, double angle) {
+        final d = r.debugFrame;
+        var t = (angle - d.conicStart) % 1.0;
+        if (d.conicRepeats > 1) t = (t * d.conicRepeats) % 1.0;
+        return d.tableAt(table, t);
+      }
+
+      const steps = 360;
+      for (final count in [1, 2]) {
+        for (final turn in [0.1, 0.25, 0.4, 0.6, 0.9]) {
+          final forward = configFor(BeamEffect.rotate(count: count));
+          recordFrame(
+            r,
+            forward,
+            phasesAt(forward, forward.cycleSeconds * turn),
+          );
+          final expected = {
+            for (final t in BeamTable.values)
+              t: [for (var i = 0; i < steps; i++) seen(t, i / steps)],
+          };
+          final reverse = configFor(
+            BeamEffect.rotate(count: count),
+            timing: const BeamTiming(direction: BeamDirection.reverse),
+          );
+          recordFrame(
+            r,
+            reverse,
+            phasesAt(reverse, reverse.cycleSeconds * turn),
+          );
+          for (final t in BeamTable.values) {
+            for (var i = 0; i < steps; i++) {
+              expect(
+                seen(t, (steps - i) % steps / steps),
+                closeTo(expected[t]![i], 1e-4),
+                reason: '×$count, $turn of a turn: ${t.name} at $i/$steps',
+              );
+            }
+          }
+        }
+      }
+    });
+
     test('a comet glows outside the border; a plain beam stays in', () {
       final r = renderer();
       final plain = configFor(const BeamEffect.rotate());

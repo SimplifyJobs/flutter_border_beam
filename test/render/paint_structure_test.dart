@@ -275,45 +275,51 @@ void main() {
 
   group('direction', () {
     test('reverse sweeps the mirror image of forward', () async {
-      // The colour field is fixed to the box, so only where the light sits
-      // mirrors: compare the horizontal centre of its coverage.
-      Future<double> centre(BeamDirection direction) async {
+      // The colour field is fixed to the box, so the pixels themselves do
+      // not mirror; where the light sits does. Compare the centre of its
+      // coverage in both axes, off the quarter turns: there a sweep that
+      // runs the wrong way round, or trails its tail the wrong way, lands
+      // well away from the mirror image, while on a quarter turn the two
+      // can nearly coincide. The windows' exact mirror is checked in
+      // beam_frame_test.dart.
+      Future<Offset> centre(BeamDirection direction, double turn) async {
         final config = configFor(
           const BeamEffect.rotate(),
           brightness: Brightness.light,
           timing: BeamTiming(direction: direction),
         );
-        // A quarter of the way round: forward on the right edge, reverse on
-        // the left.
         final frame = await renderFrame(
           config,
-          phasesAt(config, config.cycleSeconds / 4),
+          phasesAt(config, config.cycleSeconds * turn),
         );
-        var sum = 0.0;
+        var sumX = 0.0;
+        var sumY = 0.0;
         var weight = 0.0;
         for (var y = 0; y < frame.height; y++) {
           for (var x = 0; x < frame.width; x++) {
             final a = frame.rgba[(y * frame.width + x) * 4 + 3];
-            sum += a * x;
+            sumX += a * x;
+            sumY += a * y;
             weight += a;
           }
         }
         expect(weight, greaterThan(0));
-        return sum / weight;
+        return Offset(sumX / weight, sumY / weight);
       }
 
-      final forward = await centre(BeamDirection.forward);
-      final reverse = await centre(BeamDirection.reverse);
-      final mid = (renderMargin * 2 + cardSize.width) / 2;
-      expect(
-        (forward - mid) * (reverse - mid),
-        lessThan(0),
-        reason: 'the two sweeps sit on opposite sides',
-      );
-      expect(
-        (forward - mid).abs(),
-        closeTo((reverse - mid).abs(), cardSize.width * 0.15),
-      );
+      // The image is the box with an even margin, so its centre line is
+      // the box's.
+      final width = renderMargin * 2 + cardSize.width;
+      for (final turn in [0.1, 0.4, 0.6]) {
+        final forward = await centre(BeamDirection.forward, turn);
+        final reverse = await centre(BeamDirection.reverse, turn);
+        final mirrored = Offset(width - 1 - reverse.dx, reverse.dy);
+        expect(
+          (forward - mirrored).distance,
+          lessThan(cardSize.width * 0.08),
+          reason: '$turn of a turn: forward $forward, reverse $mirrored',
+        );
+      }
     });
   });
 
