@@ -77,7 +77,7 @@ The renderer bounds the draw to where light can land: the box grown by the furth
 
 Some of the shader's maths runs on the CPU too, and the two copies must agree exactly.
 
-**`BeamOutline`** (`lib/src/border_beam/render/beam_outline.dart`) is the Dart mirror of the shader's `outline()`. `locate()` returns the same `(d, u)` the GPU computes, including the nearest-piece choice; `pointAt` / `normalAt` invert it. Emitters lay blobs along the outline with it, `BeamSegment` anchors resolve against it, and `BorderBeam.follow` maps a pointer to the border with it. The renderer packs its `radii`, its corner model (circular or superellipse), `length`, and `quadStarts` straight into the shader, so a change to the corner model goes in both places at once. A test renders the real shader at 3× and checks its distance against `locate()` pixel by pixel.
+**`BeamOutline`** (`lib/src/border_beam/render/beam_outline.dart`) is the Dart mirror of the shaders' `outline()` in `shaders/common/outline.glsl`, which every shader includes. `locate()` returns the same `(d, u)` the GPU computes, including the nearest-piece choice; `pointAt` / `normalAt` invert it. Emitters lay blobs along the outline with it, `BeamSegment` anchors resolve against it, and `BorderBeam.follow` maps a pointer to the border with it. The renderer packs its `radii`, its corner model (circular or superellipse), `length`, and `quadStarts` straight into the shader, so a change to the corner model goes in both places at once. A test renders the real shader at 3× and checks its distance against `locate()` pixel by pixel.
 
 **Conic tables.** `BeamFrameData.tableAt` reads a table exactly as the shader's `TABLE_LOOKUP` does; tests read windows and overlays back through it.
 

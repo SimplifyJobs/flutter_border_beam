@@ -18,7 +18,7 @@ const double squircleReach = 2.5;
 /// The outline every beam is drawn along, and the perimeter coordinate the
 /// shader shades by — mirrored here in Dart so the CPU can place lights,
 /// resolve anchors, and map a pointer to the border with the same numbers the
-/// GPU uses (`shaders/beam.frag`, `outline()`).
+/// GPU uses (`outline()` in `shaders/common/outline.glsl`, shared by every shader).
 ///
 /// The outline is a rectangle with four corners, each either a circular arc
 /// or Flutter's rounded superellipse (`RSuperellipse`, as drawn by
