@@ -35,10 +35,13 @@ void main() {
     }
 
     test('the two families partition the effects', () {
-      expect({...travelling, ...ambient}, hasLength(3));
       expect(
         BeamEffect.values.where((e) => e.travels).map((e) => e.name).toSet(),
         travelling,
+      );
+      expect(
+        BeamEffect.values.where((e) => !e.travels).map((e) => e.name).toSet(),
+        ambient,
       );
     });
 
@@ -92,16 +95,32 @@ void main() {
 
   group('equality', () {
     test('equal parameters are equal with equal hash codes', () {
-      const pairs = <(BeamEffect, BeamEffect)>[
-        (BeamEffect.rotate(), RotateEffect(length: 1, count: 1)),
+      // The right-hand sides are built at run time: two equal const
+      // expressions are one canonical instance, and `==` would never get
+      // past `identical`.
+      final pairs = <(BeamEffect, BeamEffect)>[
         (
-          BeamEffect.rotate(length: 1.5, count: 2, comet: true),
-          RotateEffect(length: 1.5, count: 2, comet: true),
+          const BeamEffect.rotate(),
+          RotateEffect(length: double.parse('1'), count: int.parse('1')),
         ),
-        (BeamEffect.line(edge: BeamEdge.left), LineEffect(edge: BeamEdge.left)),
-        (BeamEffect.pulse(), PulseEffect()),
+        (
+          const BeamEffect.rotate(length: 1.5, count: 2, comet: true),
+          RotateEffect(
+            length: double.parse('1.5'),
+            count: int.parse('2'),
+            comet: bool.parse('true'),
+          ),
+        ),
+        (
+          const BeamEffect.line(edge: BeamEdge.left),
+          LineEffect(edge: BeamEdge.values.byName('left')),
+        ),
+        // PulseEffect has no fields: a non-const call is the only way to get
+        // a second instance.
+        (const BeamEffect.pulse(), PulseEffect()),
       ];
       for (final (a, b) in pairs) {
+        expect(identical(a, b), isFalse, reason: '$a: two instances');
         expect(a, b);
         expect(a.hashCode, b.hashCode, reason: '$a');
       }

@@ -62,6 +62,9 @@ enum BeamReducedMotion {
   slow,
 }
 
+/// The rate [BeamReducedMotion.slow] scales a beam's speed by.
+const double slowMotionFactor = 0.25;
+
 /// How many cycles a beam runs before it stops.
 ///
 /// A beam that reaches its last cycle fades out the way an inactive one

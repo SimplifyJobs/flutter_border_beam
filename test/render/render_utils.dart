@@ -21,11 +21,17 @@ final Map<String, BeamEffect> effectsByName = {
   for (final effect in BeamEffect.values) effect.name: effect,
 };
 
-/// A palette subset that covers the stop-count extremes: the default, a
-/// fixed-hue preset, one stop, and the full eight.
+/// A palette subset that covers the stop-count extremes — the default, a
+/// fixed-hue preset, one stop, and the full eight — and every way
+/// `BeamLook.tablesFor` finds a palette's tables: its own (`colorful`,
+/// `mono`), an extra preset's colours cycled over colorful's (`aurora`),
+/// tables sampled from the stops (`solid`, `eight`), and a preset's own
+/// tables scaled (`ocean ×0.5`).
 final Map<String, BeamColors> paletteSubset = {
   'colorful': BeamColors.colorful,
   'mono': BeamColors.mono,
+  'aurora': BeamColors.aurora,
+  'ocean ×0.5': BeamColors.ocean.scaleAlpha(0.5),
   'solid': const BeamColors.solid(Color(0xFFFF0080)),
   'eight': const BeamColors([
     Color(0xFFFF0000),
@@ -212,7 +218,7 @@ Future<RenderedFrame> renderFrame(
 /// lands in [unforwarded] through `noSuchMethod`, so a new kind of call fails
 /// the budget test loudly instead of slipping through uncounted.
 class RecordingCanvas implements ui.Canvas {
-  /// Wraps [inner].
+  /// Wraps `inner`.
   RecordingCanvas(this._inner);
 
   final ui.Canvas _inner;

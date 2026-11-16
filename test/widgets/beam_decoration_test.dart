@@ -7,7 +7,7 @@ import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// [BeamDecoration] runs the beam engine from a [BoxPainter] instead of a
-/// widget: it owns a raw [Ticker], repaints its box through `onChanged`, and
+/// widget: it owns a raw `Ticker`, repaints its box through `onChanged`, and
 /// must give that ticker (and any scheduling timer) back when the render
 /// object drops it.
 ///
@@ -232,7 +232,30 @@ void main() {
       await tester.pump(const Duration(milliseconds: 700));
       expect(litPixels(await capture(tester)), greaterThan(0));
 
-      // Past the duration, and past the 0.5s fade-out it starts.
+      // Past the duration, and past the fade-out it starts
+      // (BeamClock.fadeOutSeconds), with room to spare.
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(tester.binding.transientCallbackCount, 0);
+      expect(litPixels(await capture(tester)), 0);
+    });
+
+    testWidgets('repeat ends the beam after its cycles', (tester) async {
+      await tester.pumpWidget(
+        scene(
+          foreground: const BeamDecoration(
+            brightness: Brightness.dark,
+            timing: BeamTiming(cycle: Duration(seconds: 1)),
+            playback: BeamPlayback(repeat: BeamRepeat.once()),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 700));
+      expect(litPixels(await capture(tester)), greaterThan(0));
+
+      // Past the one cycle, and past the fade-out it starts.
       for (var i = 0; i < 10; i++) {
         await tester.pump(const Duration(milliseconds: 100));
       }
@@ -276,11 +299,29 @@ void main() {
   });
 
   group('ticking', () {
+    // A painter from [decoration] and the way to dispose it. Each test
+    // disposes its painter itself — flutter_test checks for live tickers
+    // before tear-downs run — and the tear-down only catches one that a
+    // failed expectation left behind.
+    VoidCallback paintWith(BeamDecoration decoration, VoidCallback onChanged) {
+      final painter = decoration.createBoxPainter(onChanged);
+      var disposed = false;
+      void dispose() {
+        if (disposed) return;
+        disposed = true;
+        painter.dispose();
+      }
+
+      addTearDown(dispose);
+      return dispose;
+    }
+
     testWidgets('calls onChanged on every clock tick', (tester) async {
       var changes = 0;
-      final painter = const BeamDecoration(
-        brightness: Brightness.dark,
-      ).createBoxPainter(() => changes++);
+      final disposePainter = paintWith(
+        const BeamDecoration(brightness: Brightness.dark),
+        () => changes++,
+      );
 
       await tester.pump();
       final afterFirst = changes;
@@ -288,22 +329,25 @@ void main() {
       await tester.pump(const Duration(milliseconds: 16));
       expect(changes, greaterThan(afterFirst));
 
-      painter.dispose();
+      disposePainter();
       expect(tester.binding.transientCallbackCount, 0);
     });
 
     testWidgets('disposing the painter mid-fade leaves no ticker', (
       tester,
     ) async {
-      final painter = const BeamDecoration(
-        effect: BeamEffect.pulse(),
-        brightness: Brightness.light,
-      ).createBoxPainter(() {});
+      final disposePainter = paintWith(
+        const BeamDecoration(
+          effect: BeamEffect.pulse(),
+          brightness: Brightness.light,
+        ),
+        () {},
+      );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 200));
       expect(tester.binding.transientCallbackCount, greaterThan(0));
 
-      painter.dispose();
+      disposePainter();
       expect(tester.binding.transientCallbackCount, 0);
     });
 
@@ -354,12 +398,15 @@ void main() {
     );
 
     test('equal field-for-field', () {
-      const same = BeamDecoration(
-        effect: BeamEffect.rotate(),
+      // Built at run time: an equal const would be the same canonical
+      // instance, and `==` would never get past `identical`.
+      final same = BeamDecoration(
+        effect: const BeamEffect.rotate(),
         brightness: Brightness.dark,
         colors: BeamColors.ocean,
-        borderRadius: 16,
+        borderRadius: double.parse('16'),
       );
+      expect(identical(base, same), isFalse);
       expect(base, equals(same));
       expect(base.hashCode, same.hashCode);
     });

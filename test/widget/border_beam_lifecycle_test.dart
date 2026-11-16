@@ -205,7 +205,6 @@ void main() {
 
   testWidgets(
     'a controller handed to a new beam in the same frame follows it',
-    skip: true, // defect: the new beam's attach asserts before the old detaches
     (tester) async {
       final controller = BorderBeamController();
       addTearDown(controller.dispose);

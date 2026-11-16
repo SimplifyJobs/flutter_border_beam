@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' show Brightness;
 
 import 'package:flutter_border_beam/flutter_border_beam.dart';
@@ -166,8 +167,10 @@ void main() {
         expect(mode, effect.defaultHueMode);
         final p = r.config.huePeriodSeconds;
         final shift = r.config.hueShift;
+        final hues = <double>{};
         for (var i = 0; i < 50; i++) {
           final hue = r.sample(i * p / 37, 1).hueDegrees;
+          hues.add(hue);
           switch (mode) {
             case BeamHueMode.none:
               expect(hue, 0);
@@ -177,6 +180,14 @@ void main() {
             case BeamHueMode.pingPong:
               expect(hue, inInclusiveRange(-shift - 1e-9, shift + 1e-9));
           }
+        }
+        // A drifting mode actually moves: a hue stuck at 0 satisfies every
+        // range above.
+        if (mode != BeamHueMode.none) {
+          expect(hues.length, greaterThan(10), reason: '$mode');
+          final span = hues.reduce(math.max) - hues.reduce(math.min);
+          final expected = mode == BeamHueMode.pingPong ? shift : 180.0;
+          expect(span, greaterThan(expected), reason: '$mode: span $span');
         }
       });
     }

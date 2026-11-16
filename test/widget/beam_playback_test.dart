@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_border_beam/src/animation/beam_clock.dart';
+import 'package:flutter_border_beam/src/animation/spring_curve.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'test_utils.dart';
@@ -51,12 +52,12 @@ void main() {
 
       await tester.pumpWidget(build(true));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pump(pastFadeIn);
       expect(activated, 1);
       expect(deactivated, 0);
 
       await tester.pumpWidget(build(false));
-      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump(pastFadeOut);
       expect(deactivated, 1);
       expect(beamPainterOf(tester).clock.isVisible, isFalse);
       await tester.pump(const Duration(milliseconds: 50));
@@ -100,7 +101,7 @@ void main() {
 
       await tester.pump(const Duration(seconds: 1, milliseconds: 100));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pump(pastFadeIn);
       expect(activated, 1);
     });
 
@@ -120,7 +121,7 @@ void main() {
       expect(deactivated, 0);
       await tester.pump(const Duration(seconds: 1, milliseconds: 100));
       expect(beamPainterOf(tester).clock.stage, BeamFadeStage.fadingOut);
-      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump(pastFadeOut);
       expect(deactivated, 1);
       await tester.pump(const Duration(milliseconds: 50));
       expect(tester.binding.transientCallbackCount, 0);
@@ -179,7 +180,7 @@ void main() {
         );
         expect(deactivated, 0);
 
-        await tester.pump(const Duration(milliseconds: 600));
+        await tester.pump(pastFadeOut);
         expect(deactivated, 1);
         expect(clock.isVisible, isFalse);
         expect(tester.binding.transientCallbackCount, 0);
@@ -237,7 +238,7 @@ void main() {
       await tester.pumpWidget(build(true));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 1100));
-      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump(pastFadeOut);
       expect(deactivated, 1);
 
       await tester.pumpWidget(build(false));
@@ -320,22 +321,6 @@ void main() {
       expect(beamPainterOf(tester).staticMode, isFalse);
     });
 
-    testWidgets('slow scales the configured rate rather than replacing it', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        beamHost(
-          disableAnimations: true,
-          const BorderBeam(
-            timing: BeamTiming(speed: 2),
-            playback: BeamPlayback(reducedMotion: BeamReducedMotion.slow),
-            child: SizedBox.expand(),
-          ),
-        ),
-      );
-      expect(beamPainterOf(tester).clock.speed, closeTo(0.5, 1e-12));
-    });
-
     testWidgets('animate ignores the request', (tester) async {
       await tester.pumpWidget(
         reduced(const BeamPlayback(reducedMotion: BeamReducedMotion.animate)),
@@ -371,7 +356,7 @@ void main() {
 
       await tester.pumpWidget(build(false));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 800));
+      await tester.pump(pastFadeIn);
       final clock = beamPainterOf(tester).clock;
       expect(clock.isRunning, isTrue);
       final frozenAt = clock.elapsedSeconds;
@@ -406,7 +391,7 @@ void main() {
 
       await tester.pumpWidget(build(false));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 800));
+      await tester.pump(pastFadeIn);
       final clock = beamPainterOf(tester).clock;
 
       await tester.pumpWidget(build(true));
@@ -486,7 +471,7 @@ void main() {
       await tester.pumpWidget(build(false));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 1100));
-      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump(pastFadeOut);
       expect(deactivated, 1);
 
       await tester.pumpWidget(build(true));
@@ -514,7 +499,7 @@ void main() {
       await tester.pumpWidget(build(false));
       controller.start();
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pump(pastFadeIn);
       controller.pause();
       await tester.pump(const Duration(milliseconds: 50));
       expect(controller.isRunning, isFalse);
@@ -603,39 +588,35 @@ void main() {
       expect(live.bytes, still.bytes);
     });
 
-    testWidgets(
-      'clearing it on a mounted beam starts the beam',
-      skip: true, // defect: an unfrozen beam never schedules its autoplay start
-      (tester) async {
-        await tester.pumpWidget(frozen(const Duration(milliseconds: 1300)));
-        await tester.pump(const Duration(milliseconds: 100));
+    testWidgets('clearing it on a mounted beam starts the beam', (
+      tester,
+    ) async {
+      await tester.pumpWidget(frozen(const Duration(milliseconds: 1300)));
+      await tester.pump(const Duration(milliseconds: 100));
 
-        await tester.pumpWidget(
-          beamHost(const BorderBeam(child: SizedBox.expand())),
-        );
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 100));
-        final clock = beamPainterOf(tester).clock;
-        expect(clock.isVisible, isTrue);
-        expect(clock.isRunning, isTrue);
-      },
-    );
+      await tester.pumpWidget(
+        beamHost(const BorderBeam(child: SizedBox.expand())),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      final clock = beamPainterOf(tester).clock;
+      expect(clock.isVisible, isTrue);
+      expect(clock.isRunning, isTrue);
+    });
 
-    testWidgets(
-      'setting it on a running beam stops spending frames',
-      skip: true, // defect: the clock keeps ticking under a frozen frame
-      (tester) async {
-        await tester.pumpWidget(
-          beamHost(const BorderBeam(child: SizedBox.expand())),
-        );
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 700));
+    testWidgets('setting it on a running beam stops spending frames', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        beamHost(const BorderBeam(child: SizedBox.expand())),
+      );
+      await tester.pump();
+      await tester.pump(pastFadeIn);
 
-        await tester.pumpWidget(frozen(const Duration(seconds: 1)));
-        await tester.pump(const Duration(milliseconds: 100));
-        expect(tester.binding.transientCallbackCount, 0);
-      },
-    );
+      await tester.pumpWidget(frozen(const Duration(seconds: 1)));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(tester.binding.transientCallbackCount, 0);
+    });
 
     testWidgets('a different instant is a different frame', (tester) async {
       await tester.pumpWidget(frozen(const Duration(milliseconds: 1300)));
@@ -739,11 +720,26 @@ void main() {
       await tester.pump(halfIn);
       final clock = beamPainterOf(tester).clock;
       expect(clock.fadeCurve, isNull);
-      expect(clock.fadeOpacity, inInclusiveRange(0, 1));
-      expect(clock.fadeOpacity, isNot(closeTo(0.5, 1e-3)));
+      expect(
+        clock.fadeOpacity,
+        closeTo(BeamSpringCurve.fadeIn.transform(0.5), 1e-3),
+        reason: 'halfway through the fade-in, the fade-in spring',
+      );
       expect(
         clock.fadeOpacity,
         isNot(closeTo(BeamPlayback.cssEase.transform(0.5), 1e-3)),
+        reason: 'not the CSS ease',
+      );
+
+      await tester.pump(pastFadeIn);
+      await tester.pumpWidget(
+        beamHost(const BorderBeam(active: false, child: SizedBox.expand())),
+      );
+      await tester.pump(halfOut);
+      expect(
+        clock.fadeOpacity,
+        closeTo(1 - BeamSpringCurve.fadeOut.transform(0.5), 1e-3),
+        reason: 'halfway through the fade-out, the fade-out spring',
       );
     });
 

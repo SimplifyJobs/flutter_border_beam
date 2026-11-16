@@ -4,8 +4,22 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_border_beam/flutter_border_beam.dart';
+import 'package:flutter_border_beam/src/animation/beam_clock.dart';
 import 'package:flutter_border_beam/src/render/beam_painter.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+/// Long enough for a fade-in to finish: [BeamClock.fadeInSeconds] plus a
+/// margin. A test that waits out a fade waits this long instead of a number
+/// of its own, so retuning the fade cannot leave it caught mid-fade.
+final Duration pastFadeIn = _pastFade(BeamClock.fadeInSeconds);
+
+/// Long enough for a fade-out to finish: [BeamClock.fadeOutSeconds] plus the
+/// same margin as [pastFadeIn].
+final Duration pastFadeOut = _pastFade(BeamClock.fadeOutSeconds);
+
+Duration _pastFade(double seconds) =>
+    Duration(microseconds: (seconds * Duration.microsecondsPerSecond).ceil()) +
+    const Duration(milliseconds: 100);
 
 /// Pumps [app] and expects the framework to report an [AssertionError] whose
 /// message contains [message].

@@ -73,18 +73,24 @@ void main() {
   });
 
   group('direction', () {
-    test('reverse mirrors the forward sweep and flags the frame', () {
-      final forward = _resolver();
-      final reverse = _resolver(direction: BeamDirection.reverse);
-      for (final t in [0.1, 0.4, 1.1, 1.5, 5.3]) {
-        expect(
-          reverse.sample(t, 1).travelProgress,
-          closeTo(1 - forward.sample(t, 1).travelProgress, 1e-9),
-          reason: 't=$t',
+    for (final effect in travelling) {
+      test('${effect.name}: reverse mirrors the forward sweep and flags the '
+          'frame', () {
+        final forward = _resolver(effect: effect);
+        final reverse = _resolver(
+          effect: effect,
+          direction: BeamDirection.reverse,
         );
-        expect(reverse.sample(t, 1).reversedNow, isTrue);
-      }
-    });
+        for (final t in [0.1, 0.4, 1.1, 1.5, 5.3]) {
+          expect(
+            reverse.sample(t, 1).travelProgress,
+            closeTo(1 - forward.sample(t, 1).travelProgress, 1e-9),
+            reason: 't=$t',
+          );
+          expect(reverse.sample(t, 1).reversedNow, isTrue);
+        }
+      });
+    }
 
     test('bounce alternates per cycle, starting forward', () {
       final r = _resolver(direction: BeamDirection.bounce);
@@ -187,6 +193,10 @@ void main() {
       expect(envelope(2.98), inExclusiveRange(0, 1));
       expect(envelope(2.999), closeTo(1, 1e-3), reason: 'continuous at wrap');
       expect(envelope(3.0), 1);
+      // The fade back in mirrors the fade out.
+      for (final x in [0.05, 0.1, 0.2]) {
+        expect(envelope(2 + x), closeTo(envelope(3 - x), 1e-9), reason: '$x');
+      }
     });
 
     test('a short gap still goes dark in the middle', () {
@@ -210,6 +220,11 @@ void main() {
           expect(phases.fadeOpacity, 0.8, reason: '${effect.name} t=$t');
           expect(phases.travelProgress, 0);
           expect(phases.travellers, [0]);
+          expect(
+            phases.cycles,
+            closeTo(t / r.config.cycleSeconds, 1e-9),
+            reason: '${effect.name}: no pause at t=$t',
+          );
         }
       }
     });
@@ -220,6 +235,11 @@ void main() {
       final r = _resolver(phaseOffset: 0.25);
       expect(r.sample(0, 1).travelProgress, closeTo(0.25, 1e-9));
       expect(r.sample(1, 1).travelProgress, closeTo(0.75, 1e-9));
+    });
+
+    test('a reversed sweep starts the same fraction into its cycle', () {
+      final r = _resolver(phaseOffset: 0.25, direction: BeamDirection.reverse);
+      expect(r.sample(0, 1).travelProgress, closeTo(0.75, 1e-9));
     });
 
     test('a whole-cycle offset is the identity', () {
@@ -265,6 +285,10 @@ void main() {
         expect(p, lessThan(1));
       }
       expect(phases.travellers[1], closeTo(0.15, 1e-9));
+    });
+
+    test('count 1 is a single beam', () {
+      expect(counted(1).sample(0.3, 1).travellers, hasLength(1));
     });
 
     test('the spacing holds all the way round', () {

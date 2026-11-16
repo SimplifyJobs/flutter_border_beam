@@ -1,5 +1,9 @@
+/// @docImport 'package:flutter/scheduler.dart';
+/// @docImport 'border_beam.dart';
+library;
+
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 
 import 'animation/beam_clock.dart';
 import 'models/beam_options.dart';
@@ -24,7 +28,7 @@ import 'models/beam_options.dart';
 /// )
 /// ```
 ///
-/// Beams stay individually configurable — palette, variant, shape, and
+/// Beams stay individually configurable — effect, palette, shape, and
 /// `BeamTiming.phaseOffset` are still per beam, so a group can run evenly
 /// spaced around the cycle rather than perfectly on top of each other:
 ///
@@ -37,8 +41,9 @@ import 'models/beam_options.dart';
 ///
 /// The group owns playback. A synced beam does not start, stop, pause, or
 /// fade on its own, so `BeamPlayback`'s `active`, `autoPlay`, `startAfter`,
-/// `duration`, and `repeat` are ignored below a [BeamSync] — use [active]
-/// and [speed] here instead. A `BorderBeamController` is playback control
+/// `duration`, `repeat`, `fadeCurve`, and `pauseWhenOffscreen` are ignored
+/// below a [BeamSync], as is `BeamTiming.speed` — use [active] and [speed]
+/// here instead. A `BorderBeamController` is playback control
 /// for one beam and asserts if it meets a [BeamSync].
 ///
 /// Reduced motion is necessarily group-owned too: one shared clock cannot
@@ -53,7 +58,7 @@ class BeamSync extends StatefulWidget {
     this.active = true,
     this.speed = 1,
     this.reducedMotion = BeamReducedMotion.staticFrame,
-  });
+  }) : assert(speed > 0, 'BeamSync.speed must be positive');
 
   /// The subtree whose beams share the clock.
   final Widget child;
@@ -62,10 +67,11 @@ class BeamSync extends StatefulWidget {
   /// or out (about 0.6s) together.
   final bool active;
 
-  /// Playback rate for the group; must be positive.
+  /// Playback rate for the group; must be positive. Default 1.
   final double speed;
 
   /// How the whole group responds to the platform reduced-motion request.
+  /// Default [BeamReducedMotion.staticFrame].
   final BeamReducedMotion reducedMotion;
 
   /// The shared clock for [context], or null when there is no enclosing
@@ -74,7 +80,7 @@ class BeamSync extends StatefulWidget {
       context.dependOnInheritedWidgetOfExactType<BeamSyncScope>()?.clock;
 
   /// The reduced-motion policy owned by the nearest group, or null when the
-  /// beam is not synchronized.
+  /// beam is not synchronized. Internal — do not call from application code.
   static BeamReducedMotion? reducedMotionOf(BuildContext context) => context
       .dependOnInheritedWidgetOfExactType<BeamSyncScope>()
       ?.reducedMotion;
@@ -102,7 +108,7 @@ class _BeamSyncState extends State<BeamSync>
 
   void _applySpeed() {
     final factor = _reduced && widget.reducedMotion == BeamReducedMotion.slow
-        ? 0.25
+        ? slowMotionFactor
         : 1.0;
     _clock.speed = widget.speed * factor;
   }

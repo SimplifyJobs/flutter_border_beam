@@ -225,18 +225,19 @@ void main() {
 
   group('equality and toString', () {
     test('anchors compare by value, defaults included', () {
-      expect(const BeamAnchor.fraction(0.25), const BeamAnchor.fraction(0.25));
-      expect(
-        const BeamAnchor.fraction(0.25).hashCode,
-        const BeamAnchor.fraction(0.25).hashCode,
-      );
+      // The right-hand sides are built at run time: two equal const
+      // expressions are one canonical instance, and `==` would never get
+      // past `identical`.
+      final quarter = BeamAnchor.fraction(double.parse('0.25'));
+      expect(const BeamAnchor.fraction(0.25), quarter);
+      expect(const BeamAnchor.fraction(0.25).hashCode, quarter.hashCode);
       expect(
         const BeamAnchor.edge(BeamEdge.right),
-        const BeamAnchor.edge(BeamEdge.right, 0.5),
+        BeamAnchor.edge(BeamEdge.right, double.parse('0.5')),
       );
       expect(
         const BeamAnchor.corner(BeamCorner.topLeft),
-        const BeamAnchor.corner(BeamCorner.topLeft, 0.5),
+        BeamAnchor.corner(BeamCorner.topLeft, double.parse('0.5')),
       );
       expect(BeamAnchor.rightCenter, const BeamAnchor.edge(BeamEdge.right));
       expect(BeamAnchor.topCenter, const BeamAnchor.fraction(0));
@@ -261,20 +262,13 @@ void main() {
     });
 
     test('segments compare start, end and feather', () {
-      expect(
-        const BeamSegment(
-          start: BeamAnchor.topCenter,
-          end: BeamAnchor.bottomCenter,
-        ),
-        BeamSegment.rightHalf,
+      final rightHalf = BeamSegment(
+        start: BeamAnchor.fraction(double.parse('0')),
+        end: BeamAnchor.edge(BeamEdge.bottom, double.parse('0.5')),
       );
-      expect(
-        const BeamSegment(
-          start: BeamAnchor.topCenter,
-          end: BeamAnchor.bottomCenter,
-        ).hashCode,
-        BeamSegment.rightHalf.hashCode,
-      );
+      expect(identical(rightHalf, BeamSegment.rightHalf), isFalse);
+      expect(rightHalf, BeamSegment.rightHalf);
+      expect(rightHalf.hashCode, BeamSegment.rightHalf.hashCode);
       expect(BeamSegment.rightHalf, isNot(BeamSegment.leftHalf));
       expect(
         const BeamSegment(

@@ -1,6 +1,6 @@
 /// Animated border beam effects for Flutter.
 ///
-/// Travelling and breathing light around any widget's border — four
+/// Travelling and breathing light around any widget's border — three
 /// effects, a gallery of palettes plus your own, superellipse corners,
 /// theming, and playback control — drawn by one fragment shader in a single
 /// pass, with no offscreen layers or blurs.

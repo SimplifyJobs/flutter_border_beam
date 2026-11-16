@@ -10,8 +10,8 @@ import 'package:flutter_test/flutter_test.dart';
 /// small and an unrelated change to the test surface size moves nothing.
 ///
 /// Scenes freeze the fake test clock at [goldenFreeze] after activation —
-/// past the 0.6s fade-in, mid-cycle — so each image is one representative
-/// animated frame, deterministic run to run.
+/// past the fade-in (`BeamClock.fadeInSeconds`), mid-cycle — so each image
+/// is one representative animated frame, deterministic run to run.
 ///
 /// Regenerate (macOS, on the SDK `ci.yaml` pins):
 ///   flutter test --update-goldens --tags golden

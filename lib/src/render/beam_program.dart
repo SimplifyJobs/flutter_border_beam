@@ -17,7 +17,6 @@ abstract final class BeamProgram {
   ];
 
   static ui.FragmentProgram? _program;
-  static Future<void>? _loading;
   static bool _reported = false;
   static final ValueNotifier<bool> _ready = ValueNotifier<bool>(false);
 
@@ -35,7 +34,7 @@ abstract final class BeamProgram {
   /// replaced rather than awaited forever.
   static Future<void> load() {
     if (_program != null) return Future<void>.value();
-    return _loading = _load();
+    return _load();
   }
 
   static Future<void> _load() async {
@@ -64,8 +63,4 @@ abstract final class BeamProgram {
       );
     }
   }
-
-  /// Whether a load is in flight.
-  @visibleForTesting
-  static bool get isLoading => _loading != null && _program == null;
 }

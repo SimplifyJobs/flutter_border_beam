@@ -231,9 +231,9 @@ class BeamDecoration extends Decoration {
 // a BoxPainter has no provider to ask, and none of the tree-driven muting
 // that comes with one (see the class docs on BeamDecoration).
 class _BeamBoxPainter extends BoxPainter {
-  _BeamBoxPainter(this._decoration, super.onChanged) {
+  _BeamBoxPainter(this._decoration, super.onChanged)
+    : _repeatCycles = validateRepeat(_decoration._playback.repeat) {
     validateBeamTiming(_decoration._timing);
-    validateRepeat(_decoration._playback.repeat);
     _clock = BeamClock(
       createTicker: Ticker.new,
       fadeCurve: _decoration._playback.fadeCurve,
@@ -250,6 +250,7 @@ class _BeamBoxPainter extends BoxPainter {
   }
 
   final BeamDecoration _decoration;
+  final int? _repeatCycles;
   late final BeamClock _clock;
   final BeamRenderer _renderer = BeamRenderer();
 
@@ -262,8 +263,9 @@ class _BeamBoxPainter extends BoxPainter {
   bool _disposed = false;
 
   // Mirrors BorderBeam's autoplay: `active`/`autoPlay` gate the start,
-  // `startAfter` delays it, `duration` ends it. There is no controller here —
-  // a controller attaches to a widget's clock, not a painter's.
+  // `startAfter` delays it, `duration` and `repeat` end it. There is no
+  // controller here — a controller attaches to a widget's clock, not a
+  // painter's.
   void _schedule() {
     final playback = _decoration._playback;
     // A frozen beam paints one instant forever; its clock never starts.
@@ -284,7 +286,19 @@ class _BeamBoxPainter extends BoxPainter {
     if (duration != null) _durationTimer = Timer(duration, _clock.deactivate);
   }
 
-  void _handleTick() => onChanged?.call();
+  void _handleTick() {
+    _checkRepeatBudget();
+    onChanged?.call();
+  }
+
+  // Once the repeat budget is spent the beam fades out the way an inactive
+  // one does, so the last cycle ends on a fade rather than a cut.
+  void _checkRepeatBudget() {
+    final resolver = _resolver;
+    if (resolver == null || resolver.repeatCycles == null) return;
+    if (!_clock.isVisible || _clock.stage == BeamFadeStage.fadingOut) return;
+    if (resolver.finishedAt(_clock.elapsedSeconds)) _clock.deactivate();
+  }
 
   BeamConfig _configFor(TextDirection textDirection) {
     if (_config != null && _configDirection == textDirection) return _config!;
@@ -301,7 +315,7 @@ class _BeamBoxPainter extends BoxPainter {
       timing: _decoration._timing,
       textDirection: textDirection,
     );
-    _resolver = BeamPhaseResolver(_config!);
+    _resolver = BeamPhaseResolver(_config!)..repeatCycles = _repeatCycles;
     return _config!;
   }
 

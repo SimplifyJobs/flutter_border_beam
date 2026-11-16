@@ -10,11 +10,12 @@ import '../models/beam_options.dart';
 ///
 /// Effects fall into two families:
 ///
-/// * **Travelling** — [rotate], [line]. A position runs along the border
-///   once per cycle; these respond to `BeamTiming.direction`,
-///   `BeamTiming.cycleGap`, `BorderBeam.progress`, and `BorderBeam.follow`.
-/// * **Ambient** — [pulse]. Light breathes around the whole border; the
-///   travel inputs are ignored.
+/// * **Travelling** — [BeamEffect.rotate], [BeamEffect.line]. A position
+///   runs along the border once per cycle; these respond to
+///   `BeamTiming.direction`, `BeamTiming.cycleGap`, `BorderBeam.progress`,
+///   and `BorderBeam.follow`.
+/// * **Ambient** — [BeamEffect.pulse]. Light breathes around the whole
+///   border; the travel inputs are ignored.
 @immutable
 sealed class BeamEffect {
   const BeamEffect._();

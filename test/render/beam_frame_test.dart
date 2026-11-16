@@ -50,12 +50,19 @@ void main() {
             );
             for (final t in instants) {
               final canvas = recordFrame(r, config, phasesAt(config, t));
-              // A frame the gap blacked out leaves the last one behind.
+              final label = '$name/${brightness.name}/$shapeName at ${t}s';
+              // The golden instant is mid-sweep for every effect: any shape
+              // but a segment, which may hide all of the light, draws there.
+              // (Elsewhere a frame can be dark — the line fades its streak in
+              // and out of each sweep.)
+              if (t == 1.3 && shape.segment == null) {
+                expect(canvas.draws, hasLength(1), reason: '$label: no draw');
+              }
               if (canvas.draws.isEmpty) continue;
               painted++;
               expectSaneFrame(
                 r.debugFrame,
-                '$name/${brightness.name}/$shapeName at ${t}s',
+                label,
                 drawBounds: canvas.drawBounds.single,
               );
             }
@@ -86,10 +93,14 @@ void main() {
             );
             for (final t in [0.4, 1.3, 2.9]) {
               final canvas = recordFrame(r, config, phasesAt(config, t));
+              final where = '$label, $palette, glow $glow at ${t}s';
+              if (t == 1.3) {
+                expect(canvas.draws, hasLength(1), reason: '$where: no draw');
+              }
               if (canvas.draws.isEmpty) continue;
               expectSaneFrame(
                 r.debugFrame,
-                '$label, $palette, glow $glow at ${t}s',
+                where,
                 drawBounds: canvas.drawBounds.single,
               );
             }
@@ -313,9 +324,13 @@ void main() {
       final cycle = config.cycleSeconds;
       expect(strokeAt(cycle * 0.5), greaterThan(0.9));
       expect(strokeAt(cycle * 0.2), lessThan(strokeAt(cycle * 0.5)));
+      expect(strokeAt(cycle * 0.8), lessThan(strokeAt(cycle * 0.5)));
     });
 
-    test('mono softens the spikes instead of halving the layers', () {
+    // Mono tones the line down through its spikes (shorter, fainter), which
+    // the `line_*_mono` goldens pin; what this pins is the other half — it
+    // does not do it by halving whole layers, as rotate's mono does.
+    test("mono leaves the line's layer opacities alone", () {
       final r = renderer();
       final colorful = configFor(const BeamEffect.line());
       recordFrame(r, colorful, phasesAt(colorful, 1.5));

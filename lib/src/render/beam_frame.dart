@@ -197,9 +197,6 @@ final class BeamFrameData {
     math.max(repeats, 1).toDouble(),
   );
 
-  /// Switches off the dither on the soft tails.
-  void disableDither() => data[_perim + 2] = 0;
-
   /// The outline box.
   Rect get outlineRect => Rect.fromLTWH(
     data[_rect],
@@ -207,9 +204,6 @@ final class BeamFrameData {
     data[_rect + 2],
     data[_rect + 3],
   );
-
-  /// The conic coordinate's centre.
-  Offset get conicCentre => Offset(data[_conic], data[_conic + 1]);
 
   /// The angle the conic tables start at, in turns.
   double get conicStart => data[_conic + 2];
@@ -249,10 +243,6 @@ final class BeamFrameData {
   /// The [i]th stop position of [table] (unused tables report 2).
   double tableStop(BeamTable table, int i) =>
       data[_tables + table.index * _tableFloats + 2 * i];
-
-  /// Whether [table] is in use.
-  bool tableUsed(BeamTable table) =>
-      data[_tables + table.index * _tableFloats] <= 1;
 
   /// The alpha of [table] at [t], as the shader reads it.
   double tableAt(BeamTable table, double t) {
@@ -307,12 +297,6 @@ final class BeamFrameData {
 
   /// Layer [k]'s inflate.
   double inflateOf(int k) => data[_h(k, 0) + 2];
-
-  /// Multiplies layer [k]'s opacity by [factor].
-  void scaleOpacity(int k, double factor) {
-    final i = _h(k, 0) + 3;
-    data[i] = (data[i] * factor).clamp(0.0, 1.0);
-  }
 
   /// Fades layer [k] out [px] in from the edge.
   void setEdgeFade(int k, double px) => data[_h(k, 1)] = px;
@@ -393,17 +377,15 @@ final class BeamFrameData {
   /// Layer [k]'s colour filter: CSS `hue-rotate(hue) brightness(b)
   /// saturate(s)`, applied left to right.
   ///
-  /// By default the filter is folded into each colour of the layer — every
-  /// blob, the overlay ink, and the shadow — before they are composited,
-  /// which keeps overlapping colours saturated (call [finish] once the layer
-  /// is written). With [fold] false the shader filters the composited layer
-  /// instead.
+  /// The filter is folded into each colour of the layer — every blob, the
+  /// overlay ink, and the shadow — before they are composited, which keeps
+  /// overlapping colours saturated; call [finish] once the layer is written.
+  /// The layer's own colour matrix stays the identity [reset] wrote.
   void setFilter(
     int k, {
     double hue = 0,
     double brightness = 1,
     double saturation = 1,
-    bool fold = true,
   }) {
     final rad = hue * math.pi / 180;
     final c = math.cos(rad);
@@ -439,15 +421,7 @@ final class BeamFrameData {
     m[7] = s20 * h01 + s21 * h11 + s22 * h21;
     m[8] = s20 * h02 + s21 * h12 + s22 * h22;
     _brightness[k] = brightness;
-    if (fold) {
-      _folded[k] = true;
-      _identity(k);
-    } else {
-      _folded[k] = false;
-      _v4(_h(k, 6), m[0], m[1], m[2], 0);
-      _v4(_h(k, 7), m[3], m[4], m[5], 0);
-      _v4(_h(k, 8), m[6], m[7], m[8], 0);
-    }
+    _folded[k] = true;
   }
 
   /// Folds each layer's filter into its colours (see [setFilter]).
@@ -521,9 +495,6 @@ final class BeamFrameData {
 
   /// Whether layer [k]'s shadow is set.
   bool hasShadow(int k) => data[_h(k, 4) + 3] > 0;
-
-  /// Whether layer [k] is cut into dashes.
-  bool isDashed(int k) => data[_h(k, 5) + 2] > 0;
 
   /// Adds a blob to layer [k], in painting order: each blob is drawn over
   /// the ones added before it.

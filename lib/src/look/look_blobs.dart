@@ -184,41 +184,19 @@ enum PulseQuad {
   br,
 }
 
-/// A pulse table entry: the colour of border blob [ci], an oscillator
-/// [region] and [quad], its own ellipse radii [w] × [h], and optionally its
-/// own fractional position.
+/// A pulse bloom entry: the colour and position of border blob [ci], drawn
+/// with its own ellipse radii [w] × [h].
 @immutable
 class PulseBlobSpec {
-  /// Creates a pulse blob spec. [x]/[y] default to the border blob's
-  /// position.
-  const PulseBlobSpec({
-    required this.ci,
-    required this.region,
-    required this.quad,
-    required this.w,
-    required this.h,
-    this.x,
-    this.y,
-  });
+  /// Creates a pulse bloom entry.
+  const PulseBlobSpec({required this.ci, required this.w, required this.h});
 
   /// Index of the colour in the 9-blob border table.
   final int ci;
-
-  /// Size/drift oscillator group.
-  final PulseRegion region;
-
-  /// Corner opacity oscillator group.
-  final PulseQuad quad;
 
   /// Horizontal radius in px.
   final double w;
 
   /// Vertical radius in px.
   final double h;
-
-  /// Fractional x position, or null for the border blob's.
-  final double? x;
-
-  /// Fractional y position, or null for the border blob's.
-  final double? y;
 }

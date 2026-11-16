@@ -5,7 +5,11 @@ import 'package:flutter/foundation.dart';
 import '../look/palette_tables.dart';
 import '../render/color_math.dart';
 
-/// The most colour stops a palette may carry — the shader's uniform budget.
+/// The most colour stops a palette may carry.
+///
+/// A design limit, checked when a palette resolves. Palette stops never
+/// reach the shader: the effects draw a palette through blob tables sampled
+/// from it (`BeamLook.tablesFor`).
 const int maxPaletteStops = 8;
 
 /// A resolved palette: a ring of colour stops around the border.
@@ -57,7 +61,8 @@ class BeamPalette {
   int get length => colors.length;
 
   /// The colour at perimeter coordinate [u] (wrapped into `[0, 1)`), blended
-  /// exactly the way the shader blends it.
+  /// gamma-aware between the stops either side of it — how a palette without
+  /// tables of its own is sampled into `colorful`'s blob geometry.
   Color sample(double u) =>
       samplePalette(colors, stops, u - u.floorToDouble(), wrap: true);
 

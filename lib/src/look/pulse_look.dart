@@ -3,7 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/animation.dart' show Curves;
 
 // The pulse's breathing: tuned parameters per surface, the 17
-// oscillators they drive, and the geometry constants of both glows.
+// oscillators they drive, and the geometry constants of its inner glow and
+// bloom.
 
 /// Breathing parameters for one effect and surface, scaled to a cycle.
 class PulseParams {
@@ -141,7 +142,8 @@ class PulseFrame {
 class PulseOscillatorBank {
   /// Builds the bank for [p].
   PulseOscillatorBank(PulseParams p)
-    : _bw = [
+    : params = p,
+      _bw = [
         PulseOscillator(a: 1 - p.sp, b: 1 + p.sp * 1.1, period: p.ss * 0.9),
         PulseOscillator(a: 1 + p.sp, b: 1 - p.sp * 0.85, period: p.ss * 1.1),
         PulseOscillator(
@@ -198,6 +200,9 @@ class PulseOscillatorBank {
           breathes: true,
         ),
       ];
+
+  /// The tuning the bank was built for.
+  final PulseParams params;
 
   final List<PulseOscillator> _bw;
   final List<PulseOscillator> _bh;

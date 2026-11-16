@@ -144,9 +144,9 @@ const List<double> lineHighlightStopsLight = [0, 0.35, 0.70];
 
 // ─── Bloom spikes ───────────────────────────────────────────────────────────
 
-/// One bloom spike's fixed geometry: [fx] is its position along the edge as
-/// a fraction of the width, [yInset] how far above the edge it is centred,
-/// and [midStop]/[endStop] its two gradient stops.
+/// One bloom spike's fixed geometry: `fx` is its position along the edge as
+/// a fraction of the width, `yInset` how far above the edge it is centred,
+/// and `midStop`/`endStop` its two gradient stops.
 typedef LineSpikeGeometry = ({
   double fx,
   double yInset,

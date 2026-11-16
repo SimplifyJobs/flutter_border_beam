@@ -66,13 +66,16 @@ class BeamPress extends StatefulWidget {
   /// radius.
   final double? borderRadius;
 
-  /// Colors, theme adaptation, and filter hooks, passed straight through.
+  /// Colours, surface brightness, strength, glow, and hue drift, passed
+  /// straight through to the `BorderBeam`.
   final BeamStyle? style;
 
-  /// Corner radii, ring width, and corner family, passed straight through.
+  /// Corner radii, corner family, stroke width, segment, and dashes, passed
+  /// straight through to the `BorderBeam`.
   final BeamShape? shape;
 
-  /// Cycle length, rest, rate, and hue periods, passed straight through.
+  /// Cycle length, rest between sweeps, playback rate, direction, and the
+  /// hue drift period, passed straight through to the `BorderBeam`.
   final BeamTiming? timing;
 
   /// How long the beam stays lit from pointer-down, however early the pointer

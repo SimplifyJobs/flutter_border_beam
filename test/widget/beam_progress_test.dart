@@ -52,9 +52,16 @@ Future<void> _settle(WidgetTester tester) async {
   await tester.pump(const Duration(milliseconds: 700));
 }
 
-const _travelling = <BeamEffect>[BeamEffect.rotate(), BeamEffect.line()];
+// Derived, so a new effect joins the family it belongs to.
+final _travelling = [
+  for (final effect in BeamEffect.values)
+    if (effect.travels) effect,
+];
 
-const _ambient = <BeamEffect>[BeamEffect.pulse()];
+final _ambient = [
+  for (final effect in BeamEffect.values)
+    if (!effect.travels) effect,
+];
 
 /// `BorderBeam.progress`: a value, not the clock, places the sweep of a
 /// travelling effect, while the fade and the hue keep running underneath.
@@ -154,7 +161,12 @@ void main() {
       0,
       reason: 'the timed sweep would be resting now',
     );
-    final driven = painter.resolver.sample(t, 1, progress: 0.5);
+    expect(painter.progress?.value, 0.5);
+    final driven = painter.resolver.sample(
+      t,
+      1,
+      progress: painter.progress?.value,
+    );
     expect(driven.fadeOpacity, 1);
     expect(driven.travelProgress, 0.5);
   });

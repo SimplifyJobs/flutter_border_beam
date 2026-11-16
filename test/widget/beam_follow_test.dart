@@ -165,7 +165,7 @@ void main() {
     });
   });
 
-  group('other travelling effects', () {
+  group('open sweeps: segments and the line', () {
     testWidgets('rotate on a segment follows the fraction along it', (
       tester,
     ) async {
@@ -227,7 +227,8 @@ void main() {
     }
   });
 
-  for (final effect in const [BeamEffect.pulse()]) {
+  // Every ambient effect, derived so a new one is covered too.
+  for (final effect in BeamEffect.values.where((e) => !e.travels)) {
     testWidgets('${effect.name} has no travel for it to steer', (tester) async {
       await start(tester, effect: effect);
       await tester.pumpWidget(
@@ -341,9 +342,6 @@ void main() {
         );
         expect(_sweep(tester), closeTo(held, 1e-6));
       },
-      // defect: _releaseFollow shifts travel time by the wrapped delta even
-      // when that crosses a bounce cycle boundary, flipping the direction.
-      skip: true,
     );
 
     testWidgets(
@@ -368,9 +366,6 @@ void main() {
           reason: 'the beam does not vanish into the rest it was pulled from',
         );
       },
-      // defect: _releaseFollow ignores cycleGap, so a release whose shifted
-      // timeline lands in the rest parks the sweep at 1 with the envelope 0.
-      skip: true,
     );
 
     testWidgets('the hand-back survives a cycle change', (tester) async {

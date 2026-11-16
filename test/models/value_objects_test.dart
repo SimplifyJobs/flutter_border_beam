@@ -4,12 +4,16 @@ import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:flutter_border_beam/src/models/model_validation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// The four beam value objects and the theme data share one contract: every
-/// field is nullable and means *inherit*, `merge` layers the argument over
-/// the receiver, `copyWith` keeps what it is not given, and equality is by
-/// value so a rebuilt-inline object never re-resolves a config.
+/// The four beam value objects share one contract: every field is nullable
+/// and means *inherit*, `merge` layers the argument over the receiver,
+/// `copyWith` keeps what it is not given, and equality is by value so a
+/// rebuilt-inline object never re-resolves a config. `BorderBeamThemeData`,
+/// which holds them, is covered in `test/widget/border_beam_theme_test.dart`.
 void main() {
   /// Asserts each of [variants] differs from [base] and from every other.
+  // Equal operands are built at run time (`double.parse`, non-const calls):
+  // two equal const expressions are one canonical instance, so comparing
+  // them never gets past `identical` and pins nothing about `==`.
   void expectEveryFieldCounts<T>(T base, List<T> variants) {
     for (final v in variants) {
       expect(v, isNot(base), reason: '$v');
@@ -141,7 +145,7 @@ void main() {
         const BorderRadius.all(Radius.circular(double.infinity)),
       );
       expect(shape.borderWidth, 2);
-      expect(shape, const BeamShape.stadium(borderWidth: 2));
+      expect(shape, BeamShape.stadium(borderWidth: double.parse('2')));
     });
 
     test('resolveRadius falls back to the default on every corner', () {
@@ -285,10 +289,13 @@ void main() {
         BeamTiming(phaseOffset: 0.5),
         BeamTiming(huePeriod: Duration(seconds: 3)),
       ]);
-      expect(
-        const BeamTiming(cycle: Duration(seconds: 1)).hashCode,
-        const BeamTiming(cycle: Duration(seconds: 1)).hashCode,
+      final same = BeamTiming(
+        cycle: Duration(seconds: int.parse('1')),
+        speed: double.parse('2'),
       );
+      const timing = BeamTiming(cycle: Duration(seconds: 1), speed: 2);
+      expect(same, timing);
+      expect(same.hashCode, timing.hashCode);
     });
 
     test('toString lists only the fields that are set', () {
@@ -428,6 +435,23 @@ void main() {
       );
     });
 
+    test('equality and hashCode are by value', () {
+      final same = BeamPlayback(
+        active: bool.parse('false'),
+        autoPlay: bool.parse('false'),
+        startAfter: Duration(milliseconds: int.parse('200')),
+        duration: Duration(seconds: int.parse('3')),
+        repeat: BeamRepeat.count(int.parse('2')),
+        reducedMotion: BeamReducedMotion.values.byName('hide'),
+        pauseWhenOffscreen: bool.parse('false'),
+        fadeCurve: BeamPlayback.cssEase,
+        debugFrozenAt: Duration(milliseconds: int.parse('1300')),
+      );
+      expect(identical(same, full), isFalse);
+      expect(same, full);
+      expect(same.hashCode, full.hashCode);
+    });
+
     test('toString lists only the fields that are set', () {
       expect(const BeamPlayback().toString(), 'BeamPlayback()');
       expect(
@@ -455,11 +479,9 @@ void main() {
 
     test('once is a count of one', () {
       expect(const BeamRepeat.once().cycles, 1);
-      expect(const BeamRepeat.once(), const BeamRepeat.count(1));
-      expect(
-        const BeamRepeat.once().hashCode,
-        const BeamRepeat.count(1).hashCode,
-      );
+      final one = BeamRepeat.count(int.parse('1'));
+      expect(const BeamRepeat.once(), one);
+      expect(const BeamRepeat.once().hashCode, one.hashCode);
     });
 
     test('count keeps its cycles and rejects fewer than one', () {
@@ -470,10 +492,14 @@ void main() {
     });
 
     test('equality is by cycle count', () {
-      expect(const BeamRepeat.count(2), const BeamRepeat.count(2));
+      expect(const BeamRepeat.count(2), BeamRepeat.count(int.parse('2')));
+      expect(
+        const BeamRepeat.count(2).hashCode,
+        BeamRepeat.count(int.parse('2')).hashCode,
+      );
       expect(const BeamRepeat.count(2), isNot(const BeamRepeat.count(3)));
       expect(const BeamRepeat.count(2), isNot(const BeamRepeat.forever()));
-      expect(const BeamRepeat.forever(), const BeamRepeat.forever());
+      expect(const BeamRepeat.forever(), BeamRepeat.forever());
     });
   });
 
@@ -485,56 +511,6 @@ void main() {
       expect(validateRepeat(const BeamRepeat.forever()), isNull);
       expect(validateRepeat(const BeamRepeat.once()), 1);
       expect(validateRepeat(const BeamRepeat.count(5)), 5);
-    });
-  });
-
-  group('BorderBeamThemeData', () {
-    test('merge composes each slot field by field', () {
-      const outer = BorderBeamThemeData(
-        effect: BeamEffect.pulse(),
-        style: BeamStyle(colors: BeamColors.ocean, strength: 0.5),
-        timing: BeamTiming(cycle: Duration(seconds: 4)),
-      );
-      const inner = BorderBeamThemeData(
-        style: BeamStyle(strength: 0.9),
-        shape: BeamShape(superellipse: true),
-      );
-      final merged = outer.merge(inner);
-      expect(merged.effect, const BeamEffect.pulse(), reason: 'inherits');
-      expect(merged.style?.colors, BeamColors.ocean);
-      expect(merged.style?.strength, 0.9, reason: 'inner wins');
-      expect(merged.shape?.superellipse, isTrue);
-      expect(merged.timing?.cycle, const Duration(seconds: 4));
-      expect(merged.playback, isNull);
-    });
-
-    test('an inner effect replaces the outer one whole', () {
-      const outer = BorderBeamThemeData(
-        effect: BeamEffect.rotate(count: 3, comet: true),
-      );
-      const inner = BorderBeamThemeData(effect: BeamEffect.rotate(length: 2));
-      expect(outer.merge(inner).effect, const BeamEffect.rotate(length: 2));
-    });
-
-    test('merge(null), copyWith and equality', () {
-      const data = BorderBeamThemeData(style: BeamStyle(hueBase: 5));
-      expect(identical(data.merge(null), data), isTrue);
-      expect(
-        data.copyWith(shape: const BeamShape(borderWidth: 2)),
-        const BorderBeamThemeData(
-          style: BeamStyle(hueBase: 5),
-          shape: BeamShape(borderWidth: 2),
-        ),
-      );
-      expect(
-        data.hashCode,
-        const BorderBeamThemeData(style: BeamStyle(hueBase: 5)).hashCode,
-      );
-      expect(data, isNot(const BorderBeamThemeData()));
-      expect(
-        const BorderBeamThemeData(effect: BeamEffect.rotate(count: 2)),
-        isNot(const BorderBeamThemeData(effect: BeamEffect.pulse())),
-      );
     });
   });
 }

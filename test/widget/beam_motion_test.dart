@@ -74,13 +74,12 @@ Future<int> _alphaSum(WidgetTester tester) async {
   return sum!;
 }
 
-const _travelling = <BeamEffect>[BeamEffect.rotate(), BeamEffect.line()];
-
-const _ambient = <BeamEffect>[BeamEffect.pulse()];
-
-/// How the mounted beam moves: travel direction, phase offset, several
-/// travellers, the one-shot pulse and flash accents, the live strength
-/// listenable, and what reduced motion and a repeat budget do to it.
+/// How the mounted beam moves: that its timing reaches the live sweep
+/// (direction, phase offset), the one-shot pulse and flash accents, and the
+/// live strength listenable. The sweep maths itself — direction, bounce,
+/// phase offset, several travellers, ambient effects — is the resolver's,
+/// tested in `test/animation/beam_travel_test.dart`; reduced motion and
+/// repeat budgets are in `beam_playback_test.dart`.
 void main() {
   setUpAll(() async {
     await BorderBeam.precache();
@@ -94,88 +93,6 @@ void main() {
   );
 
   group('direction', () {
-    testWidgets('forward runs the sweep clockwise, every cycle', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        _host(BorderBeam(timing: oneSecond(), child: const SizedBox.expand())),
-      );
-      for (final t in [0.1, 0.25, 0.6, 1.3, 2.9]) {
-        final phases = _at(tester, t);
-        expect(phases.travelProgress, closeTo(t % 1.0, 1e-9), reason: 't=$t');
-        expect(phases.reversedNow, isFalse, reason: 't=$t');
-      }
-    });
-
-    for (final effect in _travelling) {
-      testWidgets('reverse runs the ${effect.name} sweep the other way', (
-        tester,
-      ) async {
-        await tester.pumpWidget(
-          _host(
-            BorderBeam(
-              effect: effect,
-              timing: oneSecond(BeamDirection.reverse),
-              child: const SizedBox.expand(),
-            ),
-          ),
-        );
-        for (final t in [0.1, 0.25, 0.6, 1.3]) {
-          final phases = _at(tester, t);
-          expect(
-            phases.travelProgress,
-            closeTo(1 - t % 1.0, 1e-9),
-            reason: 't=$t',
-          );
-          expect(phases.reversedNow, isTrue, reason: 't=$t');
-        }
-      });
-    }
-
-    testWidgets('bounce alternates direction every cycle', (tester) async {
-      await tester.pumpWidget(
-        _host(
-          BorderBeam(
-            timing: oneSecond(BeamDirection.bounce),
-            child: const SizedBox.expand(),
-          ),
-        ),
-      );
-      final first = _at(tester, 0.25);
-      expect(first.travelProgress, closeTo(0.25, 1e-9));
-      expect(first.reversedNow, isFalse);
-
-      final second = _at(tester, 1.25);
-      expect(second.travelProgress, closeTo(0.75, 1e-9));
-      expect(second.reversedNow, isTrue);
-
-      final third = _at(tester, 2.25);
-      expect(third.travelProgress, closeTo(0.25, 1e-9));
-      expect(third.reversedNow, isFalse);
-    });
-
-    testWidgets('bounce counts the rest between sweeps into the cycle', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        _host(
-          const BorderBeam(
-            timing: BeamTiming(
-              cycle: Duration(seconds: 1),
-              cycleGap: Duration(seconds: 1),
-              direction: BeamDirection.bounce,
-            ),
-            child: SizedBox.expand(),
-          ),
-        ),
-      );
-      // One period is sweep + rest (2s), so the second sweep starts at 2s.
-      expect(_at(tester, 1.5).reversedNow, isFalse, reason: 'still resting');
-      final second = _at(tester, 2.25);
-      expect(second.reversedNow, isTrue);
-      expect(second.travelProgress, closeTo(0.75, 1e-9));
-    });
-
     testWidgets('the live sweep runs the configured way', (tester) async {
       await tester.pumpWidget(
         _host(
@@ -214,114 +131,6 @@ void main() {
       expect(_at(tester, 0.5).travelProgress, closeTo(0.75, 1e-9));
       expect(_at(tester, 0.9).travelProgress, closeTo(0.15, 1e-9));
     });
-
-    testWidgets('a mirrored beam starts the same fraction into its cycle', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        _host(
-          const BorderBeam(
-            timing: BeamTiming(
-              cycle: Duration(seconds: 1),
-              direction: BeamDirection.reverse,
-              phaseOffset: 0.25,
-            ),
-            child: SizedBox.expand(),
-          ),
-        ),
-      );
-      expect(_at(tester, 0).travelProgress, closeTo(0.75, 1e-9));
-    });
-  });
-
-  group('rotate count', () {
-    for (var n = 1; n <= 4; n++) {
-      testWidgets('count $n spaces the travellers evenly', (tester) async {
-        await tester.pumpWidget(
-          _host(
-            BorderBeam(
-              effect: BeamEffect.rotate(count: n),
-              timing: oneSecond(),
-              child: const SizedBox.expand(),
-            ),
-          ),
-        );
-        for (final t in [0.0, 0.3, 0.95]) {
-          final phases = _at(tester, t);
-          expect(phases.travellers, hasLength(n), reason: 't=$t');
-          expect(phases.travellers.first, phases.travelProgress);
-          for (var i = 0; i < n; i++) {
-            final traveller = phases.travellers[i];
-            expect(traveller, inInclusiveRange(0, 1), reason: 't=$t');
-            expect(
-              (traveller - phases.travelProgress) % 1.0,
-              closeTo(i / n, 1e-9),
-              reason: 'traveller $i at t=$t',
-            );
-          }
-        }
-      });
-    }
-
-    testWidgets('a reversed beam spreads its travellers the other way', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        _host(
-          BorderBeam(
-            effect: const BeamEffect.rotate(count: 3),
-            timing: oneSecond(BeamDirection.reverse),
-            child: const SizedBox.expand(),
-          ),
-        ),
-      );
-      final phases = _at(tester, 0.3);
-      for (var i = 1; i < 3; i++) {
-        expect(
-          (phases.travellers[i] - phases.travelProgress) % 1.0,
-          closeTo(1 - i / 3, 1e-9),
-          reason: 'traveller $i trails the head counter-clockwise',
-        );
-      }
-    });
-
-    for (final effect in _travelling.skip(1)) {
-      testWidgets('${effect.name} runs a single traveller', (tester) async {
-        await tester.pumpWidget(
-          _host(BorderBeam(effect: effect, child: const SizedBox.expand())),
-        );
-        expect(_at(tester, 0.4).travellers, hasLength(1));
-      });
-    }
-  });
-
-  group('ambient effects', () {
-    for (final effect in _ambient) {
-      testWidgets('${effect.name} has no travel for a direction to turn', (
-        tester,
-      ) async {
-        for (final direction in BeamDirection.values) {
-          await tester.pumpWidget(
-            _host(
-              BorderBeam(
-                effect: effect,
-                timing: oneSecond(direction),
-                child: const SizedBox.expand(),
-              ),
-            ),
-          );
-          for (final t in [0.3, 1.3, 2.7]) {
-            final phases = _at(tester, t);
-            final where = '$direction at t=$t';
-            expect(phases.travelProgress, 0, reason: where);
-            expect(phases.travellers, [0], reason: where);
-            expect(phases.driven, isFalse, reason: where);
-            expect(phases.fadeOpacity, 1, reason: where);
-            expect(phases.cycles, closeTo(t, 1e-9), reason: where);
-          }
-        }
-      });
-    }
   });
 
   group('pulse and flash', () {
@@ -508,6 +317,49 @@ void main() {
       expect(tester.binding.transientCallbackCount, 0);
     });
 
+    testWidgets('a swapped listenable takes over, and removing it restores '
+        'the style strength', (tester) async {
+      final first = ValueNotifier<double>(1);
+      addTearDown(first.dispose);
+      final second = ValueNotifier<double>(0);
+      addTearDown(second.dispose);
+      Widget build(ValueNotifier<double>? strength) => _host(
+        BorderBeam(
+          strengthListenable: strength,
+          child: const SizedBox.expand(),
+        ),
+      );
+
+      await tester.pumpWidget(build(first));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 700));
+      final clock = _painter(tester).clock;
+      expect(await _alphaSum(tester), greaterThan(0));
+
+      await tester.pumpWidget(build(second));
+      expect(identical(_painter(tester).strength, second), isTrue);
+      expect(await _alphaSum(tester), 0, reason: 'the new listenable is read');
+
+      second.value = 1;
+      await tester.pump();
+      expect(await _alphaSum(tester), greaterThan(0));
+
+      second.value = 0;
+      await tester.pump();
+      await tester.pumpWidget(build(null));
+      expect(_painter(tester).strength, isNull);
+      expect(
+        await _alphaSum(tester),
+        greaterThan(0),
+        reason: 'without a listenable the style strength applies again',
+      );
+      expect(
+        identical(_painter(tester).clock, clock),
+        isTrue,
+        reason: 'neither swap restarts the beam',
+      );
+    });
+
     testWidgets('scales a debug-frozen frame too', (tester) async {
       final strength = ValueNotifier<double>(0);
       addTearDown(strength.dispose);
@@ -529,102 +381,6 @@ void main() {
       await tester.pump();
       expect(await _alphaSum(tester), greaterThan(0));
       expect(tester.binding.transientCallbackCount, 0);
-    });
-  });
-
-  group('reduced motion', () {
-    testWidgets('animate ignores the platform request', (tester) async {
-      await tester.pumpWidget(
-        _host(
-          disableAnimations: true,
-          const BorderBeam(
-            playback: BeamPlayback(reducedMotion: BeamReducedMotion.animate),
-            child: SizedBox.expand(),
-          ),
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
-      expect(_clock(tester).isRunning, isTrue);
-      expect(_clock(tester).elapsedSeconds, closeTo(0.5, 1e-9));
-      expect(_painter(tester).staticMode, isFalse);
-    });
-
-    testWidgets('staticFrame is the default and never ticks', (tester) async {
-      await tester.pumpWidget(
-        _host(
-          disableAnimations: true,
-          const BorderBeam(child: SizedBox.expand()),
-        ),
-      );
-      await tester.pump(const Duration(seconds: 1));
-      final painter = _painter(tester);
-      expect(painter.staticMode, isTrue);
-      expect(painter.clock.isRunning, isFalse);
-      expect(tester.binding.transientCallbackCount, 0);
-      expect(await _alphaSum(tester), greaterThan(0), reason: 'still lit');
-    });
-
-    testWidgets('hide mounts no painter and never ticks', (tester) async {
-      await tester.pumpWidget(
-        _host(
-          disableAnimations: true,
-          const BorderBeam(
-            playback: BeamPlayback(reducedMotion: BeamReducedMotion.hide),
-            child: SizedBox.expand(),
-          ),
-        ),
-      );
-      await tester.pump(const Duration(seconds: 1));
-      expect(_painters(tester), isEmpty);
-      expect(tester.binding.transientCallbackCount, 0);
-    });
-  });
-
-  group('repeat', () {
-    testWidgets('once fades out after a single cycle', (tester) async {
-      var deactivated = 0;
-      await tester.pumpWidget(
-        _host(
-          BorderBeam(
-            timing: oneSecond(),
-            playback: const BeamPlayback(repeat: BeamRepeat.once()),
-            onDeactivate: () => deactivated++,
-            child: const SizedBox.expand(),
-          ),
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 950));
-      expect(_clock(tester).stage, isNot(BeamFadeStage.fadingOut));
-
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(
-        _clock(tester).stage,
-        BeamFadeStage.fadingOut,
-        reason: 'the last cycle ends on a fade, not a cut',
-      );
-      await tester.pump(const Duration(milliseconds: 600));
-      expect(deactivated, 1);
-      expect(_clock(tester).isVisible, isFalse);
-      expect(tester.binding.transientCallbackCount, 0);
-    });
-
-    testWidgets('count(3) runs three cycles', (tester) async {
-      await tester.pumpWidget(
-        _host(
-          BorderBeam(
-            timing: oneSecond(),
-            playback: const BeamPlayback(repeat: BeamRepeat.count(3)),
-            child: const SizedBox.expand(),
-          ),
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 2950));
-      expect(_clock(tester).stage, isNot(BeamFadeStage.fadingOut));
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(_clock(tester).stage, BeamFadeStage.fadingOut);
     });
   });
 }

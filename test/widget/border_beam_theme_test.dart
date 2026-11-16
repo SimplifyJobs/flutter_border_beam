@@ -64,13 +64,20 @@ void main() {
     });
 
     test('== and hashCode follow the slots', () {
-      const same = BorderBeamThemeData(
-        effect: BeamEffect.pulse(),
-        style: BeamStyle(colors: BeamColors.ocean, strength: 0.5),
-        shape: BeamShape(borderWidth: 2),
-        timing: BeamTiming(cycle: Duration(seconds: 3)),
-        playback: BeamPlayback(autoPlay: false),
+      // Every slot is built at run time, so each one's own `==` and
+      // `hashCode` run rather than an `identical` short-cut on a canonical
+      // const.
+      final same = BorderBeamThemeData(
+        effect: PulseEffect(),
+        style: BeamStyle(
+          colors: BeamColors.ocean,
+          strength: double.parse('0.5'),
+        ),
+        shape: BeamShape(borderWidth: double.parse('2')),
+        timing: BeamTiming(cycle: Duration(seconds: int.parse('3'))),
+        playback: BeamPlayback(autoPlay: bool.parse('false')),
       );
+      expect(identical(same.style, full.style), isFalse);
       expect(same, full);
       expect(same.hashCode, full.hashCode);
       expect(

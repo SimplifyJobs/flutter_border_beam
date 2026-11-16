@@ -222,9 +222,6 @@ void main() {
           reason: 'the listenable wins while it is set',
         );
       },
-      // defect: BorderBeamController.speed writes the clock directly, so it
-      // overrides a speedListenable until that listenable next changes.
-      skip: true,
     );
 
     testWidgets('dropping each source hands the rate down the chain', (
@@ -320,23 +317,6 @@ void main() {
   group('reduced motion slow', () {
     Widget slow(Widget beam) => _host(disableAnimations: true, beam);
 
-    testWidgets('runs the clock at a quarter rate', (tester) async {
-      await tester.pumpWidget(
-        slow(
-          const BorderBeam(
-            playback: BeamPlayback(reducedMotion: BeamReducedMotion.slow),
-            child: SizedBox.expand(),
-          ),
-        ),
-      );
-      final clock = _clock(tester);
-      expect(clock.speed, 0.25);
-      expect(_painter(tester).staticMode, isFalse);
-      await tester.pump();
-      await tester.pump(const Duration(seconds: 1));
-      expect(clock.elapsedSeconds, closeTo(0.25, 1e-9));
-    });
-
     testWidgets('quarters the timing speed and restores it after', (
       tester,
     ) async {
@@ -392,29 +372,21 @@ void main() {
       expect(_clock(tester).speed, 0.5);
     });
 
-    testWidgets(
-      'quarters a live controller speed change',
-      (tester) async {
-        final controller = BorderBeamController();
-        addTearDown(controller.dispose);
-        await tester.pumpWidget(
-          slow(
-            BorderBeam(
-              controller: controller,
-              playback: const BeamPlayback(
-                reducedMotion: BeamReducedMotion.slow,
-              ),
-              child: const SizedBox.expand(),
-            ),
+    testWidgets('quarters a live controller speed change', (tester) async {
+      final controller = BorderBeamController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        slow(
+          BorderBeam(
+            controller: controller,
+            playback: const BeamPlayback(reducedMotion: BeamReducedMotion.slow),
+            child: const SizedBox.expand(),
           ),
-        );
-        controller.speed = 4;
-        expect(_clock(tester).speed, 1);
-      },
-      // defect: BorderBeamController.speed writes the clock directly, so a
-      // live change skips the reduced-motion quarter rate.
-      skip: true,
-    );
+        ),
+      );
+      controller.speed = 4;
+      expect(_clock(tester).speed, 1);
+    });
   });
 
   group('under a BeamSync', () {

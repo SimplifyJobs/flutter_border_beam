@@ -211,7 +211,10 @@ void main() {
       expect(_frame(tester).phases.travelProgress, closeTo(0.55, 1e-9));
     });
 
-    for (final effect in const [BeamEffect.line()]) {
+    // Rotate has its own test above; every other travelling effect here.
+    for (final effect in BeamEffect.values.where(
+      (e) => e.travels && e is! RotateEffect,
+    )) {
       testWidgets('retimes ${effect.name} without snapping the sweep', (
         tester,
       ) async {
@@ -422,7 +425,7 @@ void main() {
         reason: 'a mid-fade re-activation keeps the timeline',
       );
 
-      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pump(pastFadeIn);
       expect(activated, 1);
       expect(deactivated, 0);
       expect(clock.fadeOpacity, 1);
@@ -454,7 +457,7 @@ void main() {
 
       second.start();
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pump(pastFadeIn);
       expect(second.isActive, isTrue);
       expect(beamPainterOf(tester).clock.isVisible, isTrue);
 
@@ -490,7 +493,7 @@ void main() {
       );
 
       await tester.pumpWidget(build(null, active: false));
-      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump(pastFadeOut);
       expect(beamPainterOf(tester).clock.isVisible, isFalse);
     });
   });

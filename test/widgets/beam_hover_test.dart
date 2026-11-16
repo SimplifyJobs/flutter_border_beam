@@ -114,14 +114,21 @@ void main() {
       expect(painterOf(tester).progress?.value, isNull);
 
       final gesture = await mouse(tester);
-      await gesture.moveTo(tester.getCenter(find.byType(BeamHover)));
+      // Just inside the right edge's centre: a quarter of the way round from
+      // top-centre, where the sweep settles once it has eased over.
+      final rect = tester.getRect(find.byType(BeamHover));
+      await gesture.moveTo(rect.centerRight - const Offset(1, 0));
       await tester.pump();
       for (var i = 0; i < 6; i++) {
         await tester.pump(const Duration(milliseconds: 16));
       }
-      final driven = painterOf(tester).progress?.value;
-      expect(driven, isNotNull);
-      expect(driven, inInclusiveRange(0, 1));
+      final early = painterOf(tester).progress?.value;
+      expect(early, isNotNull);
+      expect(early, inInclusiveRange(0, 0.25));
+      for (var i = 0; i < 40; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(painterOf(tester).progress?.value, closeTo(0.25, 0.01));
 
       // Leaving hands the sweep straight back to the clock.
       await gesture.moveTo(away);
@@ -225,7 +232,8 @@ void main() {
 
       await gesture.moveTo(away);
       await tester.pump();
-      // Past the 300ms hold, then past the beam's 0.5s fade-out.
+      // Past the 300ms hold, then past the beam's fade-out
+      // (BeamClock.fadeOutSeconds), with room to spare.
       for (var i = 0; i < 12; i++) {
         await tester.pump(const Duration(milliseconds: 100));
       }

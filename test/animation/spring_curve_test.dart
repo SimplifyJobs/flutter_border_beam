@@ -107,9 +107,16 @@ void main() {
   });
 
   test('value-equal and described', () {
+    final same = BeamSpringCurve(
+      dampingRatio: double.parse('1'),
+      response: double.parse('0.45'),
+    );
+    expect(identical(same, BeamSpringCurve.fadeIn), isFalse);
+    expect(same, BeamSpringCurve.fadeIn);
+    expect(same.hashCode, BeamSpringCurve.fadeIn.hashCode);
     expect(
-      const BeamSpringCurve(dampingRatio: 1, response: 0.45),
-      BeamSpringCurve.fadeIn,
+      BeamSpringCurve(dampingRatio: double.parse('1'), response: 0.55),
+      isNot(BeamSpringCurve.fadeIn),
     );
     expect(
       BeamSpringCurve.fadeIn.toString(),

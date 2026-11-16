@@ -205,6 +205,32 @@ void main() {
       });
     }
 
+    testWidgets('asserts when one controller drives two beams at once', (
+      tester,
+    ) async {
+      // A controller starts its beam hidden, so neither beam starts a ticker
+      // that could outlive the failed build.
+      final controller = BorderBeamController();
+      addTearDown(controller.dispose);
+      await pumpExpectingAssertion(
+        tester,
+        beamHost(
+          Column(
+            children: [
+              for (var i = 0; i < 2; i++)
+                Expanded(
+                  child: BorderBeam(
+                    controller: controller,
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        message: 'already attached to another BorderBeam',
+      );
+    });
+
     testWidgets('owns playback end to end', (tester) async {
       final controller = BorderBeamController();
       addTearDown(controller.dispose);
@@ -231,7 +257,7 @@ void main() {
       controller.start();
       expect(controller.isActive, isTrue);
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pump(pastFadeIn);
       expect(activated, 1);
       expect(controller.isRunning, isTrue);
 
@@ -258,7 +284,7 @@ void main() {
       );
 
       controller.stop();
-      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump(pastFadeOut);
       expect(deactivated, 1);
       expect(controller.isActive, isFalse);
       expect(controller.isRunning, isFalse);
@@ -283,7 +309,7 @@ void main() {
       controller.start();
       await tester.pump();
       await tester.pumpWidget(build(false));
-      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pump(pastFadeIn);
       expect(controller.isActive, isTrue, reason: 'the controller owns it');
     });
 
@@ -307,6 +333,42 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       expect(controller.isActive, isFalse);
       expect(tester.takeException(), isNull);
+      expect(tester.binding.transientCallbackCount, 0);
+    });
+
+    testWidgets('notifies its listeners once per playback command', (
+      tester,
+    ) async {
+      // It is a ChangeNotifier so play/pause UI can follow it with a
+      // ListenableBuilder: every command that changes playback says so.
+      final controller = BorderBeamController();
+      addTearDown(controller.dispose);
+      var notifications = 0;
+      controller.addListener(() => notifications++);
+      await tester.pumpWidget(
+        beamHost(
+          BorderBeam(controller: controller, child: const SizedBox.expand()),
+        ),
+      );
+      expect(notifications, 0, reason: 'attaching is not a command');
+
+      for (final (name, command) in <(String, VoidCallback)>[
+        ('start', controller.start),
+        ('pulse', controller.pulse),
+        ('flash', controller.flash),
+        ('pause', controller.pause),
+        ('resume', controller.resume),
+        ('speed', () => controller.speed = 2),
+        ('stop', controller.stop),
+      ]) {
+        final before = notifications;
+        command();
+        expect(notifications, before + 1, reason: name);
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      await tester.pump(const Duration(seconds: 1));
+      expect(controller.isActive, isFalse);
       expect(tester.binding.transientCallbackCount, 0);
     });
   });

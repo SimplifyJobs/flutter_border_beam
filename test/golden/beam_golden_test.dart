@@ -7,9 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'golden_scene.dart';
 
-/// The effect family: every effect on both themes in the colorful palette,
-/// the other three original palettes on the effects that show them best,
-/// and the effect options.
+/// The effect family: every effect on both themes in the colorful palette
+/// and in the other three original palettes, and the effect options.
 ///
 /// All captured at t = 1.3s. A travelling effect is captured a second time
 /// (`_late`) further along: one frame of a sweep says nothing about where it
@@ -66,11 +65,7 @@ void main() {
       }
     }
 
-    for (final effect in const [
-      BeamEffect.rotate(),
-      BeamEffect.line(),
-      BeamEffect.pulse(),
-    ]) {
+    for (final effect in BeamEffect.values) {
       for (final MapEntry(key: palette, value: colors) in {
         'mono': BeamColors.mono,
         'ocean': BeamColors.ocean,

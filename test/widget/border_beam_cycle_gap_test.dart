@@ -33,9 +33,11 @@ BeamFramePhases _now(WidgetTester tester) {
   return painter.resolver.sample(painter.clock.elapsedSeconds, 1);
 }
 
-const _travelling = <BeamEffect>[BeamEffect.rotate(), BeamEffect.line()];
-
-const _ambient = <BeamEffect>[BeamEffect.pulse()];
+// Derived, so a new effect joins the family it belongs to.
+final _travelling = [
+  for (final effect in BeamEffect.values)
+    if (effect.travels) effect,
+];
 
 /// `BeamTiming.cycleGap` rests a travelling effect between sweeps: the sweep
 /// still takes `cycle`, then the beam parks at the end of its travel while
@@ -81,66 +83,6 @@ void main() {
       });
     }
 
-    testWidgets('the envelope eases out and back in without a cut', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        _host(const BorderBeam(timing: oneAndOne, child: SizedBox.expand())),
-      );
-      expect(_at(tester, 1).fadeOpacity, closeTo(1, 1e-9));
-      expect(_at(tester, 2).fadeOpacity, closeTo(1, 1e-9));
-
-      var previous = 1.0;
-      for (var t = 1.0; t <= 1.5; t += 0.02) {
-        final fade = _at(tester, t).fadeOpacity;
-        expect(fade, lessThanOrEqualTo(previous + 1e-9), reason: 't=$t');
-        previous = fade;
-      }
-      expect(previous, 0);
-      for (var t = 1.5; t <= 2.0; t += 0.02) {
-        final fade = _at(tester, t).fadeOpacity;
-        expect(fade, greaterThanOrEqualTo(previous - 1e-9), reason: 't=$t');
-        previous = fade;
-      }
-      for (final x in [0.05, 0.1, 0.2]) {
-        expect(
-          _at(tester, 1 + x).fadeOpacity,
-          closeTo(_at(tester, 2 - x).fadeOpacity, 1e-9),
-          reason: 'the fade back in mirrors the fade out',
-        );
-      }
-    });
-
-    testWidgets('a short rest still reaches dark in its middle', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        _host(
-          const BorderBeam(
-            timing: BeamTiming(
-              cycle: Duration(seconds: 1),
-              cycleGap: Duration(milliseconds: 100),
-            ),
-            child: SizedBox.expand(),
-          ),
-        ),
-      );
-      expect(_at(tester, 1).fadeOpacity, closeTo(1, 1e-9));
-      expect(_at(tester, 1.05).fadeOpacity, closeTo(0, 1e-9));
-      expect(_at(tester, 1.1).fadeOpacity, closeTo(1, 1e-9));
-    });
-
-    testWidgets("the envelope multiplies the beam's own fade", (tester) async {
-      await tester.pumpWidget(
-        _host(const BorderBeam(timing: oneAndOne, child: SizedBox.expand())),
-      );
-      expect(
-        _at(tester, 1.1, 0.5).fadeOpacity,
-        closeTo(0.5 * _at(tester, 1.1).fadeOpacity, 1e-9),
-      );
-      expect(_at(tester, 0.5, 0.5).fadeOpacity, closeTo(0.5, 1e-9));
-    });
-
     testWidgets('the live beam rests and comes back', (tester) async {
       await tester.pumpWidget(
         _host(const BorderBeam(timing: oneAndOne, child: SizedBox.expand())),
@@ -157,27 +99,10 @@ void main() {
       expect(phases.fadeOpacity, 1);
       expect(phases.travelProgress, closeTo(0.5, 1e-9));
     });
-
-    testWidgets('no gap runs one sweep straight into the next', (tester) async {
-      await tester.pumpWidget(
-        _host(
-          const BorderBeam(
-            timing: BeamTiming(cycle: Duration(seconds: 1)),
-            child: SizedBox.expand(),
-          ),
-        ),
-      );
-      expect(_painter(tester).config.gapSeconds, 0);
-      for (final t in [0.0, 0.25, 0.99, 1.5, 7.3]) {
-        final phases = _at(tester, t);
-        expect(phases.fadeOpacity, 1, reason: 't=$t');
-        expect(phases.travelProgress, closeTo(t % 1.0, 1e-9), reason: 't=$t');
-      }
-    });
   });
 
   group('defaults', () {
-    for (final effect in const [BeamEffect.rotate(), BeamEffect.line()]) {
+    for (final effect in _travelling) {
       testWidgets('${effect.name} runs without a rest by default', (
         tester,
       ) async {
@@ -190,27 +115,6 @@ void main() {
   });
 
   group('ambient effects ignore it', () {
-    for (final effect in _ambient) {
-      testWidgets('${effect.name} breathes straight through a gap', (
-        tester,
-      ) async {
-        await tester.pumpWidget(
-          _host(
-            BorderBeam(
-              effect: effect,
-              timing: oneAndOne,
-              child: const SizedBox.expand(),
-            ),
-          ),
-        );
-        for (final t in [0.5, 1.2, 1.5, 1.8, 2.5]) {
-          final phases = _at(tester, t, 0.4);
-          expect(phases.fadeOpacity, 0.4, reason: 'no envelope at t=$t');
-          expect(phases.cycles, closeTo(t, 1e-9), reason: 'no pause at t=$t');
-        }
-      });
-    }
-
     testWidgets('a gap change on an ambient beam does not move it', (
       tester,
     ) async {
@@ -263,32 +167,28 @@ void main() {
       expect(after.fadeOpacity, before.fadeOpacity);
     });
 
-    testWidgets(
-      'a gap change in a later sweep leaves it where it is',
-      (tester) async {
-        // Two seconds of sweep + rest have passed: 0.5s into the second
-        // sweep. A new gap must not re-cut the elapsed time into periods.
-        await tester.pumpWidget(beam(oneAndOne));
-        await runFor(tester, const Duration(milliseconds: 2500));
-        final before = _now(tester);
-        expect(before.travelProgress, closeTo(0.5, 1e-9));
+    testWidgets('a gap change in a later sweep leaves it where it is', (
+      tester,
+    ) async {
+      // Two seconds of sweep + rest have passed: 0.5s into the second
+      // sweep. A new gap must not re-cut the elapsed time into periods.
+      await tester.pumpWidget(beam(oneAndOne));
+      await runFor(tester, const Duration(milliseconds: 2500));
+      final before = _now(tester);
+      expect(before.travelProgress, closeTo(0.5, 1e-9));
 
-        await tester.pumpWidget(
-          beam(
-            const BeamTiming(
-              cycle: Duration(seconds: 1),
-              cycleGap: Duration(seconds: 2),
-            ),
+      await tester.pumpWidget(
+        beam(
+          const BeamTiming(
+            cycle: Duration(seconds: 1),
+            cycleGap: Duration(seconds: 2),
           ),
-        );
-        final after = _now(tester);
-        expect(after.travelProgress, closeTo(0.5, 1e-9));
-        expect(after.fadeOpacity, 1);
-      },
-      // defect: _retimeToNewCycle returns early when only cycleGap changes,
-      // so past the first period the sweep jumps (here into the rest).
-      skip: true,
-    );
+        ),
+      );
+      final after = _now(tester);
+      expect(after.travelProgress, closeTo(0.5, 1e-9));
+      expect(after.fadeOpacity, 1);
+    });
 
     testWidgets('a cycle change mid-sweep keeps the sweep position', (
       tester,

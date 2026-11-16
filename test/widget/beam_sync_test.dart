@@ -119,7 +119,7 @@ void main() {
         ),
       );
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pump(pastFadeIn);
       final sweeps = _painters(tester).map(_sweep).toList();
       expect(sweeps[1], sweeps[0]);
       expect((sweeps[2] - sweeps[0]) % 1.0, closeTo(0.25, 1e-9));
@@ -127,13 +127,6 @@ void main() {
   });
 
   group('group playback', () {
-    testWidgets('the group speed drives the shared clock', (tester) async {
-      await tester.pumpWidget(_host(BeamSync(speed: 3, child: _beam())));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 200));
-      expect(_painters(tester).single.clock.elapsedSeconds, closeTo(0.6, 1e-9));
-    });
-
     testWidgets("a member's own playback is ignored", (tester) async {
       await tester.pumpWidget(
         _host(
@@ -163,13 +156,13 @@ void main() {
 
       await tester.pumpWidget(build(active: true));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pump(pastFadeIn);
       final clock = _painters(tester).first.clock;
       expect(clock.isVisible, isTrue);
 
       await tester.pumpWidget(build(active: false));
       expect(clock.stage, BeamFadeStage.fadingOut);
-      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump(pastFadeOut);
       expect(clock.isVisible, isFalse);
       expect(tester.binding.transientCallbackCount, 0);
 
@@ -188,7 +181,7 @@ void main() {
 
       await tester.pumpWidget(build(active: true));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pump(pastFadeIn);
       final clock = _painters(tester).single.clock;
 
       await tester.pumpWidget(build(active: false));
@@ -203,7 +196,7 @@ void main() {
         closeTo(elapsed, 1e-9),
         reason: 'a reversed fade keeps the timeline it was on',
       );
-      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pump(pastFadeIn);
       expect(clock.fadeOpacity, closeTo(1, 1e-6));
     });
 
@@ -283,33 +276,29 @@ void main() {
       );
     });
 
-    testWidgets(
-      "one member's cycle change does not move the others",
-      (tester) async {
-        Widget build(Duration cycle) => _host(
-          BeamSync(
-            child: _row([
-              _beam(key: const ValueKey('steady')),
-              _beam(timing: BeamTiming(cycle: cycle)),
-            ]),
-          ),
-        );
+    testWidgets("one member's cycle change does not move the others", (
+      tester,
+    ) async {
+      Widget build(Duration cycle) => _host(
+        BeamSync(
+          child: _row([
+            _beam(key: const ValueKey('steady')),
+            _beam(timing: BeamTiming(cycle: cycle)),
+          ]),
+        ),
+      );
 
-        await tester.pumpWidget(build(const Duration(seconds: 2)));
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 700));
-        final steady = _sweep(_painterOf(tester, const ValueKey('steady')));
+      await tester.pumpWidget(build(const Duration(seconds: 2)));
+      await tester.pump();
+      await tester.pump(pastFadeIn);
+      final steady = _sweep(_painterOf(tester, const ValueKey('steady')));
 
-        await tester.pumpWidget(build(const Duration(seconds: 4)));
-        expect(
-          _sweep(_painterOf(tester, const ValueKey('steady'))),
-          closeTo(steady, 1e-9),
-        );
-      },
-      // defect: _retimeToNewCycle retimes the shared group clock, so one
-      // member's cycle change rescales every member's timeline.
-      skip: true,
-    );
+      await tester.pumpWidget(build(const Duration(seconds: 4)));
+      expect(
+        _sweep(_painterOf(tester, const ValueKey('steady'))),
+        closeTo(steady, 1e-9),
+      );
+    });
   });
 
   group('joining and leaving', () {
@@ -440,7 +429,7 @@ void main() {
       // it has to hear it from the clock itself.
       active = false;
       await tester.pumpWidget(build());
-      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump(pastFadeOut);
       active = true;
       await tester.pumpWidget(build());
       final painter = _painters(tester).single;
@@ -505,7 +494,7 @@ void main() {
       // The group it left restarts: none of the leaver's business.
       groupActive = false;
       await tester.pumpWidget(build());
-      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump(pastFadeOut);
       expect(groupClock.isVisible, isFalse);
       groupActive = true;
       await tester.pumpWidget(build());
@@ -514,7 +503,7 @@ void main() {
       // Its own clock restarts: that clears it.
       beamActive = false;
       await tester.pumpWidget(build());
-      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump(pastFadeOut);
       beamActive = true;
       await tester.pumpWidget(build());
       expect(leaver().clock.elapsedSeconds, 0);

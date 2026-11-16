@@ -1,3 +1,6 @@
+/// @docImport 'package:flutter/widgets.dart';
+library;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 
@@ -39,7 +42,7 @@ class BeamShape {
   /// The number is stored as given and grown into a [BorderRadius] where
   /// [radius] is read, which is what keeps the constructor const: building a
   /// [BorderRadius] from a parameter is a runtime construction. `all` and
-  /// [circular] compare equal for the same number.
+  /// [BeamShape.circular] compare equal for the same number.
   const BeamShape.all(
     double radius, {
     this.superellipse,

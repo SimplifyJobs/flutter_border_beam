@@ -12,15 +12,33 @@ const Duration _frame = Duration(milliseconds: 8);
 /// after a ticker starts reports elapsed zero, so each test pumps once
 /// before pumping durations.
 void main() {
+  // Clocks already disposed, so the tear-down never disposes one twice.
+  final disposed = Expando<bool>('disposed');
+
+  /// Disposes [clock] unless it already is; safe to call more than once.
+  void disposeClock(BeamClock clock) {
+    if (disposed[clock] ?? false) return;
+    disposed[clock] = true;
+    clock.dispose();
+  }
+
+  /// A clock on the test's ticker provider. Each test still disposes its
+  /// clock before it returns — flutter_test checks for live tickers before
+  /// tear-downs run — and the tear-down disposes one a failed expectation
+  /// left behind.
   BeamClock makeClock(
     WidgetTester tester, {
     ValueChanged<bool>? onFadeComplete,
     Curve? fadeCurve,
-  }) => BeamClock(
-    createTicker: tester.createTicker,
-    onFadeComplete: onFadeComplete,
-    fadeCurve: fadeCurve,
-  );
+  }) {
+    final clock = BeamClock(
+      createTicker: tester.createTicker,
+      onFadeComplete: onFadeComplete,
+      fadeCurve: fadeCurve,
+    );
+    addTearDown(() => disposeClock(clock));
+    return clock;
+  }
 
   /// Activates [clock] and runs it past the fade-in.
   Future<void> runVisible(WidgetTester tester, BeamClock clock) async {
@@ -56,7 +74,7 @@ void main() {
       expect(clock.fadeOpacity, 1);
       expect(clock.isRunning, isTrue, reason: 'keeps animating once lit');
       expect(events, [true]);
-      clock.dispose();
+      disposeClock(clock);
     });
 
     testWidgets('deactivate fades out, stops, and resets the timeline', (
@@ -81,7 +99,7 @@ void main() {
       expect(clock.elapsedSeconds, 0, reason: 'the timeline resets');
       expect(events, [true, false]);
       expect(tester.binding.transientCallbackCount, 0);
-      clock.dispose();
+      disposeClock(clock);
     });
 
     testWidgets('fadeOpacity stays inside [0, 1] on every frame', (
@@ -111,7 +129,7 @@ void main() {
         for (final v in seen) {
           expect(v, inInclusiveRange(0, 1), reason: 'curve $curve');
         }
-        clock.dispose();
+        disposeClock(clock);
       }
     });
 
@@ -127,7 +145,7 @@ void main() {
       // Settable mid-run: the envelope reads it on every evaluation.
       clock.fadeCurve = Curves.easeIn;
       expect(clock.fadeOpacity, closeTo(Curves.easeIn.transform(0.5), 1e-6));
-      clock.dispose();
+      disposeClock(clock);
     });
 
     testWidgets('activating a visible beam is a no-op', (tester) async {
@@ -138,7 +156,7 @@ void main() {
       expect(clock.elapsedSeconds, at);
       expect(clock.stage, BeamFadeStage.none);
       expect(clock.fadeOpacity, 1);
-      clock.dispose();
+      disposeClock(clock);
     });
 
     testWidgets('deactivating a hidden beam is a no-op', (tester) async {
@@ -149,7 +167,7 @@ void main() {
       expect(clock.stage, BeamFadeStage.none);
       await tester.pump(const Duration(seconds: 1));
       expect(events, isEmpty);
-      clock.dispose();
+      disposeClock(clock);
     });
 
     testWidgets('re-activation after a fade-out restarts from zero', (
@@ -167,7 +185,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
       expect(clock.elapsedSeconds, closeTo(0.1, 1e-6));
-      clock.dispose();
+      disposeClock(clock);
     });
 
     testWidgets('re-activation mid-fade-out resumes without a jump', (
@@ -194,7 +212,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 700));
       expect(clock.fadeOpacity, 1);
       expect(events, [true, true], reason: 'the fade-out never completed');
-      clock.dispose();
+      disposeClock(clock);
     });
 
     testWidgets('showStatic is fully visible without a ticker', (tester) async {
@@ -205,7 +223,7 @@ void main() {
       expect(clock.fadeOpacity, 1);
       expect(clock.isRunning, isFalse);
       expect(tester.binding.transientCallbackCount, 0);
-      clock.dispose();
+      disposeClock(clock);
     });
   });
 
@@ -219,7 +237,7 @@ void main() {
       }
       expect(clock.elapsedSeconds, closeTo(1, 1e-6));
       expect(clock.activeSeconds, closeTo(1, 1e-6));
-      clock.dispose();
+      disposeClock(clock);
     });
 
     testWidgets('pause freezes and resume continues', (tester) async {
@@ -239,7 +257,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
       expect(clock.elapsedSeconds, closeTo(at + 0.5, 1e-6));
-      clock.dispose();
+      disposeClock(clock);
     });
 
     testWidgets('resume does nothing for a hidden beam', (tester) async {
@@ -247,7 +265,7 @@ void main() {
       clock.resume();
       expect(clock.isRunning, isFalse);
       expect(tester.binding.transientCallbackCount, 0);
-      clock.dispose();
+      disposeClock(clock);
     });
 
     testWidgets('seek jumps the timeline and notifies', (tester) async {
@@ -262,7 +280,7 @@ void main() {
       expect(notified, 1);
       await tester.pump(const Duration(milliseconds: 100));
       expect(clock.elapsedSeconds, closeTo(42.1, 1e-6));
-      clock.dispose();
+      disposeClock(clock);
     });
 
     testWidgets('speed scales elapsed time but not active time', (
@@ -281,14 +299,36 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
       expect(clock.elapsedSeconds, closeTo(2.5, 1e-6));
       expect(clock.activeSeconds, closeTo(2, 1e-6));
-      clock.dispose();
+      disposeClock(clock);
     });
+
+    for (final speed in [0.25, 4.0]) {
+      testWidgets('fades take the same real time at speed $speed', (
+        tester,
+      ) async {
+        final clock = makeClock(tester)..speed = speed;
+        clock.activate();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(clock.stage, BeamFadeStage.fadingIn);
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(clock.stage, BeamFadeStage.none);
+        expect(clock.fadeOpacity, 1);
+
+        clock.deactivate();
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(clock.stage, BeamFadeStage.fadingOut);
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(clock.isVisible, isFalse);
+        disposeClock(clock);
+      });
+    }
 
     testWidgets('speed must be positive', (tester) async {
       final clock = makeClock(tester);
       expect(() => clock.speed = 0, throwsAssertionError);
       expect(() => clock.speed = -1, throwsAssertionError);
-      clock.dispose();
+      disposeClock(clock);
     });
 
     testWidgets('notifies on every frame — no frame-rate cap', (tester) async {
@@ -303,7 +343,7 @@ void main() {
         await tester.pump(_frame);
       }
       expect(notified, frames);
-      clock.dispose();
+      disposeClock(clock);
     });
   });
 
@@ -316,7 +356,7 @@ void main() {
       expect(clock.elapsedSeconds, closeTo(at * 2.5, 1e-9));
       clock.retime(0.4);
       expect(clock.elapsedSeconds, closeTo(at, 1e-9));
-      clock.dispose();
+      disposeClock(clock);
     });
 
     testWidgets('keeps the fade opacity and its remaining duration', (
@@ -343,7 +383,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       expect(clock.stage, BeamFadeStage.none);
       expect(events, [true]);
-      clock.dispose();
+      disposeClock(clock);
     });
 
     testWidgets('keeps a playing boost where it was', (tester) async {
@@ -355,13 +395,13 @@ void main() {
       expect(boost, greaterThan(1));
       clock.retime(4);
       expect(clock.boost, closeTo(boost, 1e-9));
-      clock.dispose();
+      disposeClock(clock);
     });
 
     testWidgets('the factor must be positive', (tester) async {
       final clock = makeClock(tester);
       expect(() => clock.retime(0), throwsAssertionError);
-      clock.dispose();
+      disposeClock(clock);
     });
   });
 
@@ -407,7 +447,7 @@ void main() {
         expect(samples.last, 1);
         expect(clock.boost, 1);
         expect(clock.isBoosting, isFalse);
-        clock.dispose();
+        disposeClock(clock);
       });
     }
 
@@ -427,7 +467,7 @@ void main() {
       clock.pause();
       clock.pulse();
       expect(clock.isBoosting, isFalse);
-      clock.dispose();
+      disposeClock(clock);
     });
 
     testWidgets('a restart from hidden drops a boost', (tester) async {
@@ -440,16 +480,11 @@ void main() {
       clock.activate();
       expect(clock.isBoosting, isFalse);
       expect(clock.boost, 1);
-      clock.dispose();
+      disposeClock(clock);
     });
   });
 
-  // defect: a completed fade-out zeroes elapsed time but keeps the boost,
-  // whose start now lies in the future — isBoosting stays true and a flash
-  // reads its full peak until the next activate() (showStatic keeps it).
-  testWidgets('a completed fade-out ends any boost', skip: true, (
-    tester,
-  ) async {
+  testWidgets('a completed fade-out ends any boost', (tester) async {
     final clock = makeClock(tester);
     await runVisible(tester, clock);
     clock.deactivate();
@@ -462,7 +497,7 @@ void main() {
     // A static frame shown next must not inherit the stale envelope.
     clock.showStatic();
     expect(clock.boost, 1);
-    clock.dispose();
+    disposeClock(clock);
   });
 
   group('timeline reset listeners', () {
@@ -493,7 +528,7 @@ void main() {
       clock.removeTimelineResetListener(listener);
       clock.activate();
       expect(resets, 2);
-      clock.dispose();
+      disposeClock(clock);
     });
 
     testWidgets('a listener may remove itself while being called', (
@@ -518,7 +553,7 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
       expect(calls, 1);
       expect(other, 2);
-      clock.dispose();
+      disposeClock(clock);
     });
   });
 
@@ -529,13 +564,13 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
       expect(tester.binding.transientCallbackCount, greaterThan(0));
-      clock.dispose();
+      disposeClock(clock);
       expect(tester.binding.transientCallbackCount, 0);
     });
 
     testWidgets('a never-started clock disposes cleanly', (tester) async {
       final clock = makeClock(tester);
-      expect(clock.dispose, returnsNormally);
+      expect(() => disposeClock(clock), returnsNormally);
     });
   });
 }

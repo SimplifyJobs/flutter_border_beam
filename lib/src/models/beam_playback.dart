@@ -97,11 +97,15 @@ class BeamPlayback {
   /// That is what makes a beam screenshottable — golden tests, docs
   /// captures, design reviews.
   ///
-  /// It reads the timeline from activation, so anything past the fade-in
-  /// (about 0.5s) is a fully-lit frame. The frozen frame is still sampled at the
-  /// live strength — [BeamStyle.strength] and
-  /// [BorderBeam.strengthListenable] dim it as they would any other frame,
+  /// The instant is measured on the timeline from activation, and the
+  /// fade-in is skipped: the frame is lit as if the beam had long since
+  /// faded in (a `BeamTiming.cycleGap` rest still dims it). It is sampled at
+  /// the live strength — `BeamStyle.strength` and
+  /// `BorderBeam.strengthListenable` dim it as they would any other frame,
   /// and a strength of 0 paints nothing.
+  ///
+  /// Setting it on a running beam stops its clock; clearing it again resumes
+  /// the clock, or starts a beam that never got to.
   final Duration? debugFrozenAt;
 
   /// Returns a copy with the given fields replaced. A null argument keeps the

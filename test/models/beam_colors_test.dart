@@ -164,7 +164,10 @@ void main() {
     });
 
     test('compares by colour', () {
-      expect(const BeamColors.solid(_red), const BeamColors.solid(_red));
+      // Built at run time, so `==` runs instead of `identical` on one const.
+      final red = BeamColors.solid(Color(_red.toARGB32()));
+      expect(const BeamColors.solid(_red), red);
+      expect(const BeamColors.solid(_red).hashCode, red.hashCode);
       expect(
         const BeamColors.solid(_red),
         isNot(const BeamColors.solid(_blue)),
@@ -215,28 +218,21 @@ void main() {
       }
     }
 
-    test(
-      'monochrome keeps saturation at or above 0.55 for every seed',
-      () {
-        for (final MapEntry(key: name, value: seed) in seeds.entries) {
-          final p = BeamColors.fromSeed(
-            seed,
-            harmony: BeamSeedHarmony.monochrome,
-          ).resolve();
-          for (final c in p.colors) {
-            expect(
-              HSLColor.fromColor(c).saturation,
-              greaterThanOrEqualTo(0.55 - 0.02),
-              reason: name,
-            );
-          }
+    test('monochrome keeps saturation at or above 0.55 for every seed', () {
+      for (final MapEntry(key: name, value: seed) in seeds.entries) {
+        final p = BeamColors.fromSeed(
+          seed,
+          harmony: BeamSeedHarmony.monochrome,
+        ).resolve();
+        for (final c in p.colors) {
+          expect(
+            HSLColor.fromColor(c).saturation,
+            greaterThanOrEqualTo(0.55 - 0.02),
+            reason: name,
+          );
         }
-      },
-      skip:
-          'defect: the monochrome harmony scales saturation down by up to '
-          '30% after the 0.55 floor, so a black, white, grey or dark seed '
-          'breaks the documented "saturation at least 0.55" band',
-    );
+      }
+    });
 
     const seed = Color(0xFF18A8F0);
     final seedHue = HSLColor.fromColor(seed).hue;
@@ -650,6 +646,21 @@ void main() {
         isFalse,
         reason: 'the memo is bounded, so the old entry was dropped',
       );
+    });
+
+    test('a hit keeps an entry fresh: the memo drops the least recent', () {
+      // Keys distinct from every other test in this file.
+      BeamColors key(int i) => BeamColors([Color(0xFF5F0000 | i)]);
+      final kept = BeamColors([const Color(0xFF5E0000)]);
+      final first = kept.resolve();
+      // The same churn that evicts an untouched entry, but `kept` is read
+      // again every few resolves — well inside any capacity worth having.
+      for (var i = 1; i <= 200; i++) {
+        key(i).resolve();
+        if (i % 8 == 0) {
+          expect(identical(kept.resolve(), first), isTrue, reason: '$i');
+        }
+      }
     });
 
     test('presets survive any amount of churn', () {

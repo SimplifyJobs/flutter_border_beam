@@ -148,20 +148,54 @@ class BeamPhaseResolver {
   double _shift(double t) =>
       t + config.phaseOffset * config.cycleSeconds + travelTimeOffset;
 
+  double get _period =>
+      config.cycleSeconds + (_travels ? config.gapSeconds : 0);
+
   int _cycleIndex(double shifted) {
-    final period = config.cycleSeconds + (_travels ? config.gapSeconds : 0);
+    final period = _period;
     return period <= 0 ? 0 : (shifted / period).floor();
+  }
+
+  bool _reversedIn(int cycleIndex) => switch (config.direction) {
+    BeamDirection.forward => false,
+    BeamDirection.reverse => true,
+    BeamDirection.bounce => cycleIndex.isOdd,
+  };
+
+  /// The [travelTimeOffset] at which the timed sweep sits at [progress]
+  /// (0–1) at [t] seconds — how the widget hands a `BorderBeam.follow`
+  /// gesture back to the clock without a snap.
+  ///
+  /// Of the timeline positions that put the sweep at [progress] mid-run,
+  /// travelling the way it travels now, this picks the nearest: within the
+  /// current cycle, or — unless the direction alternates — a cycle either
+  /// side. So a bouncing beam keeps its direction, and a beam pulled out of
+  /// the rest between sweeps resumes its sweep rather than the rest.
+  double travelOffsetHolding(double t, double progress) {
+    final shifted = _shift(t);
+    final cycle = config.cycleSeconds;
+    final period = _period;
+    final index = _cycleIndex(shifted);
+    final p = progress.isNaN ? 0.0 : progress.clamp(0.0, 1.0);
+    // Just short of the cycle end, which is the next cycle's start.
+    final forward = math.min(_reversedIn(index) ? 1 - p : p, 1 - 1e-9);
+    var target = index * period + forward * cycle;
+    if (config.direction != BeamDirection.bounce && period > 0) {
+      final distance = (target - shifted).abs();
+      if ((target - period - shifted).abs() < distance) {
+        target -= period;
+      } else if ((target + period - shifted).abs() < distance) {
+        target += period;
+      }
+    }
+    return travelTimeOffset + target - shifted;
   }
 
   _Sweep _sweep(double t, double? driven) {
     final shifted = _shift(t);
     final cycleIndex = _cycleIndex(shifted);
     final finished = _finished(shifted);
-    final reversed = switch (config.direction) {
-      BeamDirection.forward => false,
-      BeamDirection.reverse => true,
-      BeamDirection.bounce => cycleIndex.isOdd,
-    };
+    final reversed = _reversedIn(cycleIndex);
     if (driven != null) {
       final head = driven.clamp(0.0, 1.0);
       return _Sweep(_spread(head), 1, false, finished);

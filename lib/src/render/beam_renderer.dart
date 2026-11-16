@@ -27,14 +27,12 @@ class BeamRenderer {
   /// The uniforms of the last painted frame, for tests.
   BeamFrameData get debugFrame => _frame;
 
-  /// Whether the shader program is available yet.
-  bool get isReady => BeamProgram.program != null;
-
   /// Paints one frame of [config] at [phases] over [box] (the child's
   /// bounds in canvas coordinates).
   ///
-  /// [opacity] multiplies the whole frame (fade × boost × live strength
-  /// travel in [phases]; this is anything on top). [devicePixelRatio] sets the
+  /// The frame's opacity is `phases.fadeOpacity` — which already carries the
+  /// fade, any boost, and the live strength — times `config.strength`; a
+  /// frame at zero opacity draws nothing. [devicePixelRatio] sets the
   /// anti-aliasing width; the canvas's own scale is folded in.
   void paint(
     Canvas canvas,
@@ -42,12 +40,12 @@ class BeamRenderer {
     BeamConfig config,
     BeamFramePhases phases, {
     required double devicePixelRatio,
-    double opacity = 1,
   }) {
     final program = BeamProgram.program;
     if (program == null) return;
-    final alpha = phases.fadeOpacity * config.strength * opacity;
-    if (alpha <= 0) return;
+    final alpha = phases.fadeOpacity * config.strength;
+    // Also rejects NaN, which a live strength could hand in.
+    if (!(alpha > 0)) return;
     final rect = box.inflate(config.ringOffset);
     if (rect.width < 1 || rect.height < 1) return;
 

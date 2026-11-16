@@ -2,6 +2,10 @@ import 'dart:collection';
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
+// `BeamColors.fromScheme` takes a Material `ColorScheme`. Flutter 3.50
+// deprecates this import in favour of `material_ui`, which earlier supported
+// SDKs lack; move when the floor allows it.
+// ignore: deprecated_member_use
 import 'package:flutter/material.dart' show ColorScheme;
 import 'package:flutter/painting.dart' show HSLColor;
 
@@ -30,7 +34,7 @@ enum BeamSeedHarmony {
   triadic,
 
   /// Four tints of the seed hue, stepping through the lightness band with
-  /// falling saturation. Keeps a single-hue brand look.
+  /// saturation falling toward the floor. Keeps a single-hue brand look.
   monochrome,
 }
 
@@ -388,7 +392,7 @@ List<Color> _seedColors(Color seed, BeamSeedHarmony harmony) {
         HSLColor.fromAHSL(
           1,
           hue,
-          clampDouble(saturation * (1 - 0.1 * i), 0, 1),
+          clampDouble(saturation * (1 - 0.1 * i), _seedMinSaturation, 1),
           lerpDouble(_seedMinLightness, _seedMaxLightness, i / 3)!,
         ).toColor(),
     ],

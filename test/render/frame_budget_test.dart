@@ -28,7 +28,8 @@ void main() {
   });
 
   // Early, the golden instant, late in a sweep, and several cycles in.
-  const instants = [0.3, 1.3, 2.05, 7.9];
+  const goldenInstant = 1.3;
+  const instants = [0.3, goldenInstant, 2.05, 7.9];
 
   // Whether the frame had light to draw: the fade and strength let some
   // through, and the effect lit a layer.
@@ -91,13 +92,16 @@ void main() {
           for (final t in instants) {
             final phases = phasesAt(config, t);
             final canvas = recordFrame(renderer, config, phases);
-            expectBudget(
-              canvas,
-              config,
-              phases.fadeOpacity,
-              '$name/${brightness.name}/$palette at ${t}s',
-              lit: litFrame(renderer, config, phases.fadeOpacity),
-            );
+            final label = '$name/${brightness.name}/$palette at ${t}s';
+            final lit = litFrame(renderer, config, phases.fadeOpacity);
+            // The golden instant is mid-sweep for every effect, so it has
+            // light to draw; without this a renderer that drew nothing would
+            // pass the budget by issuing no calls at all. (Elsewhere a frame
+            // can be dark: the line fades its streak in and out each sweep.)
+            if (t == goldenInstant) {
+              expect(lit, isTrue, reason: '$label: an unlit running frame');
+            }
+            expectBudget(canvas, config, phases.fadeOpacity, label, lit: lit);
           }
         }
       }
@@ -110,12 +114,19 @@ void main() {
         final config = configFor(effect, shape: shape);
         for (final t in instants) {
           final phases = phasesAt(config, t);
+          final canvas = recordFrame(renderer, config, phases);
+          final lit = litFrame(renderer, config, phases.fadeOpacity);
+          // A segment may hide all of the light; every other shape keeps
+          // some of it at the golden instant.
+          if (t == goldenInstant && shape.segment == null) {
+            expect(lit, isTrue, reason: '$name/$label at ${t}s: unlit');
+          }
           expectBudget(
-            recordFrame(renderer, config, phases),
+            canvas,
             config,
             phases.fadeOpacity,
             '$name/$label at ${t}s',
-            lit: litFrame(renderer, config, phases.fadeOpacity),
+            lit: lit,
           );
         }
       }

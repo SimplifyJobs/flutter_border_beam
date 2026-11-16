@@ -53,15 +53,17 @@ class BeamTiming {
   /// so one sweep runs straight into the next.
   ///
   /// The colour drift keeps running through the gap. Ambient effects ignore
-  /// it: their motion has no cycle boundary to rest at. Changing it needs no
-  /// retime — the sweep keeps its position and the gap simply appears at the
+  /// it: their motion has no cycle boundary to rest at. Changing it while the
+  /// beam runs keeps the sweep where it is; the new rest takes effect at the
   /// next cycle end.
   final Duration? cycleGap;
 
-  /// Playback rate multiplier; must be positive. Default 1.
+  /// Playback rate multiplier; must be finite and positive. Default 1.
   ///
-  /// Ignored while a `BorderBeamController` is attached — the controller's
-  /// own `speed` owns the rate then.
+  /// Scales the animation only: the fades in and out take the same time at
+  /// any rate. Ignored while a `BorderBeamController` is attached — the
+  /// controller's own `speed` owns the rate then — and a
+  /// `BorderBeam.speedListenable` wins over both.
   final double? speed;
 
   /// Which way a travelling effect moves: clockwise (left-to-right for the

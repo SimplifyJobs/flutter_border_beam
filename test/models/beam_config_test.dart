@@ -209,7 +209,6 @@ void main() {
 
   group('radius', () {
     test('defaults to 16 on every corner', () {
-      expect(defaultBeamRadius, BeamShape.defaultRadius);
       for (final dir in TextDirection.values) {
         expect(
           _resolve(textDirection: dir).borderRadius,

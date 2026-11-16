@@ -25,7 +25,11 @@ void main() {
   // Mid-sweep, deep into a gap-carrying period, and many cycles in.
   const instants = [0.7, 1.3, 2.2, 61.7];
 
-  void paintEverywhere(
+  /// Paints [effect] at every instant, in both brightnesses, at each of
+  /// [sizes], checking every frame that draws. Returns how many frames at
+  /// [cardSize] drew, so a case that should light the card can require it —
+  /// a renderer that bailed out on every frame would otherwise pass.
+  int paintEverywhere(
     BeamEffect effect,
     String label, {
     BeamStyle style = const BeamStyle(),
@@ -35,6 +39,7 @@ void main() {
   }) {
     final renderer = BeamRenderer();
     addTearDown(renderer.dispose);
+    var paintedCards = 0;
     for (final brightness in Brightness.values) {
       final config = configFor(
         effect,
@@ -53,6 +58,7 @@ void main() {
           );
           expect(canvas.draws.length, lessThanOrEqualTo(1));
           if (canvas.draws.isEmpty) continue;
+          if (size == cardSize) paintedCards++;
           expectSaneFrame(
             renderer.debugFrame,
             '${effect.name}: $label, $size at ${t}s',
@@ -61,6 +67,7 @@ void main() {
         }
       }
     }
+    return paintedCards;
   }
 
   for (final MapEntry(key: name, value: effect) in effectsByName.entries) {
@@ -82,7 +89,14 @@ void main() {
       });
 
       test('a radius past half the short side', () {
-        paintEverywhere(effect, 'radius 500', shape: const BeamShape.all(500));
+        expect(
+          paintEverywhere(
+            effect,
+            'radius 500',
+            shape: const BeamShape.all(500),
+          ),
+          greaterThan(0),
+        );
         paintEverywhere(
           effect,
           'per-corner overflow',
@@ -109,11 +123,12 @@ void main() {
 
       test('ring offsets that grow or collapse the outline', () {
         for (final offset in [-69.0, -70.0, -500.0, 40.0]) {
-          paintEverywhere(
+          final painted = paintEverywhere(
             effect,
             'ringOffset $offset',
             shape: BeamShape(ringOffset: offset),
           );
+          if (offset > 0) expect(painted, greaterThan(0), reason: '$offset');
         }
       });
 
@@ -144,33 +159,62 @@ void main() {
           );
         }
         for (final dashes in [1, 2, 1000]) {
-          paintEverywhere(
-            effect,
-            'dashes $dashes',
-            shape: BeamShape(dashes: dashes),
+          expect(
+            paintEverywhere(
+              effect,
+              'dashes $dashes',
+              shape: BeamShape(dashes: dashes),
+            ),
+            greaterThan(0),
+            reason: 'dashes $dashes',
           );
         }
       });
 
       test('style and timing at their extremes', () {
         for (final glow in [0.0, 25.0]) {
-          paintEverywhere(effect, 'glow $glow', style: BeamStyle(glow: glow));
+          expect(
+            paintEverywhere(effect, 'glow $glow', style: BeamStyle(glow: glow)),
+            greaterThan(0),
+            reason: 'glow $glow',
+          );
         }
         for (final strength in [-1.0, 1e-6, 7.0]) {
-          paintEverywhere(
+          final painted = paintEverywhere(
             effect,
             'strength $strength',
             style: BeamStyle(strength: strength),
           );
+          if (strength > 0) {
+            expect(painted, greaterThan(0), reason: 'strength $strength');
+          }
         }
-        paintEverywhere(
-          effect,
-          'hue extremes',
-          style: const BeamStyle(
-            hueShift: 3600,
-            hueBase: -720,
-            hueMode: BeamHueMode.pingPong,
+        for (final bad in [double.nan, double.infinity]) {
+          paintEverywhere(
+            effect,
+            'non-finite $bad',
+            style: BeamStyle(
+              strength: bad,
+              // NaN fails the constructor's `glow >= 0` assertion.
+              glow: bad.isNaN ? null : bad,
+              hueShift: bad,
+              hueBase: bad,
+              hueMode: BeamHueMode.pingPong,
+            ),
+            shape: BeamShape(borderWidth: bad, ringOffset: bad),
+          );
+        }
+        expect(
+          paintEverywhere(
+            effect,
+            'hue extremes',
+            style: const BeamStyle(
+              hueShift: 3600,
+              hueBase: -720,
+              hueMode: BeamHueMode.pingPong,
+            ),
           ),
+          greaterThan(0),
         );
         for (final cycle in [
           const Duration(microseconds: 1),

@@ -11,9 +11,6 @@ import 'beam_shape.dart';
 import 'beam_style.dart';
 import 'beam_timing.dart';
 
-/// Default corner radius when neither the widget nor a theme sets one.
-const double defaultBeamRadius = 16;
-
 /// Everything a beam needs to paint, with every inherited value settled.
 ///
 /// Built by [BeamConfig.resolve] from the merged value objects. Value-equal,
@@ -48,6 +45,10 @@ class BeamConfig {
   /// Resolves the value objects (already merged theme-under-widget) for
   /// [effect]. [palette] and [brightness] are settled by the caller, which
   /// owns the ambient theme; [textDirection] resolves `shape.radius`.
+  ///
+  /// A NaN or infinite style or shape number is treated as unset — the
+  /// shader is never handed a non-finite value — except that `strength`
+  /// clamps an infinity to its 0–1 range like any other value.
   factory BeamConfig.resolve({
     required BeamEffect effect,
     required BeamPalette palette,
@@ -59,6 +60,9 @@ class BeamConfig {
   }) {
     double seconds(Duration? d, Duration fallback) =>
         (d ?? fallback).inMicroseconds / Duration.microsecondsPerSecond;
+    double finite(double? value, double fallback) =>
+        value != null && value.isFinite ? value : fallback;
+    final strength = style.strength;
     final cycle = math.max(seconds(timing.cycle, effect.defaultCycle), 0.05);
     final hueMode = palette.fixedHue
         ? BeamHueMode.none
@@ -67,17 +71,17 @@ class BeamConfig {
       effect: effect,
       palette: palette,
       brightness: brightness,
-      strength: (style.strength ?? 1).clamp(0.0, 1.0),
-      glow: math.max(style.glow ?? 1, 0),
+      strength: strength == null || strength.isNaN
+          ? 1
+          : strength.clamp(0.0, 1.0),
+      glow: math.max(finite(style.glow, 1), 0),
       hueMode: hueMode,
-      hueShift: style.hueShift ?? 30,
-      hueBase: style.hueBase ?? 0,
-      borderRadius:
-          shape.radius?.resolve(textDirection) ??
-          const BorderRadius.all(Radius.circular(defaultBeamRadius)),
+      hueShift: finite(style.hueShift, 30),
+      hueBase: finite(style.hueBase, 0),
+      borderRadius: shape.resolveRadius(textDirection),
       superellipse: shape.superellipse ?? false,
-      borderWidth: math.max(shape.borderWidth ?? 1, 0),
-      ringOffset: shape.ringOffset ?? 0,
+      borderWidth: math.max(finite(shape.borderWidth, 1), 0),
+      ringOffset: finite(shape.ringOffset, 0),
       segment: shape.segment,
       dashes: math.max(shape.dashes ?? 0, 0),
       cycleSeconds: cycle,

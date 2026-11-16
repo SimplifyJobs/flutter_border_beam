@@ -135,11 +135,8 @@ final class _CornerAnchor extends BeamAnchor {
 @immutable
 class BeamSegment {
   /// Creates the clockwise segment from [start] to [end].
-  const BeamSegment({
-    required this.start,
-    required this.end,
-    this.feather = 32,
-  });
+  const BeamSegment({required this.start, required this.end, this.feather = 32})
+    : assert(feather >= 0, 'feather must not be negative');
 
   /// Where the clockwise visible portion begins.
   final BeamAnchor start;
@@ -148,7 +145,8 @@ class BeamSegment {
   /// when its resolved fraction is smaller than [start].
   final BeamAnchor end;
 
-  /// Logical pixels over which each end fades; zero makes a hard cut.
+  /// Logical pixels over which each end fades; zero makes a hard cut. Must
+  /// not be negative; at most half the segment's length is used. Default 32.
   final double feather;
 
   /// The lower half, from right-center through bottom-center to left-center.

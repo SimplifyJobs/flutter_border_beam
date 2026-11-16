@@ -116,10 +116,12 @@ void applyTrack(
   final range = segment.resolve(outline);
   var span = BeamOutline.wrapFraction(range.to - range.from);
   if (span <= 0) span = 1;
+  // Negative (or NaN) is a hard cut, as zero is.
+  final feather = segment.feather > 0 ? segment.feather : 0.0;
   data.setTrack(
     range.from,
     span,
-    math.min(segment.feather / outline.length, span / 2),
+    math.min(feather / outline.length, span / 2),
     dashes,
   );
 }
@@ -244,23 +246,19 @@ void _filter(
   BeamLayerPreset preset, {
   double? hue,
   bool keepTone = false,
-  double? brightness,
-  double? saturation,
-  bool fold = true,
 }) {
   final h = f.staticHue
       ? f.config.hueBase
       : (hue ?? f.phases.hueDegrees) + f.config.hueBase;
   if (f.staticHue && !keepTone) {
-    f.data.setFilter(k, hue: h, fold: fold);
+    f.data.setFilter(k, hue: h);
     return;
   }
   f.data.setFilter(
     k,
     hue: h,
-    brightness: brightness ?? preset.brightness,
-    saturation: saturation ?? preset.saturation,
-    fold: fold,
+    brightness: preset.brightness,
+    saturation: preset.saturation,
   );
 }
 
@@ -284,7 +282,7 @@ void _rotate(BeamFrame f, RotateEffect e) {
   final d = f.data;
   final rect = f.rect;
   final dark = f.dark;
-  final compact = rect.shortestSide <= compactMaxExtent;
+  final compact = f.compact;
   final preset = presetFor(
     compact ? compactPresets : rotatePresets,
     dark: dark,
@@ -292,7 +290,7 @@ void _rotate(BeamFrame f, RotateEffect e) {
   final base = f.alpha * (f.mono ? 0.5 : 1);
   final reversed = f.phases.reversedNow;
   final n = f.config.beamCount;
-  final tail = e.length.clamp(0.25, 2.0);
+  final tail = e.length.isNaN ? 1.0 : e.length.clamp(0.25, 2.0);
   final sigma = rotateBloomBlur * f.glowSize;
 
   _conicTable(
@@ -859,17 +857,13 @@ class _LineFrame {
 final Map<(bool, double), PulseOscillatorBank> _banks = {};
 final PulseFrame _pulseFrame = PulseFrame();
 
-PulseFrame _breathe(BeamFrame f) {
-  final key = (f.dark, f.config.cycleSeconds);
-  final bank = _banks[key] ??= () {
-    if (_banks.length > 16) _banks.clear();
-    return PulseOscillatorBank(
-      PulseParams.pulse(dark: f.dark, cycleSeconds: f.config.cycleSeconds),
-    );
-  }();
-  bank.sample(f.seconds, _pulseFrame);
-  return _pulseFrame;
-}
+PulseOscillatorBank _bankFor(BeamFrame f) =>
+    _banks[(f.dark, f.config.cycleSeconds)] ??= () {
+      if (_banks.length > 16) _banks.clear();
+      return PulseOscillatorBank(
+        PulseParams.pulse(dark: f.dark, cycleSeconds: f.config.cycleSeconds),
+      );
+    }();
 
 double _quad(PulseFrame p, PulseQuad q) => p.bop[q.index];
 
@@ -927,11 +921,9 @@ void _pulse(BeamFrame f) {
   final dark = f.dark;
   final preset = presetFor(pulsePresets, dark: dark);
   final base = f.alpha * (f.mono ? 0.5 : 1);
-  final pulse = _breathe(f);
-  final params = PulseParams.pulse(
-    dark: dark,
-    cycleSeconds: f.config.cycleSeconds,
-  );
+  final bank = _bankFor(f);
+  final pulse = _pulseFrame;
+  bank.sample(f.seconds, pulse);
   final border = f.tables.border;
   final rect = f.rect;
 
@@ -1020,7 +1012,7 @@ void _pulse(BeamFrame f) {
       w: spec.w,
       h: spec.h,
       color: src.color,
-      alpha: params.frozenBloomAlpha,
+      alpha: bank.params.frozenBloomAlpha,
     );
   }
 }
