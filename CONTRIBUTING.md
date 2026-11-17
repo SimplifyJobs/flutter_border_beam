@@ -8,7 +8,7 @@ anything under `lib/src/border_beam/render/`, `lib/src/border_beam/effects/`,
 `lib/src/distortion_wave/render/`, or `shaders/` — they are what a reviewer
 will check first. [doc/architecture.md](doc/architecture.md) explains how a
 beam's frame is built, [doc/distortion_wave.md](doc/distortion_wave.md) a
-wave's.
+wave's; [doc/README.md](doc/README.md) indexes the rest of the reference.
 
 ## Setup
 
@@ -95,8 +95,9 @@ float for float. Change both in the same commit. Uniforms are `vec4`s and
 indexed only by constants and loop indices (SkSL's strict ES2), which is why
 each layer has its own blob array. `test/border_beam/render/uniform_layout_test.dart`
 parses the shader and checks the types, the array lengths, the loop bounds,
-and the total — but it cannot see the order, so check that by hand: a uniform
-reordered on one side only shifts every value after it.
+the total, and the order — every `BeamFrameData` writer must land in the
+uniform the shader declares at its offset, so a uniform reordered on one side
+only fails the test instead of shifting every value after it.
 
 ### The CPU mirrors
 
@@ -127,13 +128,18 @@ Two pieces of shader maths also run in Dart, and must match exactly:
 ### The distortion wave
 
 The wave keeps its own budget: while it bends content, one shader `drawRect`
-plus at most one `drawRawAtlas` per frame, with no layer, clip, filter or
-`BackdropFilter`, and a side is pictured only when its content changed.
-`WaveFrame` stays a pure function of progress, and the uniform block in
-`shaders/common/wave_uniforms.glsl` changes with `WaveFrameData` in one
-commit. When retuning its look, compare against the reference as
-[doc/distortion_wave.md](doc/distortion_wave.md#calibration) describes, then
-regenerate its goldens. CLAUDE.md lists the full rules.
+plus at most one `drawRawAtlas` per frame on its canvas, with no layer, clip,
+filter or `BackdropFilter` (`test/distortion_wave/render/wave_frame_budget_test.dart`),
+and a side is pictured only when its content changed. `WaveFrame` stays a
+pure function of progress, and the uniform block in
+`shaders/common/wave_uniforms.glsl` changes with `WaveFrameData`
+(`waveUniformFloats`) in one commit —
+`test/distortion_wave/render/wave_uniform_layout_test.dart` checks both
+shaders, the samplers and the order. When retuning its look
+(`lib/src/distortion_wave/look/wave_defaults.dart`), compare against the
+reference as [doc/distortion_wave.md](doc/distortion_wave.md#calibration)
+describes, then regenerate only the affected goldens.
+[AGENTS.md](AGENTS.md) lists the full rules.
 
 ## Where things go
 
@@ -141,7 +147,8 @@ regenerate its goldens. CLAUDE.md lists the full rules.
 `lib/src/border_beam/effects/beam_effect.dart` (with a `const factory` on `BeamEffect`, a
 doc comment, `travels`, `defaultCycle`, and any non-default `defaultCycleGap` /
 `defaultHueMode` / `defaultHuePeriod`, plus `==` / `hashCode`), an entry in
-`BeamEffect.values`, the export in `lib/prismatic.dart`, and an
+`BeamEffect.values`, the export in `lib/border_beam.dart` (each effect has
+its own library; `lib/prismatic.dart` re-exports both), and an
 emitter in `lib/src/border_beam/effects/effect_emitters.dart`. The `switch` statements over
 `BeamEffect` (the emitter dispatch, `BorderBeam.follow`) are exhaustive, so the
 analyzer lists every place that needs a case; `BeamConfig.beamCount` falls
@@ -167,8 +174,10 @@ it up from `BeamColors.presets`). Without blob tables of its own, a preset
 is drawn by sampling its stops over `colorful`'s tables. Presets are design
 data: edit freely, and check the result on both dark and light surfaces.
 
-Anything public also needs a doc comment, a `CHANGELOG.md` entry, and a README
-mention if it changes what a user would reach for first.
+Anything public also needs a doc comment, a `CHANGELOG.md` entry, and an
+update to the matching usage reference (`doc/border_beam_usage.md` or
+`doc/distortion_wave_usage.md`). The root README is a short introduction;
+touch it only if the change alters what a user would reach for first.
 
 ## Tests
 
@@ -182,11 +191,20 @@ Tests are grouped by what they protect. Put a new test with its family:
 | `test/border_beam/widget/` | `BorderBeam` behaviour — lifecycle, theming, shorthands, speed, sync, progress, follow |
 | `test/border_beam/widgets/` | the surface widgets (`BeamDecoration`, `BeamFocusRing`, `BeamHover`, `BeamPress`) |
 | `test/border_beam/golden/*_golden_test.dart` | pixel scenes (macOS only, `@Tags(['golden'])`) |
+| `test/distortion_wave/models/` | the wave's value objects, `WaveSpec` resolution, palettes |
+| `test/distortion_wave/timeline/` | `WaveFrame` (ported from the reference's tests), particles, rim, clock, a property sweep |
+| `test/distortion_wave/render/` | the wave's frame budget and snapshot counts, uniform layout, where pixels land |
+| `test/distortion_wave/widget/` | `DistortionWave` and `DistortionWaveRoute` behaviour and lifecycle |
+| `test/distortion_wave/golden/` | the wave's pixel scenes, held with `progress:` |
+| `test/core/`, `test/support/` | code shared by both effects (`ShaderProgram`, `Oklab`); shared test helpers |
 
 Conventions worth knowing:
 
 - Anything that reads pixels needs the shader loaded:
-  `setUpAll(BorderBeam.precache)`.
+  `setUpAll(BorderBeam.precache)` or `setUpAll(DistortionWave.precache)`.
+- The wave's lifecycle and route tests run with `LeakTesting.enable()`
+  (`leak_tracker_flutter_testing`): dispose everything you create —
+  controllers, images, curves.
 - For new rendering behaviour, prefer comparing regions of a real frame
   against each other (see `test/border_beam/render/paint_structure_test.dart`) over
   pinning pixel values — those survive a retune; goldens are for the look.
@@ -204,8 +222,9 @@ Docs and code comments **describe how the code works now**. No change-history
 prose — no "no longer", "was removed", "previously", "this used to". Git and
 `CHANGELOG.md` carry the history; a comment that narrates a change goes stale
 the moment someone reads it out of context. Describe the current behaviour and
-why it is that way. Don't quote tuning values (glow reaches, layer weights) in
-docs — they live in `lib/src/border_beam/look/` and the emitters, and they change.
+why it is that way. Don't quote tuning values (glow reaches, layer weights,
+the wave's durations) in docs — they live in `lib/src/border_beam/look/`, the
+emitters, and `lib/src/distortion_wave/look/`, and they change.
 
 ## Commits and PRs
 
@@ -231,9 +250,9 @@ Before opening a PR:
 - [ ] `flutter analyze --fatal-infos` — zero issues (package **and** `example/`)
 - [ ] `flutter test` — green (say if you could not run goldens)
 - [ ] Goldens: none regenerated, or the PR names which and why
-- [ ] Frame budget: still one draw, no layers, clips, or filters
-- [ ] Shader uniforms and `beam_frame.dart`'s offsets and slot counts changed together (if touched)
-- [ ] Public API is documented, and the README covers anything user-facing
+- [ ] Frame budget: still one draw (the wave: one draw plus at most one atlas), no layers, clips, or filters
+- [ ] Shader uniforms changed together with `beam_frame.dart` / `wave_frame_data.dart` (if touched)
+- [ ] Public API is documented, and `doc/` covers anything user-facing
 - [ ] `CHANGELOG.md` has an entry under the unreleased version
 
 The PR template asks for exactly this. Open the PR as a draft while it is in
@@ -241,7 +260,7 @@ progress.
 
 ## Releases
 
-Maintainers only. The recipe lives in [CLAUDE.md](CLAUDE.md) under "Cutting a
+Maintainers only. The recipe lives in [AGENTS.md](AGENTS.md) under "Cutting a
 release": bump `version:` in `pubspec.yaml`, add a matching `## <version>`
 section to `CHANGELOG.md`, merge to `main`, then push the tag:
 

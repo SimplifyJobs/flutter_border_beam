@@ -1,6 +1,6 @@
 # Motion
 
-Timing, direction, rest, synchronization, and taking the travel off the clock. The [README's `BeamTiming` table](../README.md#beamtiming) lists the fields and defaults; this guide is about how they interact.
+Timing, direction, rest, synchronization, and taking the travel off the clock. The [`BeamTiming` table](border_beam_usage.md#beamtiming) lists the fields and defaults; this guide is about how they interact. Code: `lib/src/border_beam/animation/` (`beam_clock.dart`, `beam_phases.dart`, `spring_curve.dart`).
 
 ## The clock
 
@@ -10,7 +10,7 @@ The clock ticks on every frame the engine produces. Nothing is capped, so a beam
 
 `speed` scales how fast the elapsed time advances. It is applied to the clock rather than to the config, so changing it never re-resolves the beam — a rate change is free. Three things can set the rate, in order: a `speedListenable`, then an attached `BorderBeamController`'s `speed`, then `timing.speed`; `BeamReducedMotion.slow` then quarters whichever wins. Under a `BeamSync` the group's `speed` owns all of them.
 
-`speed` moves the animation only. The fades and the controller's `pulse()` / `flash()` accents run on real time, so a beam at half speed still fades in about 0.5s, and seeking or retiming never stretches, skips, or replays a fade. Pausing — the controller's `pause()`, an offscreen pause — freezes both.
+`speed` moves the animation only. The fades and the controller's `pulse()` / `flash()` accents run on real time, so a beam at half speed fades in exactly as fast as one at full speed, and seeking or retiming never stretches, skips, or replays a fade. Pausing — the controller's `pause()`, an offscreen pause — freezes both.
 
 ## Cycle and retiming
 
@@ -31,7 +31,7 @@ BorderBeam(
 
 That is the tool when a beam should react to state: toggling `active` fades out and back in, while changing `cycle` keeps the light on and changes its urgency.
 
-The fades run on critically damped springs — Apple's `.smooth` — so the light eases in from rest and settles without overshoot: about 0.5s in, and a slightly longer, gentler 0.6s out, so it leaves softly rather than cutting off. They run in real time, whatever the `speed`, and a retime mid-fade leaves the fade alone. `BeamPlayback.fadeCurve` replaces both with your own curve (`BeamPlayback.cssEase` is the web's `ease`).
+The fades run on critically damped springs — Apple's `.smooth` — so the light eases in from rest and settles without overshoot, with a slightly longer, gentler response on the way out so it leaves softly rather than cutting off (`BeamSpringCurve.fadeIn` / `fadeOut` in `spring_curve.dart`; `BeamClock.fadeInSeconds` / `fadeOutSeconds` are their settling times). They run in real time, whatever the `speed`, and a retime mid-fade leaves the fade alone. `BeamPlayback.fadeCurve` replaces both with your own curve (`BeamPlayback.cssEase` is the web's `ease`).
 
 ## Rest between sweeps
 
@@ -44,7 +44,7 @@ BorderBeam(
 );
 ```
 
-The sweep still takes `cycle`; the gap is added after it. The beam fades out and back in over `min(0.25s, gap / 2)` at each end of the rest, so it reads as breathing rather than blinking off. The hue drift keeps running through the gap.
+The sweep still takes `cycle`; the gap is added after it. The beam fades out and back in over a short envelope at each end of the rest — never more than half the gap (`BeamPhaseResolver` in `beam_phases.dart`) — so it reads as breathing rather than blinking off. The hue drift keeps running through the gap.
 
 No effect rests by default. Changing the gap needs no retime: the current sweep keeps its position and the rest appears at the next cycle end. Ambient effects ignore it — their motion has no cycle boundary to rest at.
 
@@ -92,8 +92,8 @@ The hue is a separate track from the travel, on its own period (`huePeriod`):
 
 | `hueMode` | What it does | Default for |
 | --- | --- | --- |
-| `pingPong` | Swings ±`hueShift` degrees (30 by default) and back, eased at each end. | `rotate` (12s), `line` (8s) |
-| `continuous` | Turns a full 360° per period, never reversing. | `pulse` (16s) |
+| `pingPong` | Swings ±`hueShift` degrees (30 by default) and back, eased at each end. | `rotate`, `line` |
+| `continuous` | Turns a full 360° per period, never reversing. | `pulse` |
 | `none` | No drift. | — (`mono` and `gold` force it) |
 
 `line` splits its `pingPong` drift in two: the bloom swings over one `huePeriod` and the stroke over one and a half, both capped narrower than the default `hueShift` (see [effects](effects.md#line--inputs)).
@@ -167,7 +167,7 @@ Widget build(BuildContext context) {
 }
 ```
 
-The travel leaves its schedule and eases toward the given normalized point — critically damped, about 150ms, so a jittery pointer is smoothed without a lag you can feel. `rotate` turns its head toward it, the shortest way round (on a segment, to the border point nearest it); `line` follows the coordinate along its edge. Setting it back to null hands the travel back to the clock from wherever it is, without a snap: the sweep resumes from that point, travelling the way it was — a bouncing beam keeps its direction — and never lands in the rest of a `cycleGap`.
+The travel leaves its schedule and eases toward the given normalized point — critically damped and quick, so a jittery pointer is smoothed without a lag you can feel. `rotate` turns its head toward it, the shortest way round (on a segment, to the border point nearest it); `line` follows the coordinate along its edge. Setting it back to null hands the travel back to the clock from wherever it is, without a snap: the sweep resumes from that point, travelling the way it was — a bouncing beam keeps its direction — and never lands in the rest of a `cycleGap`.
 
 `progress` wins over `follow`, and the ambient effects ignore both. A NaN `progress` or a non-finite `follow` counts as unset. `BeamHover` is this wired up for you.
 
@@ -186,4 +186,4 @@ Values of `strengthListenable` above 1 brighten the beam, saturating at full opa
 
 ### Accents
 
-A `BorderBeamController` adds two one-shot accents on a running beam: `pulse()` lifts its brightness and lets it settle over about 0.6s, and `flash()` blinks it brighter, holds 120ms, and decays. Neither touches the timeline.
+A `BorderBeamController` adds two one-shot accents on a running beam: `pulse()` lifts its brightness and lets it settle, and `flash()` blinks it brighter, holds briefly, and decays (both rise on `BeamSpringCurve.pop`). Neither touches the timeline, both run on real time, and both are no-ops while the beam is hidden or frozen.

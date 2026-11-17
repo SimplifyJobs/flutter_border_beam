@@ -10,8 +10,9 @@
 #
 # `screenshots/` stays in the archive — pub.dev renders the images the
 # pubspec's `screenshots:` section points at, so they must ship with the package.
-# `shaders/` must stay in the archive too: `beam.frag` is declared under
-# `flutter: shaders:` and compiled into every consuming app. Never ignore it.
+# `shaders/` must stay in the archive too: the `.frag` files are declared under
+# `flutter: shaders:` and compiled into every consuming app, with the
+# `shaders/common/*.glsl` they include. Never ignore it.
 
 # ── Mirrors of the root .gitignore ──────────────────────────────────────────
 *.class
@@ -29,6 +30,7 @@ coverage/
 # ── Repo-only sources and tooling ───────────────────────────────────────────
 assets/
 tool/
+AGENTS.md
 CLAUDE.md
 # codecov.yml, plus the uploader binary and its checksums that
 # codecov/codecov-action downloads into the working tree in CI.

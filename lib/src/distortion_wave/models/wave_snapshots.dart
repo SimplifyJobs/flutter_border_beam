@@ -17,6 +17,7 @@ enum WaveSnapshots {
 
   /// Take a new picture of each side every frame the wave bends it, so
   /// everything inside keeps moving, nested repaint boundaries included. Each
-  /// picture is one offscreen render of the side.
+  /// picture is one offscreen render of the side, plus two small blurred
+  /// copies baked from it whenever the frame has blur to show.
   everyFrame,
 }

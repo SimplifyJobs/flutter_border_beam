@@ -3,7 +3,7 @@
 # Three things about this workflow are deliberate and easy to get wrong:
 #
 #  1. The Flutter version is PINNED to 3.50.0 rather than tracking `stable`.
-#     The golden files in `test/golden/` were generated on Flutter 3.50.0
+#     The golden files under `test/**/golden/` were generated on Flutter 3.50.0
 #     (Dart 3.14) on macOS, and shader compilation and rasterization shift
 #     between Flutter releases. An unpinned `stable` would turn every Flutter
 #     release into a spurious golden diff. Regenerate the goldens (macOS,

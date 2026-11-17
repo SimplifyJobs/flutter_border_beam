@@ -1,12 +1,14 @@
 # Performance
 
+What a frame of each effect costs, what the widgets do to keep it cheap, and what an app can do wrong. The sections up to [Getting a scene cheaper](#getting-a-scene-cheaper) cover `BorderBeam`; [DistortionWave](#distortionwave) covers the wave.
+
 A beam is meant to be something you can leave running on a card while the user scrolls, at the display's full rate, without the phone warming up. The renderer is built around one rule: **one shader, one draw, no offscreen work.**
 
 ## What a frame costs
 
 **One draw call.** Every frame of every effect is a single `drawRect` or `drawDRRect` whose paint carries the beam's fragment shader. There is no `saveLayer` (no offscreen render target to allocate, fill, and composite back), no clip, and no `ImageFilter` or `MaskFilter` (no blur pass). The design is built from layers — an inner glow, a hairline stroke, a bloom — and several of them are blurred in the reference look; here the shader evaluates every layer per pixel and replaces each blur with its closed form: a blurred hairline is a gaussian across the distance to the ring, a blurred colour blob is a gaussian blob with the same energy, a blurred glow outside the box is a smooth step across its edge.
 
-`test/render/frame_budget_test.dart` asserts this for every effect, on both surface tunings, across a palette subset, every shape family (rounded, per-corner, superellipse, stadium, segment, dashes, inward and outward ring offset, a thick border), the effect options, driven progress, and several instants: exactly one draw with the beam shader, zero `saveLayer`s, zero clips, no image or mask filter, and balanced saves and restores. A frame the fade or a cycle gap has blacked out draws nothing at all.
+`test/border_beam/render/frame_budget_test.dart` asserts this for every effect, on both surface tunings, across a palette subset, every shape family (rounded, per-corner, superellipse, stadium, segment, dashes, inward and outward ring offset, a thick border), the effect options, driven progress, and several instants: exactly one draw with the beam shader, zero `saveLayer`s, zero clips, no image or mask filter, and balanced saves and restores. A frame the fade or a cycle gap has blacked out draws nothing at all.
 
 **Pixels only where light can land.** The draw covers the box grown by the furthest outward glow, minus the interior beyond the furthest inward one — a ring, not the whole box. The inner glows fade out a short way in, so a card's beam shades a band around its edge; the line's bloom rises through the box, and a comet reaches outside it.
 
@@ -83,6 +85,68 @@ To fade a beam, use `style.strength` (static), `strengthListenable` (per frame, 
 4. **Keep `pauseWhenOffscreen` on.** Turn it off only when a beam must stay in step with something visible while it is itself out of view.
 5. **Keep palettes value-equal.** A palette that compares unequal on every build re-resolves the config each time. See [palettes](palettes.md#values-equality-and-the-memo).
 
+## DistortionWave
+
+Code: `lib/src/distortion_wave/render/render_wave_stage.dart`,
+`render/wave_snapshot.dart`, `render/dot_atlas.dart`. Internals:
+[distortion_wave.md](distortion_wave.md).
+
+### What a frame costs, by phase
+
+| Phase | On the stage's canvas | Offscreen work |
+| --- | --- | --- |
+| `rest` (progress 0 or 1) | the visible side, painted as itself | none; no ticker runs; pictures released |
+| `distorting` (the wave bends content) | one `drawRect` with `wave.frag`, plus at most one `drawRawAtlas` for the dots | a side's pictures, only when (re)taken — below |
+| `glowing` (front crossed, only colour on the edges) | the revealed side as itself, one `drawRect` with `wave_glow.frag` (none once the colour is gone), at most one `drawRawAtlas` | none; pictures released |
+| `crossfading` (reduced motion, or a side holding a platform view) | both sides, the outgoing one in a `pushOpacity` layer | the opacity layer's offscreen pass |
+
+The stage's canvas never gets a `saveLayer`, clip, `ImageFilter`,
+`BackdropFilter`, `MaskFilter` or image draw in the first three phases.
+`test/distortion_wave/render/wave_frame_budget_test.dart` asserts this per
+phase × type, and pins how many pictures each side gets.
+
+Per frame on the CPU: `WaveFrame.at` (pure arithmetic), the rim's lumps,
+the visible dots' positions, and an upload of `waveUniformFloats` (124)
+floats into a `FragmentShader` the stage keeps. The stage and spec uniforms
+are rewritten only when they change.
+
+### What a picture costs
+
+Taking a picture of a side (`WaveSideImages.take`) is one offscreen render
+of the side's layer tree at the device pixel ratio (`OffsetLayer.toImageSync`).
+The first frame of a picture that has blur to show (blur energy above 0 and
+`WaveLens.blur` above 0) also bakes two blurred copies, each a
+`drawImageRect` through `ImageFilter.blur` into a `Picture` rasterised with
+`toImageSync`: a near copy at one pixel per logical pixel and a far copy at
+half that. With `WaveLens.blur: 0` no copies are baked.
+
+| `WaveSnapshots` | Pictures per run |
+| --- | --- |
+| `onChange` (default) | The outgoing side once, on the first `distorting` frame; the incoming side once, when the front launches. Again only when content repaints through the side (an animation inside it that is not behind its own `RepaintBoundary`). Each picture: 1 render + up to 2 blur bakes. |
+| `everyFrame` | Every `distorting` frame, for each side shown: 1 render + up to 2 blur bakes each — up to 6 offscreen renders a frame while both sides show. Use it only when content behind a nested `RepaintBoundary` must keep moving through the wave. |
+
+Pictures are GPU images the size of the stage (the blurred copies smaller),
+held only while the phase is `distorting`: released at rest, in the glowing
+and crossfading phases, when a side stops showing, when the device pixel
+ratio changes, and when the stage is detached or disposed.
+
+`DistortionWaveRoute` adds one more picture: the page underneath, rasterised
+from its route's `RepaintBoundary` once after the push's first frame and
+once as a pop starts, held by the route until it is replaced or the route is
+disposed.
+
+### Keeping it cheap
+
+- `await DistortionWave.precache()` at startup: it loads both programs and
+  draws both shaders, a blur bake and an atlas into a 4 × 4 image, so the
+  pipelines exist before the first wave's first frame.
+- Keep `snapshots: WaveSnapshots.onChange` unless something visibly freezes.
+- An animation inside a side that repaints through it re-pictures that side
+  on each of its frames while the wave bends it; pause decorative animations
+  in a side for the second or so the wave runs, or put them behind a
+  `RepaintBoundary` (they then hold still while bent).
+- A platform view in a side cannot be pictured; that run is a crossfade.
+
 ## Web
 
-The package compiles and runs on web — the [live demo](https://simplifyjobs.github.io/prismatic/) is a web build of the example app, and CI builds it on every commit. The renderer is the same single shader draw there.
+The package compiles and runs on web — the [live demo](https://simplifyjobs.github.io/prismatic/) is a web build of the example app, and CI builds it on every commit. The beam is the same single shader draw there; the wave's shaders are SkSL strict ES2 so they run on Skia and the web as well as Impeller.

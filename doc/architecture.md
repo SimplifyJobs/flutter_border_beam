@@ -1,7 +1,8 @@
-# Architecture
+# Architecture — BorderBeam internals
 
-This document covers the border beam. The distortion wave has its own:
-**[distortion_wave.md](distortion_wave.md)**. Code both share lives in
+This document covers the border beam's renderer; for using it, see
+[border_beam_usage.md](border_beam_usage.md). The distortion wave has its
+own: **[distortion_wave.md](distortion_wave.md)**. Code both share lives in
 `lib/src/core/` (`ShaderProgram`, `Oklab`) and `shaders/common/`
 (`outline.glsl`, the rounded-superellipse outline every shader includes).
 
@@ -19,7 +20,7 @@ Ticker ─► BeamClock ─► BeamPhaseResolver ─► effect emitter ─► Be
           pause, boost  travellers, cycles                      filters, tables    of the light        shaders/beam.frag
 ```
 
-1. **`BeamClock`** (`lib/src/border_beam/animation/beam_clock.dart`) owns the ticker. It keeps two times: the speed-scaled animation timeline every phase is sampled from, and unscaled active time — real seconds while it ticks. The fade-in and fade-out (critically damped springs, about 0.5s in and 0.6s out), the one-shot `pulse()` / `flash()` boosts, and `playback.duration` run on active time, so `speed`, seek, and retime move the animation without stretching, skipping, or replaying a fade; pause freezes both. It is a `Listenable` and notifies on every frame the engine produces — there is no frame-rate cap. Under a `BeamSync` one clock serves the whole subtree.
+1. **`BeamClock`** (`lib/src/border_beam/animation/beam_clock.dart`) owns the ticker. It keeps two times: the speed-scaled animation timeline every phase is sampled from, and unscaled active time — real seconds while it ticks. The fade-in and fade-out (critically damped springs, `BeamSpringCurve.fadeIn` / `fadeOut`, settling in `BeamClock.fadeInSeconds` / `fadeOutSeconds`), the one-shot `pulse()` / `flash()` boosts, and `playback.duration` run on active time, so `speed`, seek, and retime move the animation without stretching, skipping, or replaying a fade; pause freezes both. It is a `Listenable` and notifies on every frame the engine produces — there is no frame-rate cap. Under a `BeamSync` one clock serves the whole subtree.
 2. **`BeamPhaseResolver`** (`lib/src/border_beam/animation/beam_phases.dart`) samples a `BeamFramePhases` for a time: the fade (including a cycle gap's envelope), the hue rotation and the time the hue track reads, the travel position of every traveller (`travellers`, spaced `1 / count` apart), whether this cycle runs mirrored, the continuous `cycles` clock the breathing runs on (the pulse, the line's spikes), and whether a `progress` / `follow` value is driving the travel. Pure — the same time in gives the same phases out. It knows nothing about what an effect looks like.
 3. **The effect emitter** (`lib/src/border_beam/effects/effect_emitters.dart`) is a switch over the sealed `BeamEffect`. Each effect is a function of the resolved `BeamConfig`, the phases, the `BeamOutline`, and the palette's blob tables (`BeamLook.tablesFor`), and writes its layers into a `BeamFrameData`. The time-driven design values — the line's width, height, spike, and edge-fade keyframes, the pulse's 17 oscillators — are sampled here, on the CPU, once per frame.
 4. **`BeamFrameData`** (`lib/src/border_beam/render/beam_frame.dart`) is the frame as the shader consumes it: the outline, the visible track, the conic coordinate, four conic tables, and three layers, each with a geometry, a window, an edge fade, an inset shadow, an overlay, a colour filter, an opacity, and a stack of blobs. It is one `Float32List` laid out exactly like the shader's uniform block, reset and rewritten in place every frame.
@@ -109,7 +110,7 @@ That is 672 floats, `beamUniformFloats` — inside the 896 (224 `vec4`s) GLES 3.
 
 | File | Contents |
 | --- | --- |
-| `lib/prismatic.dart`, `lib/border_beam.dart` | `prismatic.dart` is the package barrel and re-exports `border_beam.dart`, which exports `BorderBeam`, `BorderBeamController`, `BorderBeamTheme` / `BorderBeamThemeData`, `BeamSync`, `BeamEffect` and its three subclasses (`RotateEffect`, `LineEffect`, `PulseEffect`), `BeamColors` / `BeamSeedHarmony`, the option types (`BeamDirection`, `BeamEdge`, `BeamHueMode`, `BeamReducedMotion`, `BeamRepeat`), `BeamAnchor` / `BeamCorner` / `BeamSegment`, `BeamTheme`, the four value objects, and the four widgets. Nothing under `render/` is public. |
+| `lib/prismatic.dart`, `lib/border_beam.dart` | `prismatic.dart` is the package barrel and re-exports `border_beam.dart` and `distortion_wave.dart`. `border_beam.dart` exports `BorderBeam`, `BorderBeamController`, `BorderBeamTheme` / `BorderBeamThemeData`, `BeamSync`, `BeamEffect` and its three subclasses (`RotateEffect`, `LineEffect`, `PulseEffect`), `BeamColors` / `BeamSeedHarmony`, the option types (`BeamDirection`, `BeamEdge`, `BeamHueMode`, `BeamReducedMotion`, `BeamRepeat`), `BeamAnchor` / `BeamCorner` / `BeamSegment`, `BeamTheme`, the four value objects, and the four widgets. Nothing under `render/` or `effects/effect_emitters.dart` is public. |
 | `lib/src/border_beam/border_beam.dart` | The widget: `BorderBeam` and `BorderBeam.overlay`, the three shorthands (`colors`, `active`, `borderRadius`), the driven inputs (`progress`, `follow`, `strengthListenable`, `speedListenable`), `BorderBeam.precache()`, and all scheduling and lifecycle. A controller attached ⇒ it owns playback. |
 | `lib/src/border_beam/border_beam_controller.dart` | `BorderBeamController`, a `ChangeNotifier` over one clock. |
 | `lib/src/border_beam/border_beam_theme.dart` | `BorderBeamTheme` (an `InheritedWidget`) and `BorderBeamThemeData`, with an `effect` slot and one per value object. `of` walks every enclosing scope, depends on each, and merges them outside-in. |

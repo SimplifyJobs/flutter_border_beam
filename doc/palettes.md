@@ -1,5 +1,7 @@
 # Palettes
 
+`BeamColors` (`lib/src/border_beam/models/beam_colors.dart`) for `BorderBeam`. The wave's palettes are `WavePalette` — see [distortion_wave_usage.md](distortion_wave_usage.md#palettes-wavepalette); `WavePalette.fromBeamColors` converts one into the other.
+
 A palette is a **ring of colour stops around the border**. Each stop is a colour at a perimeter position in `[0, 1)`: 0 is top-centre, and positions increase clockwise by arc length. Between stops the colour blends, and past the last stop it blends back into the first across top-centre, so the ring has no seam.
 
 Effects draw a palette as soft blobs of colour placed around the border — the same blob tables the original design was tuned with:
@@ -82,7 +84,7 @@ Colours blend **gamma-aware**: squared channels (close to linear light) are inte
 | `triadic` | 0°, +120°, +240° | three-way, evenly spaced |
 | `monochrome` | one hue, four lightness steps | a single-hue brand look |
 
-The derived colours are lifted into a band a glow reads well in (lightness 0.55–0.70, with a saturation floor), so a black, white, or grey seed still yields a visible palette. That is also why `fromSeed` cannot reproduce a very dark or very desaturated brand colour exactly — use `BeamColors([...])` when you need the exact colour.
+The derived colours are lifted into a lightness band a glow reads well in, with a saturation floor (`_seedMinLightness`, `_seedMaxLightness`, `_seedMinSaturation` in `models/beam_colors.dart`), so a black, white, or grey seed still yields a visible palette. That is also why `fromSeed` cannot reproduce a very dark or very desaturated brand colour exactly — use `BeamColors([...])` when you need the exact colour.
 
 ```dart
 const BeamColors.fromSeed(Color(0xFF18A8F0), harmony: BeamSeedHarmony.complementary);
