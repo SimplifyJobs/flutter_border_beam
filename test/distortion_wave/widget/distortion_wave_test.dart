@@ -170,6 +170,51 @@ void main() {
     expect(find.byKey(const ValueKey('in')), findsOneWidget);
   });
 
+  testWidgets('the side off screen takes no focus, by Tab or autofocus', (
+    tester,
+  ) async {
+    useWaveView(tester);
+    final out = FocusNode(debugLabel: 'out');
+    final hidden = FocusNode(debugLabel: 'in');
+    addTearDown(out.dispose);
+    addTearDown(hidden.dispose);
+    Widget build({bool revealed = false}) => waveHost(
+      wave(
+        revealed: revealed,
+        child: Focus(focusNode: out, child: flatSide(outgoingColor, 'out')),
+        revealedChild: Focus(
+          focusNode: hidden,
+          autofocus: true,
+          child: flatSide(incomingColor, 'in'),
+        ),
+      ),
+    );
+    await tester.pumpWidget(build());
+    await tester.pump();
+    expect(hidden.hasFocus, isFalse, reason: 'autofocus on the hidden side');
+
+    out.requestFocus();
+    await tester.pump();
+    expect(out.hasFocus, isTrue);
+    out.nextFocus();
+    await tester.pump();
+    expect(hidden.hasFocus, isFalse, reason: 'Tab past the visible side');
+    hidden.requestFocus();
+    await tester.pump();
+    expect(hidden.hasFocus, isFalse);
+
+    // Revealed, the sides swap: focus leaves the side that went.
+    await tester.pumpWidget(build(revealed: true));
+    await tester.pumpAndSettle();
+    expect(out.hasFocus, isFalse);
+    hidden.requestFocus();
+    await tester.pump();
+    expect(hidden.hasFocus, isTrue);
+    out.requestFocus();
+    await tester.pump();
+    expect(out.hasFocus, isFalse);
+  });
+
   testWidgets('without maintainState the hidden side is built only while '
       'the wave runs', (tester) async {
     useWaveView(tester);

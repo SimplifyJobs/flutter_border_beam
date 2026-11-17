@@ -303,12 +303,18 @@ class _DistortionWaveState extends State<DistortionWave>
     final resting = scrubbing ? false : _atRest;
     final onOutgoing = p <= 0;
     final onIncoming = p >= 1;
-    // At rest the hidden side is muted, or not built at all.
+    // At rest the hidden side is muted, or not built at all. Whenever a side
+    // is off screen — at rest, or held at either end — it takes no focus, so
+    // Tab, autofocus and the like never land on what cannot be seen.
     Widget? side(WaveSlot slot, Widget child, bool visible) {
       if (resting && !visible && !widget.maintainState) return null;
+      final offScreen = slot == WaveSlot.outgoing ? onIncoming : onOutgoing;
       return WaveSide(
         slot: slot,
-        child: TickerMode(enabled: !resting || visible, child: child),
+        child: ExcludeFocus(
+          excluding: offScreen,
+          child: TickerMode(enabled: !resting || visible, child: child),
+        ),
       );
     }
 
