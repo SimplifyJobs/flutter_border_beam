@@ -435,13 +435,13 @@ positive minimums, 0–1 fields to 0–1, `blur` to 0–64, `returnSpeed` to
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `lead` | `double?` pt | How far the colour feathers ahead of the front. |
-| `tail` | `double?` pt | Length of the colour trailing behind the front. |
+| `lead` | `double?` pt | How far the colour feathers ahead of the front. At least 1. |
+| `tail` | `double?` pt | Length of the colour trailing behind the front. At least 1. |
 | `strength` | `double?` 0–1 | Peak opacity of the band on the front; 0 hides it. |
-| `rimWidth` | `double?` pt | How far in from the view's edges the lingering colour reaches. |
+| `rimWidth` | `double?` pt | How far in from the view's edges the lingering colour reaches. At least 0.5. |
 | `rimUnevenness` | `double?` 0–2 | 0 = even thickness all round; 1 = drifting lumps with thin stretches; past 1 the thinnest stretches break off. |
 | `rimStrength` | `double?` 0–1 | Peak opacity of the edge colour; 0 leaves none behind. |
-| `rimSoftness` | `double?` pt | How softly the edge colour is wiped away. |
+| `rimSoftness` | `double?` pt | How softly the edge colour is wiped away. At least 1. |
 | `rimPulse` | `double?` 0–1 | How alive the edge colour is (lumps drift and breathe, brightness runs round, colours flow); 0 keeps a slow drift. |
 | `hairlineWidth` | `double?` pt | Width of a hairline on the view's edge, over the colour; 0 draws none. |
 | `hairlineOpacity` | `double?` 0–1 | Peak opacity of the hairline. |

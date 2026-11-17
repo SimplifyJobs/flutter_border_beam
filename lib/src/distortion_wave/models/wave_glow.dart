@@ -48,15 +48,18 @@ class WaveGlow {
        );
 
   /// Distance the colour feathers out ahead of the front, in logical pixels.
+  /// At least 1: a smaller value is raised to 1.
   final double? lead;
 
-  /// Length of the colour trailing behind the front, in logical pixels.
+  /// Length of the colour trailing behind the front, in logical pixels. At
+  /// least 1: a smaller value is raised to 1.
   final double? tail;
 
   /// Peak opacity of the colour on the front, 0–1. 0 hides the band.
   final double? strength;
 
   /// How far in from the view's edges the colour reaches, in logical pixels.
+  /// At least 0.5: a smaller value is raised to 0.5.
   final double? rimWidth;
 
   /// How unequal the colour's thickness is along the edges, 0–2: 0 is even
@@ -68,7 +71,8 @@ class WaveGlow {
   /// Peak opacity of the colour on the edges, 0–1. 0 leaves no colour behind.
   final double? rimStrength;
 
-  /// How softly the colour on the edges is wiped away, in logical pixels.
+  /// How softly the colour on the edges is wiped away, in logical pixels. At
+  /// least 1: a smaller value is raised to 1.
   final double? rimSoftness;
 
   /// How alive the colour on the edges is, 0–1: its lumps drift and breathe,
