@@ -44,7 +44,9 @@ widget's border (`shaders/beam.frag`), and `DistortionWave`, a wave that
 carries one view into another (`shaders/wave.frag` and
 `shaders/wave_glow.frag`). It opens no sockets, reads no files other than
 its own bundled shader assets, writes nothing, stores nothing, and collects
-nothing. It has no runtime dependencies beyond the Flutter SDK.
+nothing. Its only runtime dependencies are the Flutter SDK and
+[`material_ui`](https://pub.dev/packages/material_ui), for the Material theme
+the beam reads its surface from.
 Most of the vulnerability classes a security report usually covers simply
 have no surface here.
 
