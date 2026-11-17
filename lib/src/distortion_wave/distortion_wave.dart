@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 import 'distortion_wave_controller.dart';
@@ -205,8 +206,13 @@ class _DistortionWaveState extends State<DistortionWave>
       _clock.jumpTo(wasHeld);
       drive(reveal: widget.controller?.isRevealed ?? widget.revealed);
       // The controller did not start this run, so its listeners hear of it
-      // here; a run that arrived at once has told them already.
-      if (isRunning) widget.controller?.started();
+      // here — after this frame, since a listener may rebuild the tree; a
+      // run that arrived at once has told them already.
+      if (isRunning) {
+        SchedulerBinding.instance.addPostFrameCallback((_) {
+          if (mounted && isRunning) widget.controller?.started();
+        });
+      }
       return;
     }
     final target = widget.controller?.isRevealed ?? widget.revealed;

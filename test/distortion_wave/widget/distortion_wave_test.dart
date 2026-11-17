@@ -409,6 +409,38 @@ void main() {
       expect(running, [true, false], reason: 'then arrived');
     });
 
+    testWidgets('a listener may rebuild the tree when a hold is let go', (
+      tester,
+    ) async {
+      useWaveView(tester);
+      final controller = DistortionWaveController();
+      addTearDown(controller.dispose);
+      double? held = 0.4;
+      late StateSetter rebuild;
+      var heard = 0;
+      controller.addListener(() {
+        heard++;
+        rebuild(() {});
+      });
+      await tester.pumpWidget(
+        waveHost(
+          StatefulBuilder(
+            builder: (context, setState) {
+              rebuild = setState;
+              return wave(controller: controller, progress: held);
+            },
+          ),
+        ),
+      );
+      held = null;
+      rebuild(() {});
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(heard, 1);
+      expect(controller.isRunning, isTrue);
+      await tester.pumpAndSettle();
+    });
+
     testWidgets('owns playback: reveal, collapse, seek', (tester) async {
       useWaveView(tester);
       final controller = DistortionWaveController();
