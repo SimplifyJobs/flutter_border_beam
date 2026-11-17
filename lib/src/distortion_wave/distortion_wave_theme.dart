@@ -33,7 +33,7 @@ class DistortionWaveThemeData {
   DistortionWaveThemeData merge(DistortionWaveThemeData? other) => other == null
       ? this
       : DistortionWaveThemeData(
-          style: (style ?? const WaveStyle()).merge(other.style),
+          style: style?.merge(other.style) ?? other.style,
           snapshots: other.snapshots ?? snapshots,
         );
 
