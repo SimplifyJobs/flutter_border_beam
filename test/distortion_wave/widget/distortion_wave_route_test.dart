@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:leak_tracker_flutter_testing/leak_tracker_flutter_testing.dart';
 import 'package:prismatic/prismatic.dart';
 import 'package:prismatic/src/distortion_wave/render/render_wave_stage.dart';
+import 'package:prismatic/src/distortion_wave/wave_source.dart';
 
 import 'wave_test_utils.dart';
 
@@ -95,6 +96,21 @@ void main() {
     expect(find.byKey(const ValueKey('next')), findsOneWidget);
     expect(find.byKey(const ValueKey('home')), findsNothing);
     expect(waveStage(tester).debugLastPhase, WavePhase.rest);
+  });
+
+  testWidgets('the new page keeps one anchor registry through the '
+      'transition', (tester) async {
+    useWaveView(tester);
+    await tester.pumpWidget(app());
+    await tester.tapAt(const Offset(300, 790));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    WaveAnchorRegistry registry() =>
+        tester.widget<WaveAnchorScope>(find.byType(WaveAnchorScope)).registry;
+    final first = registry();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(registry(), same(first));
+    await tester.pumpAndSettle();
   });
 
   testWidgets('a pop collapses it back onto the page underneath', (

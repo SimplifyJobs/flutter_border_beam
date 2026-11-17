@@ -244,8 +244,9 @@ it (keyboard focus also clears its `lastTouch`). `sourceFor(revealedOnScreen:)`
 picks: last pressed if on the side on screen → the only anchor on that side
 → last pressed anywhere → none. The wave's state calls it only when a run
 starts from rest (`_sourceForRun`), so the source never changes mid-wave.
-`DistortionWaveRoute` wraps its stage in a fresh registry, so anchors in a
-route's page never register with an enclosing wave. The rules as a user sees
+`DistortionWaveRoute` wraps its stage in a registry of its own, made once
+per route, so anchors in a route's page never register with an enclosing
+wave. The rules as a user sees
 them: [distortion_wave_usage.md](distortion_wave_usage.md#where-the-wave-opens-from).
 
 `RenderWaveStage` resolves its source lazily (`_origin`) and keeps the

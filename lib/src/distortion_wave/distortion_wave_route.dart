@@ -120,6 +120,10 @@ class DistortionWaveRoute<T> extends PageRoute<T> {
   final ValueNotifier<ui.Image?> _below = ValueNotifier<ui.Image?>(null);
   ModalRoute<dynamic>? _previous;
 
+  // The new page's anchors register here, never with an enclosing wave.
+  // Made once: the transition is rebuilt on every frame of the animation.
+  final WaveAnchorRegistry _anchors = WaveAnchorRegistry();
+
   /// The picture of the page underneath; for tests.
   @visibleForTesting
   ValueListenable<ui.Image?> get debugBelow => _below;
@@ -234,7 +238,7 @@ class _WaveRouteTransition extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = DistortionWaveTheme.of(context);
     return WaveAnchorScope(
-      registry: WaveAnchorRegistry(),
+      registry: route._anchors,
       child: WaveStage(
         progress: animation,
         spec: route.spec,
