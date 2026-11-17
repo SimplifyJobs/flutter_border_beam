@@ -111,6 +111,7 @@ void main() {
 
   testWidgets('a full collapse is quicker than the reveal', (tester) async {
     useWaveView(tester);
+    expect(vertical.returnDuration, lessThan(vertical.duration));
     await tester.pumpWidget(waveHost(wave(revealed: true)));
     expect(waveStage(tester).progress.value, 1);
     await tester.pumpWidget(waveHost(wave()));
