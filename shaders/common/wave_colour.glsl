@@ -284,10 +284,13 @@ vec4 waveGlowCore(vec2 p, vec4 o, float edge, float thickness, float d, vec2 q, 
     vec3 hair = mix(oklabToSrgb(rimLab), vec3(1.0), uHair.z * (0.5 + 0.5 * shimmer));
     rgb = (rgb * a * (1.0 - hairA) + hair * hairA) / total;
   }
-  // The colour lives on the glass: it fades out across one device pixel at
-  // the view's outline, so its edge is anti-aliased by itself rather than
-  // left to a clip, which on Impeller is not, and would show bright jaggies.
-  float onGlass = clamp(0.5 - o.x / uView.x, 0.0, 1.0);
+  // The colour lives on the glass: it fades out over the last device pixel
+  // inside the view's outline, so its edge is anti-aliased by itself. It
+  // ends just inside the outline rather than straddling it: a view the app
+  // clips to that outline (a sheet, a card) is cut by a clip that on Impeller
+  // is not anti-aliased, and a clip through still-lit pixels would leave a
+  // bright staircase round the corners while the wave runs.
+  float onGlass = clamp(-o.x / uView.x, 0.0, 1.0);
   return vec4(clamp(rgb, 0.0, 1.0) * total, total) * onGlass;
 }
 
