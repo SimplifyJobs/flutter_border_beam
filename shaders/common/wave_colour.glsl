@@ -104,11 +104,14 @@ float waveSmin(float a, float b, float k) {
 // The distance to the outline itself would follow each corner as it is: a
 // sharp one (where a display's corners differ, as on a phone whose corners
 // are 8 pt on one side and 59 pt on the other) would turn the colour
-// through a near-square corner, beside round ones. The sliver between that
-// round curve and the sharp corner itself is lit as the glass edge is, so
-// the light fills the corner rather than turning a square. Deeper than the
-// curve, where its distance would crease along the diagonal, the two
-// distances are eased into each other. The hairline keeps to the glass.
+// through a near-square corner, beside round ones. Measured to the round
+// curve, the colour is brightest along it and fades out past it into the
+// sliver between the curve and a sharper corner, just as it does inward —
+// so a sharp corner carries the same slim curve of light as a round one,
+// and its tip stays as dark as a round corner's glass beyond the curve.
+// Signed: negative in that sliver. Deeper than the curve, where its
+// distance would crease along the diagonal, the two edge distances are
+// eased into each other. The hairline keeps to the glass.
 float waveRimInset(vec2 p, float inset) {
   vec2 hs = uRect.zw * 0.5;
   vec2 c = p - hs;
@@ -118,7 +121,7 @@ float waveRimInset(vec2 p, float inset) {
   float rho = min(max(max(r, uBand.w), k), min(hs.x, hs.y));
   vec2 q = abs(c) - hs + rho;
   float sd = length(max(q, 0.0)) + min(-waveSmin(-q.x, -q.y, k), 0.0) - rho;
-  return min(inset, max(-sd, 0.0));
+  return min(inset, -sd);
 }
 
 bool waveNearEdge(float inset) {
