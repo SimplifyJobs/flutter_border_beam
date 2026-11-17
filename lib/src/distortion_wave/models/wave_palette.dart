@@ -25,6 +25,10 @@ class WavePalette {
   ///
   /// The wave flows along the first [maxWavePaletteColors] colours; with
   /// none, it uses [ahead] alone. Colours are drawn opaque.
+  ///
+  /// The palette keeps [colors] as given — a const constructor cannot copy
+  /// it — and its `==` and `hashCode` read it, so do not change the list
+  /// afterwards; build a new palette instead.
   const WavePalette({
     required this.colors,
     required this.ahead,
