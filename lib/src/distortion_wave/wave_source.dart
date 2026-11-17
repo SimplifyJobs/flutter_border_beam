@@ -223,10 +223,11 @@ class DistortionWaveAnchorState extends State<DistortionWaveAnchor> {
 
   WaveAnchorRegistry? _registry;
 
+  // Depends on the scope, so a new registry or side reaches the anchor.
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final scope = context.getInheritedWidgetOfExactType<WaveAnchorScope>();
+    final scope = context.dependOnInheritedWidgetOfExactType<WaveAnchorScope>();
     final registry = scope?.registry;
     if (!identical(registry, _registry)) {
       _registry?.forget(this);
@@ -333,5 +334,7 @@ class WaveAnchorScope extends InheritedWidget {
   final bool? onRevealedSide;
 
   @override
-  bool updateShouldNotify(WaveAnchorScope oldWidget) => false;
+  bool updateShouldNotify(WaveAnchorScope oldWidget) =>
+      !identical(registry, oldWidget.registry) ||
+      onRevealedSide != oldWidget.onRevealedSide;
 }

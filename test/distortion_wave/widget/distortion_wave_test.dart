@@ -808,6 +808,31 @@ void main() {
     expect(resolved.focus, const Offset(30, 40));
   });
 
+  testWidgets('an anchor follows its scope to a new registry or side', (
+    tester,
+  ) async {
+    final a = WaveAnchorRegistry();
+    final b = WaveAnchorRegistry();
+    Widget build(WaveAnchorRegistry registry, {bool revealed = false}) =>
+        waveHost(
+          WaveAnchorScope(
+            registry: registry,
+            onRevealedSide: revealed,
+            child: const DistortionWaveAnchor(child: SizedBox.expand()),
+          ),
+        );
+    await tester.pumpWidget(build(a));
+    expect(a.sourceFor(revealedOnScreen: false), isNotNull);
+
+    await tester.pumpWidget(build(b));
+    expect(a.sourceFor(revealedOnScreen: false), isNull);
+    expect(b.sourceFor(revealedOnScreen: false), isNotNull);
+
+    await tester.pumpWidget(build(b, revealed: true));
+    expect(b.sourceFor(revealedOnScreen: true), isNotNull);
+    expect(b.sourceFor(revealedOnScreen: false), isNull);
+  });
+
   testWidgets('a source whose widget is not a box measures as none', (
     tester,
   ) async {
