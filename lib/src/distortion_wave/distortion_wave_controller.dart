@@ -34,7 +34,8 @@ class DistortionWaveController extends ChangeNotifier {
   /// Whether a run is in flight.
   bool get isRunning => _driver?.isRunning ?? false;
 
-  /// Sends the wave out to the revealed side, from [source] if given.
+  /// Sends the wave out to the revealed side: from [source] if given and the
+  /// wave is at rest, else from the source the run in flight opened from.
   void reveal({WaveSource? source}) => _go(true, source);
 
   /// Collapses the wave back onto the first side: into [source] if given and
