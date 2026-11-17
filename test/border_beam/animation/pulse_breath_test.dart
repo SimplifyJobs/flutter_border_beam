@@ -6,7 +6,7 @@ import 'package:prismatic/src/border_beam/look/pulse_look.dart';
 ///
 /// These pin the shape of the motion (where it rests and peaks, which way it
 /// moves, how it scales with the cycle), not its tuning, so retuning the look
-/// in `lib/src/look/` leaves them standing.
+/// in `lib/src/border_beam/look/` leaves them standing.
 void main() {
   group('breath', () {
     test('rests at the start of each cycle and peaks where the swell ends', () {

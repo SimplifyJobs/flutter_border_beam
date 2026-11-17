@@ -9,7 +9,7 @@ import 'beam_palette.dart';
 //
 // The stops of the four originals and the seven that follow them were laid
 // out from where their blob tables put each colour on a 350 × 140 card; the
-// blob tables themselves (`lib/src/look/`) are what the effects draw with.
+// blob tables themselves (`lib/src/border_beam/look/`) are what the effects draw with.
 // The palettes new in 0.2 have stops only, and are drawn by sampling them
 // into `colorful`'s blob geometry. Every preset reads as light on both dark
 // and light surfaces.
