@@ -168,8 +168,26 @@ class DistortionWaveRoute<T> extends PageRoute<T> {
     old?.dispose();
   }
 
+  // Made once: `buildTransitions` runs every frame of the transition, and a
+  // curve made there would add a listener to the route's animation each time.
+  CurvedAnimation? _curved;
+
+  /// The route's animation on the wave's curves: linear out, and the
+  /// collapse on the wave's easing, as `DistortionWave`'s does.
+  Animation<double> _curve(Animation<double> parent) {
+    final curved = _curved;
+    if (curved != null && identical(curved.parent, parent)) return curved;
+    curved?.dispose();
+    return _curved = CurvedAnimation(
+      parent: parent,
+      curve: Curves.linear,
+      reverseCurve: spec.easing.flipped,
+    );
+  }
+
   @override
   void dispose() {
+    _curved?.dispose();
     _below.value?.dispose();
     _below.dispose();
     super.dispose();
@@ -190,12 +208,7 @@ class DistortionWaveRoute<T> extends PageRoute<T> {
     Widget child,
   ) => _WaveRouteTransition(
     route: this,
-    // The collapse runs on the wave's easing, as DistortionWave's does.
-    animation: CurvedAnimation(
-      parent: animation,
-      curve: Curves.linear,
-      reverseCurve: spec.easing.flipped,
-    ),
+    animation: _curve(animation),
     child: child,
   );
 

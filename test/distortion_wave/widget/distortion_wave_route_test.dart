@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:leak_tracker_flutter_testing/leak_tracker_flutter_testing.dart';
 import 'package:prismatic/prismatic.dart';
 import 'package:prismatic/src/distortion_wave/render/render_wave_stage.dart';
 
@@ -9,6 +10,8 @@ import 'wave_test_utils.dart';
 /// new page, a picture of the page underneath for it to bend, and the
 /// collapse on pop.
 void main() {
+  // Every test here also checks that the route disposes what it makes.
+  LeakTesting.enable();
   setUpAll(DistortionWave.precache);
 
   final navigatorKey = GlobalKey<NavigatorState>();
@@ -133,4 +136,18 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('next')), findsOneWidget);
   });
+
+  testWidgets(
+    'a push and a pop leave nothing undisposed',
+    experimentalLeakTesting: LeakTesting.settings.withTrackedAll(),
+    (tester) async {
+      useWaveView(tester);
+      await tester.pumpWidget(app());
+      await tester.tapAt(const Offset(300, 790));
+      await tester.pumpAndSettle();
+      navigatorKey.currentState!.pop();
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('next')), findsNothing);
+    },
+  );
 }
