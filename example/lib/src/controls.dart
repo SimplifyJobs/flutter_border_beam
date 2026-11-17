@@ -417,12 +417,36 @@ class ScrubBar extends StatelessWidget {
   static const double _inset = 3;
   static const double _thumb = _height - 2 * _inset;
 
+  /// How far a screen reader's increase or decrease moves the wave.
+  static const double _step = 0.1;
+
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
-    return Semantics(
-      slider: true,
-      label: 'Scrub the wave',
+    // A screen reader reads where the wave is, and steps it as a short
+    // drag would: held at the new point, then let go to play on.
+    return ValueListenableBuilder<double>(
+      valueListenable: value,
+      builder: (context, v, bar) {
+        String percent(double x) => '${(x * 100).round()}%';
+        final up = math.min(v + _step, 1.0);
+        final down = math.max(v - _step, 0.0);
+        void stepTo(double at) {
+          onStart(at);
+          onEnd();
+        }
+
+        return Semantics(
+          slider: true,
+          label: 'Scrub the wave',
+          value: percent(v),
+          increasedValue: percent(up),
+          decreasedValue: percent(down),
+          onIncrease: v < 1 ? () => stepTo(up) : null,
+          onDecrease: v > 0 ? () => stepTo(down) : null,
+          child: bar,
+        );
+      },
       child: Row(
         children: [
           Text(
