@@ -9,7 +9,7 @@ import 'src/wave_scenes.dart';
 
 /// The distortion wave reel. Record with:
 ///
-///   tool/record_demo.sh --target lib/wave_reel.dart --prefix WAVE --contact
+///   tool/record_demo.sh --target lib/wave_reel.dart --prefix WAVE --no-crop --contact
 ///
 /// Each scene is one of the wave page's demos on the dark theme: a beat on
 /// the first screen, the wave out from its button — leaning toward where a
