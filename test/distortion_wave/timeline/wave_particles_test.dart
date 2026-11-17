@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:prismatic/src/distortion_wave/models/wave_dots.dart';
 import 'package:prismatic/src/distortion_wave/models/wave_motion.dart';
 import 'package:prismatic/src/distortion_wave/models/wave_spec.dart';
 import 'package:prismatic/src/distortion_wave/models/wave_style.dart';
@@ -61,6 +62,18 @@ void main() {
         expect(all[i].pace, particles[i].pace, reason: 'dot $i');
       }
       expect(() => all.add(particles.first), throwsUnsupportedError);
+    });
+
+    test('all keeps the dots of a few specs at once', () {
+      final specs = [
+        for (final count in [10, 20, 30, 40])
+          WaveSpec.resolve(WaveStyle(dots: WaveDots(count: count))),
+      ];
+      final first = [for (final s in specs) WaveParticle.all(s)];
+      // Waves of different styles on screen at once, frame after frame.
+      for (var i = 0; i < specs.length; i++) {
+        expect(WaveParticle.all(specs[i]), same(first[i]));
+      }
     });
 
     test('particles hop toward the button', () {

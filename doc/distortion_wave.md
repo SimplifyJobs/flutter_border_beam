@@ -37,7 +37,7 @@ Three ideas carry it:
 | `lib/src/distortion_wave/wave_source.dart` | `WaveSource` (sealed: rect / key / global / none), `defaultWaveSource`, `DistortionWaveAnchor` + state, `WaveAnchorRegistry`, `WaveAnchorScope`. |
 | `lib/src/distortion_wave/models/` | Public value objects (`wave_style.dart`, `wave_timing.dart`, `wave_motion.dart`, `wave_lens.dart`, `wave_glow.dart`, `wave_dots.dart`, `wave_palette.dart`, `wave_type.dart`, `wave_snapshots.dart`) and the internal `wave_spec.dart`. |
 | `lib/src/distortion_wave/look/wave_defaults.dart` | `waveDefaults(type)`: each type's fully set, tuned style; `waveTravelEasing`, `waveRimEasing`. |
-| `lib/src/distortion_wave/timeline/` | `wave_frame.dart` (`WaveFrame.at`, `waveCoverZone`, `waveSmooth`), `wave_particles.dart` (`WaveParticle.all(spec)`, cached for the last spec), `wave_rim.dart` (`WaveRim.lumps`, `WaveRim.count`, `thickness`), `wave_clock.dart` (`WaveClock`). |
+| `lib/src/distortion_wave/timeline/` | `wave_frame.dart` (`WaveFrame.at`, `waveCoverZone`, `waveSmooth`), `wave_particles.dart` (`WaveParticle.all(spec)`, cached for the last few specs), `wave_rim.dart` (`WaveRim.lumps`, `WaveRim.count`, `thickness`), `wave_clock.dart` (`WaveClock`). |
 | `lib/src/distortion_wave/render/` | `render_wave_stage.dart` (`RenderWaveStage`, `WaveSlot`, `WavePhase`), `wave_snapshot.dart` (`WaveSideImages`), `wave_frame_data.dart` (`WaveFrameData`, `waveUniformFloats`, `wavePaletteSlots`, `waveNearBlur`), `wave_programs.dart` (`waveProgram`, `waveGlowProgram`, `loadWavePrograms`), `dot_atlas.dart` (`DotAtlas`), `wave_warm_up.dart` (`warmUpWaveRendering`). |
 | `shaders/wave.frag`, `shaders/wave_glow.frag` | The two programs, declared under `flutter: shaders:`. |
 | `shaders/common/wave_uniforms.glsl`, `wave_field.glsl`, `wave_colour.glsl`, `outline.glsl` | Includes (not listed in the pubspec; impellerc gets `shaders/` as an include path). |
@@ -232,7 +232,7 @@ white disc sprite, scaled per dot and modulated by its opacity. The sprite is
 rendered once per diameter in device pixels and kept until the diameter
 changes. **Each `RenderWaveStage` owns its `DotAtlas` and disposes it in
 `dispose()`**, so no image outlives its wave. Dot positions come from
-`WaveParticle.all(spec)` (cached for the last spec) evaluated on the frame.
+`WaveParticle.all(spec)` (cached for the last few specs) evaluated on the frame.
 
 ## Anchors and sources
 

@@ -47,18 +47,26 @@ final class WaveParticle {
       _gatherDots = spec.gatherDots,
       _spread = spec.dotSpread;
 
-  /// Every dot of a wave with [spec], memoized per spec.
+  /// Every dot of a wave with [spec], memoized for the last few specs, so
+  /// waves of different styles on screen at once each keep their own.
   static List<WaveParticle> all(WaveSpec spec) {
-    final cached = _cache;
-    if (cached != null && cached.$1 == spec) return cached.$2;
-    final dots = List<WaveParticle>.unmodifiable([
+    // Most frames ask for the spec asked for last.
+    final last = _last;
+    if (last != null && last.$1 == spec) return last.$2;
+    var dots = _cache.remove(spec);
+    dots ??= List<WaveParticle>.unmodifiable([
       for (var i = 0; i < spec.dotCount; i++) WaveParticle(i, spec),
     ]);
-    _cache = (spec, dots);
+    // Re-inserted last: the map's order is least to most recently used.
+    _cache[spec] = dots;
+    if (_cache.length > _cacheSize) _cache.remove(_cache.keys.first);
+    _last = (spec, dots);
     return dots;
   }
 
-  static (WaveSpec, List<WaveParticle>)? _cache;
+  static const int _cacheSize = 4;
+  static final Map<WaveSpec, List<WaveParticle>> _cache = {};
+  static (WaveSpec, List<WaveParticle>)? _last;
 
   /// How much wider than the source the quickest end up: the front is an
   /// arc, opening.
