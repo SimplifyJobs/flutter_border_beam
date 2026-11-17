@@ -226,7 +226,9 @@ void main() {
     test('with any easing, the front has crossed the view by the end', () {
       // A long travel, so the front, not the colour's fade, sets how long the
       // reveal runs. A slower easing gets the time its front needs; the tuned
-      // one keeps exactly its own share of the travel.
+      // one keeps exactly its own share of the travel, and none gets less.
+      // An overshooting easing counts from where it stays past the tuned
+      // one's reach.
       WaveSpec slow([Curve? easing]) => WaveSpec.resolve(
         WaveStyle(
           type: WaveType.vertical,
@@ -241,11 +243,28 @@ void main() {
         tuned.duration,
         closeTo(tuned.anticipation + tuned.travel * 0.6, 1e-9),
       );
-      for (final easing in [Curves.linear, Curves.easeInOut, Curves.easeIn]) {
+      for (final easing in [
+        Curves.linear,
+        Curves.easeInOut,
+        Curves.easeIn,
+        Curves.easeOutBack,
+        Curves.elasticOut,
+      ]) {
         final eased = slow(easing);
         final f = front(1, using: eased);
         expect(f.hasCleared, isTrue, reason: '$easing');
-        expect(eased.duration, greaterThan(tuned.duration), reason: '$easing');
+        expect(
+          eased.duration,
+          greaterThanOrEqualTo(tuned.duration),
+          reason: '$easing',
+        );
+      }
+      for (final slower in [Curves.linear, Curves.easeInOut, Curves.easeIn]) {
+        expect(
+          slow(slower).duration,
+          greaterThan(tuned.duration),
+          reason: '$slower',
+        );
       }
     });
 
