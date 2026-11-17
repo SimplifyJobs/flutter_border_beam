@@ -23,8 +23,9 @@ abstract final class DisplayCorners {
   /// The radii last measured, in logical pixels, or null.
   static BorderRadius? get radii => _radii;
 
-  /// Measures the radii now, on iOS; elsewhere, or if the platform does not
-  /// answer, null.
+  /// Measures the radii now, on iOS, and keeps them as [radii]; elsewhere,
+  /// or if the platform does not answer, null, and [radii] is left as it
+  /// was.
   static Future<BorderRadius?> measure() async {
     if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) return null;
     try {
@@ -37,7 +38,7 @@ abstract final class DisplayCorners {
         bottomLeft: Radius.circular(r[3]),
       );
       if (!kReleaseMode) debugPrint('DisplayCorners: measured $radii');
-      return radii;
+      return _radii = radii;
     } on Object catch (error) {
       if (!kReleaseMode) debugPrint('DisplayCorners: failed ($error)');
       return null;
@@ -45,7 +46,7 @@ abstract final class DisplayCorners {
   }
 
   /// Measures the radii once, before the first frame.
-  static Future<void> load() async => _radii = await measure();
+  static Future<void> load() => measure();
 }
 
 /// Puts the display's corner radii in the `MediaQuery` below it (unless the
