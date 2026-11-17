@@ -44,8 +44,10 @@ vec3 waveField(vec2 p, out vec2 q, out float g) {
   float squash = uFront1.x;
   float time = uFront1.y;
 
-  // A narrower x metric bows the front: wider than a circle would be, it
-  // would otherwise cross a phone screen as a nearly flat line.
+  // Scaling x up (squash of 1 or more) makes the front narrower across than
+  // a circle of the same radius: its sideways reach is radius / squash. So
+  // it stays bowed as it grows; as a circle far wider than the screen it
+  // would cross a phone screen as a nearly flat line.
   float mx = q.x * squash;
   vec2 v = vec2(max(abs(mx) - spine, 0.0), q.y);
   float len = length(v);
