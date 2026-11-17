@@ -152,6 +152,9 @@ class DistortionWaveRoute<T> extends PageRoute<T> {
 
   void _pictureBelow() {
     final boundary = _previous?.subtreeContext?.findRenderObject();
+    // `debugNeedsPaint` keeps debug builds clear of `toImageSync`'s
+    // assertion; it is always false in release, where a page still waiting
+    // to repaint is pictured as it was last painted.
     if (boundary is! RenderRepaintBoundary ||
         !boundary.attached ||
         !boundary.hasSize ||
