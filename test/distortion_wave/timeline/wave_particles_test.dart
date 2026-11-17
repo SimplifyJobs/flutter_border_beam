@@ -76,6 +76,25 @@ void main() {
       }
     });
 
+    test('all forgets the spec used least recently, not the oldest', () {
+      final a = WaveSpec.resolve(const WaveStyle(dots: WaveDots(count: 11)));
+      final b = WaveSpec.resolve(const WaveStyle(dots: WaveDots(count: 12)));
+      final c = WaveSpec.resolve(const WaveStyle(dots: WaveDots(count: 13)));
+      final d = WaveSpec.resolve(const WaveStyle(dots: WaveDots(count: 14)));
+      final e = WaveSpec.resolve(const WaveStyle(dots: WaveDots(count: 15)));
+      final dotsA = WaveParticle.all(a);
+      final dotsB = WaveParticle.all(b);
+      final dotsC = WaveParticle.all(c);
+      WaveParticle.all(d);
+      // a is used again, so b is now the least recently used…
+      expect(WaveParticle.all(a), same(dotsA));
+      // …and a fifth spec pushes b out, keeping a and c.
+      WaveParticle.all(e);
+      expect(WaveParticle.all(c), same(dotsC));
+      expect(WaveParticle.all(a), same(dotsA));
+      expect(WaveParticle.all(b), isNot(same(dotsB)));
+    });
+
     test('particles hop toward the button', () {
       // In the anticipation the dots make short hops toward the button:
       // never nearer than the gap, each closing in by no more than the hop.
