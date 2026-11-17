@@ -7,9 +7,10 @@ import 'package:prismatic/src/distortion_wave/render/render_wave_stage.dart';
 /// The logical size of the view the wave tests run in: a phone.
 const Size waveTestSize = Size(390, 844);
 
-/// Sizes the test view to [size] at a pixel ratio of 2 for the test.
-void useWaveView(WidgetTester tester, {Size size = waveTestSize}) {
-  tester.view.physicalSize = size * 2;
+/// Sizes the test view to [waveTestSize] at a pixel ratio of 2 for the
+/// test, as [waveHost]'s `MediaQuery` says it is.
+void useWaveView(WidgetTester tester) {
+  tester.view.physicalSize = waveTestSize * 2;
   tester.view.devicePixelRatio = 2;
   addTearDown(tester.view.reset);
 }
