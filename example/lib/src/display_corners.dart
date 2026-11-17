@@ -102,9 +102,12 @@ class _DisplayCornersScopeState extends State<DisplayCornersScope>
     final data = MediaQuery.of(context);
     _measuredFor ??= data.size;
     final r = _radii;
-    if (r == null || data.displayCornerRadii != null) return widget.child;
+    // Always a MediaQuery, with the radii or without them, so the app below
+    // keeps its state (navigation, a wave mid-run) when they arrive.
     return MediaQuery(
-      data: data.applyDisplayCornerRadii(r),
+      data: r == null || data.displayCornerRadii != null
+          ? data
+          : data.applyDisplayCornerRadii(r),
       child: widget.child,
     );
   }
