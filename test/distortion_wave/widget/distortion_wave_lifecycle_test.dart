@@ -88,7 +88,9 @@ void main() {
     expect(waveStage(tester).progress.value, 1);
     a.collapse();
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(waveStage(tester).progress.value, 1, reason: 'a is detached');
+    expect(tester.binding.transientCallbackCount, 0);
   });
 
   testWidgets('pictures of the sides are released once they are not needed', (
