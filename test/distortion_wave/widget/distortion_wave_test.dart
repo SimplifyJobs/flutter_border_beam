@@ -386,6 +386,89 @@ void main() {
     expect(origin.focus, const Offset(300, 720));
   });
 
+  Widget anchorAt(Rect rect, {FocusNode? focusNode}) => Positioned.fromRect(
+    rect: rect,
+    child: DistortionWaveAnchor(
+      child: Focus(
+        focusNode: focusNode,
+        child: GestureDetector(
+          onTap: () {},
+          child: const ColoredBox(color: Color(0xFF00FF00)),
+        ),
+      ),
+    ),
+  );
+
+  testWidgets('an anchor reached by keyboard counts as pressed, with no '
+      'touch to lean toward', (tester) async {
+    useWaveView(tester);
+    const left = Rect.fromLTWH(20, 700, 160, 60);
+    const right = Rect.fromLTWH(210, 700, 160, 60);
+    final a = FocusNode();
+    final b = FocusNode();
+    addTearDown(a.dispose);
+    addTearDown(b.dispose);
+    Widget screen() => Stack(
+      children: [
+        flatSide(outgoingColor, 'out'),
+        anchorAt(left, focusNode: a),
+        anchorAt(right, focusNode: b),
+      ],
+    );
+    await tester.pumpWidget(waveHost(wave(child: screen())));
+    await tester.tapAt(const Offset(100, 720));
+    // Then the keyboard: Tab to the first anchor and on to the second.
+    FocusManager.instance.highlightStrategy =
+        FocusHighlightStrategy.alwaysTraditional;
+    addTearDown(
+      () => FocusManager.instance.highlightStrategy =
+          FocusHighlightStrategy.automatic,
+    );
+    a.requestFocus();
+    await tester.pump();
+    a.nextFocus();
+    await tester.pump();
+    expect(b.hasFocus, isTrue);
+
+    await tester.pumpWidget(waveHost(wave(revealed: true, child: screen())));
+    await tester.pump();
+    final stage = waveStage(tester);
+    final origin = stage.source!.resolve(stage)!;
+    expect(origin.rect, right);
+    expect(origin.focus, isNull);
+  });
+
+  testWidgets('with no anchor pressed or focused, the wave opens from the '
+      'only anchor on the side on screen', (tester) async {
+    // A screen reader activates a button without touching or focusing it.
+    useWaveView(tester);
+    const send = Rect.fromLTWH(20, 700, 350, 60);
+    const done = Rect.fromLTWH(120, 400, 150, 50);
+    Widget build({required bool revealed}) => waveHost(
+      wave(
+        revealed: revealed,
+        child: Stack(
+          children: [flatSide(outgoingColor, 'out'), anchorAt(send)],
+        ),
+        revealedChild: Stack(
+          children: [flatSide(incomingColor, 'in'), anchorAt(done)],
+        ),
+      ),
+    );
+    await tester.pumpWidget(build(revealed: false));
+    await tester.pumpWidget(build(revealed: true));
+    await tester.pump();
+    var stage = waveStage(tester);
+    expect(stage.source!.resolve(stage)!.rect, send);
+
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(build(revealed: false));
+    await tester.pump();
+    stage = waveStage(tester);
+    expect(stage.source!.resolve(stage)!.rect, done);
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('once a reveal no longer bends it, the revealed side takes '
       'touches while the colour lingers', (tester) async {
     useWaveView(tester);

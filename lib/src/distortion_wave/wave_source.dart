@@ -181,9 +181,12 @@ Rect defaultWaveSource(WaveType type, Size size) => switch (type) {
 /// source, and remembers where it was touched.
 ///
 /// A `DistortionWave` with no `source` opens from the anchor inside it that
-/// was pressed last, leaning toward the touch. `WaveSource.of(context)`
-/// called inside an anchor measures the anchor and carries its touch too,
-/// which is how a `DistortionWaveRoute` finds its button.
+/// was pressed or focused last, leaning toward the touch. When nothing was —
+/// a screen reader activates a button without touching or focusing it — it
+/// opens from the only anchor on the side on screen, if there is one.
+/// `WaveSource.of(context)` called inside an anchor measures the anchor and
+/// carries its touch too, which is how a `DistortionWaveRoute` finds its
+/// button.
 ///
 /// ```dart
 /// DistortionWaveAnchor(
@@ -226,15 +229,28 @@ class DistortionWaveAnchorState extends State<DistortionWaveAnchor> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final registry = WaveAnchorRegistry.maybeOf(context);
+    final scope = context.getInheritedWidgetOfExactType<WaveAnchorScope>();
+    final registry = scope?.registry;
     if (!identical(registry, _registry)) {
       _registry?.forget(this);
       _registry = registry;
     }
+    _registry?.add(this, onRevealedSide: scope?.onRevealedSide);
   }
 
   void _onPointerDown(PointerDownEvent event) {
     _lastTouch = event.position;
+    _registry?.pressed(this);
+  }
+
+  // Focus landing inside the anchor — Tab, then Enter or Space — counts as
+  // a press. Reached by keyboard, the anchor forgets its last touch, so the
+  // wave does not lean toward a point touched long ago.
+  void _onFocusChange(bool focused) {
+    if (!focused) return;
+    if (FocusManager.instance.highlightMode == FocusHighlightMode.traditional) {
+      _lastTouch = null;
+    }
     _registry?.pressed(this);
   }
 
@@ -245,24 +261,55 @@ class DistortionWaveAnchorState extends State<DistortionWaveAnchor> {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      Listener(onPointerDown: _onPointerDown, child: widget.child);
+  Widget build(BuildContext context) => Focus(
+    canRequestFocus: false,
+    skipTraversal: true,
+    includeSemantics: false,
+    onFocusChange: _onFocusChange,
+    child: Listener(onPointerDown: _onPointerDown, child: widget.child),
+  );
 }
 
-/// Remembers which [DistortionWaveAnchor] inside a wave was pressed last.
-/// Provided by every `DistortionWave` to its subtree.
+/// Knows the [DistortionWaveAnchor]s inside a wave, which side each is on,
+/// and which was pressed or focused last. Provided by every
+/// `DistortionWave` to both its sides.
 final class WaveAnchorRegistry {
+  final Map<DistortionWaveAnchorState, bool?> _sides = {};
   DistortionWaveAnchorState? _last;
 
-  /// The anchor pressed last, if it is still mounted.
+  /// The anchor pressed or focused last, if it is still mounted.
   DistortionWaveAnchorState? get last =>
       (_last?.mounted ?? false) ? _last : null;
 
-  /// Records [anchor] as pressed.
+  /// The anchor a run starting with the revealed side on screen
+  /// ([revealedOnScreen]) or the child on screen opens from: the one
+  /// pressed or focused last if it is on that side, else the only anchor on
+  /// that side, else the one pressed or focused last wherever it is (a wave
+  /// started by something other than an anchor collapses into the anchor it
+  /// opened from), else none.
+  DistortionWaveAnchorState? sourceFor({required bool revealedOnScreen}) {
+    final last = this.last;
+    if (last != null && _sides[last] == revealedOnScreen) return last;
+    DistortionWaveAnchorState? only;
+    for (final MapEntry(key: anchor, value: side) in _sides.entries) {
+      if (side != revealedOnScreen || !anchor.mounted) continue;
+      if (only != null) return last;
+      only = anchor;
+    }
+    return only ?? last;
+  }
+
+  /// Records [anchor], on the revealed side ([onRevealedSide] true), the
+  /// child's (false) or neither (null).
+  void add(DistortionWaveAnchorState anchor, {bool? onRevealedSide}) =>
+      _sides[anchor] = onRevealedSide;
+
+  /// Records [anchor] as pressed or focused.
   void pressed(DistortionWaveAnchorState anchor) => _last = anchor;
 
   /// Forgets [anchor], which is going away.
   void forget(DistortionWaveAnchorState anchor) {
+    _sides.remove(anchor);
     if (identical(_last, anchor)) _last = null;
   }
 
@@ -271,17 +318,22 @@ final class WaveAnchorRegistry {
       context.getInheritedWidgetOfExactType<WaveAnchorScope>()?.registry;
 }
 
-/// Provides a [WaveAnchorRegistry] to a wave's subtree.
+/// Provides a [WaveAnchorRegistry] to one side of a wave.
 class WaveAnchorScope extends InheritedWidget {
-  /// Provides [registry] to [child].
+  /// Provides [registry] to [child], the side [onRevealedSide] says.
   const WaveAnchorScope({
     super.key,
     required this.registry,
+    this.onRevealedSide,
     required super.child,
   });
 
   /// The registry.
   final WaveAnchorRegistry registry;
+
+  /// Whether [child] is the wave's revealed side (true), its child (false),
+  /// or neither (null).
+  final bool? onRevealedSide;
 
   @override
   bool updateShouldNotify(WaveAnchorScope oldWidget) => false;

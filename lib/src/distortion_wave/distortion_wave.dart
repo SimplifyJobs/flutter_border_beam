@@ -43,8 +43,8 @@ import 'wave_source.dart';
 /// ```
 ///
 /// The wave opens from [source] — by default the [DistortionWaveAnchor]
-/// inside it that was pressed last, leaning toward the touch, or else the
-/// usual spot for its [type]. Give both sides an opaque background: the wave
+/// inside it that was pressed or focused last, leaning toward the touch, or
+/// else the usual spot for its [type]. Give both sides an opaque background: the wave
 /// draws them from pictures of themselves, and what is transparent in a side
 /// shows nothing behind it while the wave runs.
 ///
@@ -85,8 +85,9 @@ class DistortionWave extends StatefulWidget {
   final Widget revealedChild;
 
   /// Where the wave opens from. Null opens it from the
-  /// [DistortionWaveAnchor] inside it pressed last, or, if none was, from
-  /// the usual spot for its [type]. Read when a run starts from rest.
+  /// [DistortionWaveAnchor] inside it pressed or focused last (or, when none
+  /// was, the only anchor on the side on screen), or else from the usual
+  /// spot for its [type]. Read when a run starts from rest.
   final WaveSource? source;
 
   /// Which way it travels; shorthand for `style.type`, and wins over it.
@@ -203,8 +204,11 @@ class _DistortionWaveState extends State<DistortionWave>
     }
   }
 
+  // Read at rest, so the side on screen is the one the clock rests on.
   WaveSource? _sourceForRun(WaveSource? source) =>
-      source ?? widget.source ?? _anchors.last?.source;
+      source ??
+      widget.source ??
+      _anchors.sourceFor(revealedOnScreen: _clock.progress >= 1)?.source;
 
   void _resolveLook() {
     final theme = DistortionWaveTheme.of(context);
@@ -311,35 +315,36 @@ class _DistortionWaveState extends State<DistortionWave>
       final offScreen = slot == WaveSlot.outgoing ? onIncoming : onOutgoing;
       return WaveSide(
         slot: slot,
-        child: ExcludeFocus(
-          excluding: offScreen,
-          child: TickerMode(enabled: !resting || visible, child: child),
+        child: WaveAnchorScope(
+          registry: _anchors,
+          onRevealedSide: slot == WaveSlot.incoming,
+          child: ExcludeFocus(
+            excluding: offScreen,
+            child: TickerMode(enabled: !resting || visible, child: child),
+          ),
         ),
       );
     }
 
-    return WaveAnchorScope(
-      registry: _anchors,
-      child: WaveStage(
-        progress: scrubbing ? _held : _clock,
-        spec: _spec!,
-        source: _runSource ?? widget.source,
-        devicePixelRatio:
-            MediaQuery.maybeDevicePixelRatioOf(context) ??
-            View.of(context).devicePixelRatio,
-        snapshots: _snapshots,
-        plain: _reducedMotion(),
-        revealing: _revealing,
-        displayRadii: _followsDisplay
-            ? MediaQuery.maybeDisplayCornerRadiiOf(context)
-            : null,
-        viewSize: MediaQuery.maybeSizeOf(context),
-        outgoing: side(WaveSlot.outgoing, widget.child, onOutgoing || !resting),
-        incoming: side(
-          WaveSlot.incoming,
-          widget.revealedChild,
-          onIncoming || !resting,
-        ),
+    return WaveStage(
+      progress: scrubbing ? _held : _clock,
+      spec: _spec!,
+      source: _runSource ?? widget.source,
+      devicePixelRatio:
+          MediaQuery.maybeDevicePixelRatioOf(context) ??
+          View.of(context).devicePixelRatio,
+      snapshots: _snapshots,
+      plain: _reducedMotion(),
+      revealing: _revealing,
+      displayRadii: _followsDisplay
+          ? MediaQuery.maybeDisplayCornerRadiiOf(context)
+          : null,
+      viewSize: MediaQuery.maybeSizeOf(context),
+      outgoing: side(WaveSlot.outgoing, widget.child, onOutgoing || !resting),
+      incoming: side(
+        WaveSlot.incoming,
+        widget.revealedChild,
+        onIncoming || !resting,
       ),
     );
   }
