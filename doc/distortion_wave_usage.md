@@ -393,12 +393,15 @@ that type's tuned style fills every remaining field. The settled result is
 the internal `WaveSpec` (`models/wave_spec.dart`): seconds and logical
 pixels, value-equal, so a rebuild with an equal style changes nothing.
 
-**Validation.** Constructors assert their documented ranges in debug builds.
-In release, `WaveSpec` settles every value to a finite one anyway: a NaN
-becomes the field's floor, out-of-range values are clamped (lengths to
-positive minimums, 0–1 fields to 0–1, `blur` to 0–64, `returnSpeed` to
-0.01–100, dot `count` to 0–256), and a non-finite `pull`, `inhale`,
-`amplitude` or `swell` becomes 0.
+**Validation.** In debug builds the constructors assert the bounded ranges
+they document: the 0–1 and 0–2 fields, `blur`, `returnSpeed` and dot
+`count`. The minimums on lengths (the "At least" entries below, such as
+`lead`, `tail`, `rimWidth` and `rimSoftness`) are not asserted: a smaller
+value is raised to the minimum. `WaveSpec` settles every value this way in
+every build mode, so release builds stay safe too: a NaN becomes the field's
+floor, out-of-range values are clamped (lengths to their minimums, 0–1
+fields to 0–1, `blur` to 0–64, `returnSpeed` to 0.01–100, dot `count` to
+0–256), and a non-finite `pull`, `inhale`, `amplitude` or `swell` becomes 0.
 
 ### `WaveTiming` — the wave's life
 
