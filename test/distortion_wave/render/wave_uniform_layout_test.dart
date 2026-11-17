@@ -9,6 +9,7 @@ import 'package:prismatic/src/distortion_wave/models/wave_lens.dart';
 import 'package:prismatic/src/distortion_wave/models/wave_palette.dart';
 import 'package:prismatic/src/distortion_wave/models/wave_spec.dart';
 import 'package:prismatic/src/distortion_wave/models/wave_style.dart';
+import 'package:prismatic/src/distortion_wave/models/wave_type.dart';
 import 'package:prismatic/src/distortion_wave/render/wave_frame_data.dart';
 import 'package:prismatic/src/distortion_wave/timeline/wave_frame.dart';
 import 'package:prismatic/src/distortion_wave/timeline/wave_rim.dart';
@@ -253,6 +254,22 @@ void main() {
       frame.hairClearRadius,
       0,
       0,
+    ], touches: frameUniforms);
+    // The center wave is a ring that holds its source still: the two lanes
+    // the vertical wave leaves at 0.
+    final ring = WaveFrame.at(
+      progress: 0.3,
+      source: const Rect.fromLTWH(163, 300, 64, 64),
+      size: const Size(390, 844),
+      spec: WaveSpec.resolve(const WaveStyle(type: WaveType.center)),
+    );
+    expect(ring.ring, isTrue);
+    expect(ring.hold, greaterThan(0));
+    expectWrite('uFront3', (d) => d.setFrame(ring), [
+      ring.clearRadius,
+      ring.hairClearRadius,
+      1,
+      ring.hold,
     ], touches: frameUniforms);
     expectWrite('uFront4', moment, [
       frame.launched ? 1 : 0,
