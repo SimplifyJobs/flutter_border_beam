@@ -223,6 +223,32 @@ void main() {
       expect(f.clearRadius, lessThan(farthest(f)));
     });
 
+    test('with any easing, the front has crossed the view by the end', () {
+      // A long travel, so the front, not the colour's fade, sets how long the
+      // reveal runs. A slower easing gets the time its front needs; the tuned
+      // one keeps exactly its own share of the travel.
+      WaveSpec slow([Curve? easing]) => WaveSpec.resolve(
+        WaveStyle(
+          type: WaveType.vertical,
+          timing: WaveTiming(
+            easing: easing,
+            travel: const Duration(seconds: 6),
+          ),
+        ),
+      );
+      final tuned = slow();
+      expect(
+        tuned.duration,
+        closeTo(tuned.anticipation + tuned.travel * 0.6, 1e-9),
+      );
+      for (final easing in [Curves.linear, Curves.easeInOut, Curves.easeIn]) {
+        final eased = slow(easing);
+        final f = front(1, using: eased);
+        expect(f.hasCleared, isTrue, reason: '$easing');
+        expect(eased.duration, greaterThan(tuned.duration), reason: '$easing');
+      }
+    });
+
     test('everything has left the screen by the end', () {
       // So hiding the outgoing side and switching the shaders off cannot be
       // seen.

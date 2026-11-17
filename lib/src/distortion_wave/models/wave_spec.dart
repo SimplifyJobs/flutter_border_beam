@@ -206,7 +206,7 @@ final class WaveSpec {
   double get duration =>
       anticipation +
       math.max(
-        math.max(travel * 0.6, linger + rimFade),
+        math.max(travel * _travelShare, linger + rimFade),
         math.max(linger + hairlineLinger + hairlineFade, dotLife),
       );
 
@@ -222,6 +222,28 @@ final class WaveSpec {
 
   @override
   String toString() => 'WaveSpec($type)';
+
+  /// The share of [travel] a reveal plays out: by then the front has moved
+  /// as far as the tuned easing has at 0.6 of it — past every corner of the
+  /// view — so switching to the revealed side at the end cannot be seen.
+  late final double _travelShare = _travelShareFor(easing);
+
+  static const double _tunedTravelShare = 0.6;
+
+  static double _travelShareFor(Curve easing) {
+    if (identical(easing, waveTravelEasing)) return _tunedTravelShare;
+    final level = waveTravelEasing.transform(_tunedTravelShare);
+    // Scanned back from the end, so a curve that overshoots and comes back
+    // counts only from where it stays at the level. Never shorter than the
+    // tuned share.
+    const steps = 256;
+    for (var i = steps - 1; i >= 0; i--) {
+      if (easing.transform(i / steps) < level) {
+        return math.max(_tunedTravelShare, (i + 1) / steps);
+      }
+    }
+    return _tunedTravelShare;
+  }
 
   static double _seconds(Duration duration) =>
       duration.inMicroseconds / Duration.microsecondsPerSecond;
