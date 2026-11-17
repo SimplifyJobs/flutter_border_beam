@@ -41,6 +41,8 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  # Pinned by flutter_test; listed so tests can switch leak tracking on.
+  leak_tracker_flutter_testing: any
 
 flutter:
   shaders:

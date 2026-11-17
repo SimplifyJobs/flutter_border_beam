@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:leak_tracker_flutter_testing/leak_tracker_flutter_testing.dart';
 import 'package:prismatic/prismatic.dart';
 import 'package:prismatic/src/distortion_wave/render/render_wave_stage.dart';
 
@@ -9,6 +10,8 @@ import 'wave_test_utils.dart';
 /// mid-run, muted by TickerMode, a controller outliving its wave, and the
 /// pictures of the sides once a run is over.
 void main() {
+  // Every test here also checks that the wave disposes what it makes.
+  LeakTesting.enable();
   setUpAll(DistortionWave.precache);
 
   Widget wave({bool revealed = false, DistortionWaveController? controller}) =>

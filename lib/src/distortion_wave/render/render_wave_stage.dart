@@ -293,6 +293,7 @@ class RenderWaveStage extends RenderBox
   @override
   void dispose() {
     _release();
+    _dots.dispose();
     _waveShader?.dispose();
     _glowShader?.dispose();
     _waveShader = null;
