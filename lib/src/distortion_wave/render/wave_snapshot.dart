@@ -23,16 +23,19 @@ final class WaveSideImages {
     final size = side.size;
     if (size.isEmpty) return null;
     final layer = OffsetLayer();
-    final context = _SnapshotContext(layer, Offset.zero & size);
-    context.paintChild(side, Offset.zero);
-    context.finish();
-    if (!layer.supportsRasterization()) {
+    try {
+      final context = _SnapshotContext(layer, Offset.zero & size);
+      context.paintChild(side, Offset.zero);
+      context.finish();
+      if (!layer.supportsRasterization()) return null;
+      final image = layer.toImageSync(
+        Offset.zero & size,
+        pixelRatio: pixelRatio,
+      );
+      return WaveSideImages._(image, size);
+    } finally {
       layer.dispose();
-      return null;
     }
-    final image = layer.toImageSync(Offset.zero & size, pixelRatio: pixelRatio);
-    layer.dispose();
-    return WaveSideImages._(image, size);
   }
 
   WaveSideImages._(this.sharp, this.size);
