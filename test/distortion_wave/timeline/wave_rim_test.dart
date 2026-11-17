@@ -93,9 +93,9 @@ void main() {
   });
 
   test('pulse makes them drift faster', () {
-    // At time 0 every lump starts in the same place, as long as with or
-    // without the pulse; a second on, the pulsed lumps have drifted further
-    // from where they started.
+    // At time 0 the pulse leaves the lumps as they are: each has the same
+    // centre and length with or without it. A second on, the pulsed lumps
+    // have drifted further from where they started.
     final start = lumpsAt(0);
     final pulsedStart = lumpsAt(0, pulse: 1);
     for (var i = 0; i < WaveRim.count; i++) {
