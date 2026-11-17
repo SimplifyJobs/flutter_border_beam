@@ -4,6 +4,7 @@ import 'package:flutter/animation.dart';
 import 'package:flutter/foundation.dart';
 
 import '../look/wave_defaults.dart';
+import 'wave_dots.dart';
 import 'wave_palette.dart';
 import 'wave_style.dart';
 import 'wave_type.dart';
@@ -61,7 +62,7 @@ final class WaveSpec {
       hairlineOpacity = _within(style.glow!.hairlineOpacity!, 0.0, 1.0),
       hairlineWhite = _within(style.glow!.hairlineWhite!, 0.0, 1.0),
       cornerRadius = _within(style.glow!.cornerRadius!, 0.0),
-      dotCount = style.dots!.count!.clamp(0, 256),
+      dotCount = style.dots!.count!.clamp(0, WaveDots.maxWaveDots),
       dotSize = _within(style.dots!.size!, 0.0),
       dotReach = _within(style.dots!.reach!, 0.0),
       dotFlight = _within(style.dots!.flight!, 0.0),
