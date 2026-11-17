@@ -109,8 +109,9 @@ phase × type, and pins how many pictures each side gets.
 
 Per frame on the CPU: `WaveFrame.at` (pure arithmetic), the rim's lumps,
 the visible dots' positions, and an upload of `waveUniformFloats` (124)
-floats into a `FragmentShader` the stage keeps. The stage and spec uniforms
-are rewritten only when they change.
+floats into a `FragmentShader` the stage keeps. The spec's uniforms are
+written only when the spec or the corners change; the stage's — its rect,
+pixel size and outline — are written every frame, with the frame's own.
 
 ### What a picture costs
 
