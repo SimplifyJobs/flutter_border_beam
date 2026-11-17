@@ -21,8 +21,8 @@ class WaveTiming {
     this.hairlineLinger,
     this.hairlineFade,
   }) : assert(
-         returnSpeed == null || (returnSpeed > 0 && returnSpeed < 100),
-         'returnSpeed must be positive',
+         returnSpeed == null || (returnSpeed > 0 && returnSpeed <= 100),
+         'returnSpeed must be greater than 0 and at most 100',
        );
 
   /// How long everything is pulled toward the source before the wave leaves
@@ -37,7 +37,8 @@ class WaveTiming {
   /// source at full speed and settles softly, `Cubic(0.22, 1, 0.36, 1)`.
   final Curve? easing;
 
-  /// How much faster the wave collapses back into the source than it opened.
+  /// How much faster the wave collapses back into the source than it opened;
+  /// greater than 0 and at most 100.
   final double? returnSpeed;
 
   /// How long after the wave leaves the source the colour on the view's

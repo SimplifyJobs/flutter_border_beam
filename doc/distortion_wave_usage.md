@@ -401,7 +401,7 @@ positive minimums, 0–1 fields to 0–1, `blur` to 0–64, `returnSpeed` to
 | `anticipation` | `Duration?` | Pull toward the source before the wave leaves it. |
 | `travel` | `Duration?` | From leaving the source to the front having settled past the far side. |
 | `easing` | `Curve?` | How the front covers its way over `travel` (default leaves at full speed, settles softly); also the collapse's curve. |
-| `returnSpeed` | `double?` | How much faster the collapse runs than the reveal. Asserted > 0 and < 100. |
+| `returnSpeed` | `double?` | How much faster the collapse runs than the reveal. Asserted > 0 and ≤ 100. |
 | `linger` | `Duration?` | After launch, when the wipe of the edge colour starts. Negative starts it before launch, so the wipe follows close behind the front. |
 | `rimFade` | `Duration?` | How long the wipe of the edge colour takes. |
 | `rimEasing` | `Curve?` | The wipe's curve (default ease-in-out). |

@@ -779,6 +779,13 @@ void main() {
         throwsAssertionError,
       );
       expect(() => WaveTiming(returnSpeed: v(0)), throwsAssertionError);
+      expect(() => WaveTiming(returnSpeed: v(100.5)), throwsAssertionError);
+      expect(
+        WaveSpec.resolve(WaveStyle(timing: WaveTiming(returnSpeed: v(100))))
+            .returnSpeed,
+        100,
+        reason: 'the upper bound the spec settles to is valid',
+      );
     });
 
     test('duration follows the reference formula for each type', () {
