@@ -238,7 +238,7 @@ class _DemoWaveState extends State<DemoWave>
     );
     return MediaQuery.withNoTextScaling(
       child: fills
-          ? wave
+          ? _FullScreen(child: wave)
           // A framed mock draws its own status bar and spacing.
           : MediaQuery.removePadding(
               context: context,
@@ -909,6 +909,18 @@ TextStyle _amount(Tokens t) => TextStyle(
   letterSpacing: -1.6,
 );
 
+/// Marks a demo that fills the device's screen, so its screens use the real
+/// status bar rather than a mock one.
+class _FullScreen extends InheritedWidget {
+  const _FullScreen({required super.child});
+
+  static bool on(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<_FullScreen>() != null;
+
+  @override
+  bool updateShouldNotify(_FullScreen oldWidget) => false;
+}
+
 /// The device's bottom safe-area inset: the home indicator's room, when a
 /// demo fills the screen; 0 in a framed mock.
 double _bottomInset(BuildContext context) =>
@@ -921,9 +933,11 @@ class _StatusBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
-    // Full screen, the device's own status bar shows: leave room for it.
+    // Full screen, the device's own status bar shows — at the top, or on a
+    // device whose status bar sits elsewhere, not at all: leave room for its
+    // inset, and draw no mock.
     final top = MediaQuery.paddingOf(context).top;
-    if (top > 0) return SizedBox(height: top);
+    if (_FullScreen.on(context) || top > 0) return SizedBox(height: top);
     return Padding(
       padding: const EdgeInsets.fromLTRB(30, 14, 26, 2),
       child: Row(
