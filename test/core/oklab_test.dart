@@ -156,6 +156,8 @@ void main() {
   });
 
   test('== and hashCode are by value; toString shows four places', () {
+    // Built at run time, so `==` compares two instances rather than finding
+    // one canonical const twice.
     final a = Oklab(double.parse('0.5'), 0.1, -0.2);
     const b = Oklab(0.5, 0.1, -0.2);
     expect(a, b);
