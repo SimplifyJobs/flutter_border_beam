@@ -51,7 +51,7 @@ BorderBeam(
 | `count` | 1 | How many beams lap the border at once, evenly spaced. 1–4. |
 | `comet` | false | Adds an outer glow that trails the head *outside* the border. Leave room around the widget (see [light outside the bounds](shape.md#light-outside-the-bounds)). |
 
-The beam sweeps around the box's centre, so it rounds the corners quickly and slows along the middle of the long edges. A box whose shortest side is at most `compactMaxExtent` (`look/rotate_look.dart`; chip and pill-button sized) gets the compact tuning — a wider window and a glow that fills the control; pair it with `BeamShape.stadium()`.
+The beam sweeps around the box's centre, so it rounds the corners quickly and slows along the middle of the long edges. A box whose shortest side is at most `compactMaxExtent` (`lib/src/border_beam/look/rotate_look.dart`; chip and pill-button sized) gets the compact tuning — a wider window and a glow that fills the control; pair it with `BeamShape.stadium()`.
 
 With `progress`, the head sits at that fraction of the turn, clockwise from 12 o'clock — a glowing progress ring; `follow` points the head at the pointer. With a [segment](shape.md#segments), the beam appears at the segment's start and travels to its end.
 
