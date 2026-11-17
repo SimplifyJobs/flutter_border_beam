@@ -94,17 +94,26 @@ class _SceneState extends State<_Scene> {
       data: buildTheme(Brightness.dark),
       child: Material(
         type: MaterialType.transparency,
-        child: SizedBox(
-          width: 360,
-          height: demo == WaveDemo.success ? sheetHeight : 680,
-          child: DemoWave(
-            demo: demo,
-            controller: _wave,
-            palette: wavePalettes[widget.palette ?? demo.palette]!,
-            source: _source,
-            anchorKey: _anchor,
-            chain: false,
-            onFinish: _finished,
+        // Kept to the start of the screen, clear of the sensor pill some
+        // phones draw over the right edge, where a centred scene's corner
+        // would be in the recording.
+        child: Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: Padding(
+            padding: const EdgeInsetsDirectional.only(start: 16),
+            child: SizedBox(
+              width: 360,
+              height: demo == WaveDemo.success ? sheetHeight : 680,
+              child: DemoWave(
+                demo: demo,
+                controller: _wave,
+                palette: wavePalettes[widget.palette ?? demo.palette]!,
+                source: _source,
+                anchorKey: _anchor,
+                chain: false,
+                onFinish: _finished,
+              ),
+            ),
           ),
         ),
       ),
