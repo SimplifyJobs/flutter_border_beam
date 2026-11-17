@@ -340,9 +340,10 @@ class _DistortionWaveState extends State<DistortionWave>
   Widget build(BuildContext context) {
     final scrubbing = widget.progress != null;
     final p = scrubbing ? widget.progress! : _clock.progress;
-    final resting = scrubbing ? false : _atRest;
     final onOutgoing = p <= 0;
     final onIncoming = p >= 1;
+    // Held at either end, the wave is at rest there, as a stopped clock is.
+    final resting = scrubbing ? onOutgoing || onIncoming : _atRest;
     // At rest the hidden side is muted, or not built at all. Whenever a side
     // is off screen — at rest, or held at either end — it takes no focus, so
     // Tab, autofocus and the like never land on what cannot be seen.

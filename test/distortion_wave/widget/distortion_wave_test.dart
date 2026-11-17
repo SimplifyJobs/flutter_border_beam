@@ -170,6 +170,35 @@ void main() {
     expect(find.byKey(const ValueKey('in')), findsOneWidget);
   });
 
+  testWidgets('held at either end, the wave rests there: the hidden side is '
+      'muted, or not built', (tester) async {
+    useWaveView(tester);
+    final enabled = <String, bool>{};
+    Widget probe(String name) => Builder(
+      builder: (context) {
+        enabled[name] = TickerMode.valuesOf(context).enabled;
+        return flatSide(outgoingColor, name);
+      },
+    );
+    await tester.pumpWidget(
+      waveHost(
+        wave(progress: 0, child: probe('out'), revealedChild: probe('in')),
+      ),
+    );
+    expect(enabled, {'out': true, 'in': false});
+
+    await tester.pumpWidget(
+      waveHost(
+        wave(progress: 1, child: probe('out'), revealedChild: probe('in')),
+      ),
+    );
+    expect(enabled, {'out': false, 'in': true});
+
+    await tester.pumpWidget(waveHost(wave(progress: 1, maintainState: false)));
+    expect(find.byKey(const ValueKey('out')), findsNothing);
+    expect(find.byKey(const ValueKey('in')), findsOneWidget);
+  });
+
   testWidgets('the side off screen takes no focus, by Tab or autofocus', (
     tester,
   ) async {
