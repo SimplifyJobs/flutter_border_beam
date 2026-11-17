@@ -190,8 +190,14 @@ class _DistortionWaveState extends State<DistortionWave>
     final held = widget.progress;
     final wasHeld = oldWidget.progress;
     if (held != null) {
-      // Picking the wave up: it opens from wherever a run would.
-      if (wasHeld == null && _atRest) _runSource = _sourceForRun(null);
+      if (wasHeld == null) {
+        // Picking the wave up: it opens from wherever a run would, and the
+        // run in flight stops where it is, so nothing moves or arrives under
+        // the hold.
+        if (_atRest) _runSource = _sourceForRun(null);
+        _run++;
+        _clock.stop();
+      }
       _held.value = held;
     } else if (wasHeld != null) {
       // Letting go: the wave plays on from where it was held, toward the
@@ -253,11 +259,12 @@ class _DistortionWaveState extends State<DistortionWave>
     }
   }
 
+  // Held, the wave is where it is held, and nothing runs.
   @override
-  double get progress => _clock.progress;
+  double get progress => widget.progress ?? _clock.progress;
 
   @override
-  bool get isRunning => _clock.isRunning;
+  bool get isRunning => widget.progress == null && _clock.isRunning;
 
   @override
   void drive({required bool reveal, WaveSource? source}) {
@@ -265,7 +272,8 @@ class _DistortionWaveState extends State<DistortionWave>
     // The source, and the touch the wave leans with, are taken only when a
     // run starts from rest: changing them mid-wave would make everything on
     // screen jump.
-    if (_atRest) _runSource = _sourceForRun(source);
+    final held = widget.progress != null;
+    if (_atRest && !held) _runSource = _sourceForRun(source);
     final spec = _spec!;
     final run = ++_run;
     void arrived() {
@@ -276,6 +284,8 @@ class _DistortionWaveState extends State<DistortionWave>
     }
 
     setState(() => _revealing = reveal);
+    // Held, the wave stays put; it heads for this side once it is let go.
+    if (held) return;
     if (_reducedMotion()) {
       _clock.runTo(reveal ? 1 : 0, fullSeconds: 0.3, onDone: arrived);
     } else if (reveal) {

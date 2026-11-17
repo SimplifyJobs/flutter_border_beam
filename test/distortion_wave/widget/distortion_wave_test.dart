@@ -257,7 +257,68 @@ void main() {
     expect(waveStage(tester).progress.value, 0.9);
   });
 
+  testWidgets('a hold stops the run under it: nothing arrives until it is '
+      'let go', (tester) async {
+    useWaveView(tester);
+    var finished = 0;
+    await tester.pumpWidget(waveHost(wave()));
+    await tester.pumpWidget(
+      waveHost(wave(revealed: true, onFinish: () => finished++)),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+
+    await tester.pumpWidget(
+      waveHost(wave(revealed: true, progress: 0.3, onFinish: () => finished++)),
+    );
+    await tester.pump(seconds(vertical.duration * 2));
+    expect(finished, 0, reason: 'the run under the hold never arrives');
+    expect(waveStage(tester).progress.value, 0.3);
+    expect(tester.binding.transientCallbackCount, 0, reason: 'nothing ticks');
+
+    await tester.pumpWidget(
+      waveHost(wave(revealed: true, onFinish: () => finished++)),
+    );
+    expect(waveStage(tester).progress.value, 0.3, reason: 'no jump');
+    await tester.pumpAndSettle();
+    expect(waveStage(tester).progress.value, 1);
+    expect(finished, 1);
+  });
+
   group('a controller', () {
+    testWidgets('of a held wave reports the held point, and its runs wait '
+        'for the hold to end', (tester) async {
+      useWaveView(tester);
+      final controller = DistortionWaveController();
+      addTearDown(controller.dispose);
+      var notified = 0;
+      controller.addListener(() => notified++);
+      await tester.pumpWidget(waveHost(wave(controller: controller)));
+      controller.reveal();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+
+      await tester.pumpWidget(
+        waveHost(wave(controller: controller, progress: 0.3)),
+      );
+      expect(controller.progress, 0.3);
+      expect(controller.isRunning, isFalse);
+      await tester.pump(seconds(vertical.duration * 2));
+      expect(notified, 1, reason: 'the run under the hold never arrives');
+
+      controller.collapse();
+      controller.reveal();
+      await tester.pump(seconds(vertical.duration * 2));
+      expect(controller.progress, 0.3);
+      expect(controller.isRunning, isFalse);
+      expect(waveStage(tester).progress.value, 0.3);
+
+      await tester.pumpWidget(waveHost(wave(controller: controller)));
+      await tester.pumpAndSettle();
+      expect(controller.progress, 1);
+      expect(controller.isRunning, isFalse);
+    });
+
     testWidgets('swapped in or out, the wave heads for its new owner\'s '
         'target', (tester) async {
       useWaveView(tester);
