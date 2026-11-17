@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -391,7 +392,11 @@ class PillButton extends StatelessWidget {
 /// A track you drag to hold a wave anywhere in its life, 0–1. Between drags
 /// its thumb follows [value] — the wave as it plays — so it doubles as the
 /// wave's progress bar.
-class ScrubBar extends StatelessWidget {
+///
+/// A screen reader's increase and decrease hold the wave a step further on
+/// or back, as a drag does, and let it go — to play on — once the screen
+/// reader's focus leaves the bar, or a moment after the last step.
+class ScrubBar extends StatefulWidget {
   /// Creates the bar.
   const ScrubBar({
     super.key,
@@ -413,6 +418,11 @@ class ScrubBar extends StatelessWidget {
   /// Called when the drag ends or is cancelled.
   final VoidCallback onEnd;
 
+  @override
+  State<ScrubBar> createState() => _ScrubBarState();
+}
+
+class _ScrubBarState extends State<ScrubBar> {
   static const double _height = 36;
   static const double _inset = 3;
   static const double _thumb = _height - 2 * _inset;
@@ -420,30 +430,70 @@ class ScrubBar extends StatelessWidget {
   /// How far a screen reader's increase or decrease moves the wave.
   static const double _step = 0.1;
 
+  /// How long after a screen reader's last step the wave is let go, if its
+  /// focus has not left the bar by then.
+  static const Duration _letGoAfter = Duration(seconds: 3);
+
+  /// Whether a screen reader's steps hold the wave, and when they let go.
+  bool _stepping = false;
+  Timer? _letGo;
+
+  void _stepTo(double at) {
+    if (_stepping) {
+      widget.onChanged(at);
+    } else {
+      _stepping = true;
+      widget.onStart(at);
+    }
+    _letGo?.cancel();
+    _letGo = Timer(_letGoAfter, _endSteps);
+  }
+
+  void _endSteps() {
+    _letGo?.cancel();
+    _letGo = null;
+    if (!_stepping) return;
+    _stepping = false;
+    widget.onEnd();
+  }
+
+  // A drag takes the hold over from the screen reader's steps.
+  void _dragStart(double at) {
+    _letGo?.cancel();
+    _letGo = null;
+    _stepping = false;
+    widget.onStart(at);
+  }
+
+  @override
+  void dispose() {
+    _letGo?.cancel();
+    if (_stepping) {
+      // Not while the tree is being torn down: let go after this frame.
+      final end = widget.onEnd;
+      WidgetsBinding.instance.addPostFrameCallback((_) => end());
+    }
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = Tokens.of(context);
-    // A screen reader reads where the wave is, and steps it as a short
-    // drag would: held at the new point, then let go to play on.
     return ValueListenableBuilder<double>(
-      valueListenable: value,
+      valueListenable: widget.value,
       builder: (context, v, bar) {
         String percent(double x) => '${(x * 100).round()}%';
         final up = math.min(v + _step, 1.0);
         final down = math.max(v - _step, 0.0);
-        void stepTo(double at) {
-          onStart(at);
-          onEnd();
-        }
-
         return Semantics(
           slider: true,
           label: 'Scrub the wave',
           value: percent(v),
           increasedValue: percent(up),
           decreasedValue: percent(down),
-          onIncrease: v < 1 ? () => stepTo(up) : null,
-          onDecrease: v > 0 ? () => stepTo(down) : null,
+          onIncrease: v < 1 ? () => _stepTo(up) : null,
+          onDecrease: v > 0 ? () => _stepTo(down) : null,
+          onDidLoseAccessibilityFocus: _endSteps,
           child: bar,
         );
       },
@@ -472,10 +522,11 @@ class ScrubBar extends StatelessWidget {
                 return GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   dragStartBehavior: DragStartBehavior.down,
-                  onHorizontalDragStart: (d) => onStart(at(d.localPosition)),
-                  onHorizontalDragUpdate: (d) => onChanged(at(d.localPosition)),
-                  onHorizontalDragEnd: (_) => onEnd(),
-                  onHorizontalDragCancel: onEnd,
+                  onHorizontalDragStart: (d) => _dragStart(at(d.localPosition)),
+                  onHorizontalDragUpdate: (d) =>
+                      widget.onChanged(at(d.localPosition)),
+                  onHorizontalDragEnd: (_) => widget.onEnd(),
+                  onHorizontalDragCancel: widget.onEnd,
                   child: Container(
                     height: _height,
                     padding: const EdgeInsets.all(_inset),
@@ -484,7 +535,7 @@ class ScrubBar extends StatelessWidget {
                       shape: squircle(_height / 2),
                     ),
                     child: ValueListenableBuilder<double>(
-                      valueListenable: value,
+                      valueListenable: widget.value,
                       builder: (context, v, _) => Stack(
                         children: [
                           Positioned(
@@ -528,7 +579,7 @@ class ScrubBar extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           ValueListenableBuilder<double>(
-            valueListenable: value,
+            valueListenable: widget.value,
             builder: (context, v, _) => SizedBox(
               width: 40,
               child: Text(

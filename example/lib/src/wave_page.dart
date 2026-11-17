@@ -102,6 +102,8 @@ class _WavePageState extends State<WavePage>
 
   // Let go, the wave plays on from where it was held to the nearer side.
   void _scrubEnd() {
+    // The bar may let go after this page has gone.
+    if (!mounted) return;
     final scrub = _scrub.value;
     if (scrub == null) return;
     final wave = _waves[scrub.demo]..seek(scrub.at);
