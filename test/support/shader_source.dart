@@ -34,15 +34,30 @@ String shaderSource(String path, {Set<String>? seen}) {
 
 /// The uniforms [source] declares, in order: float uniforms and samplers
 /// alike.
+///
+/// Throws when a line declares a uniform in a form this cannot parse (a
+/// precision qualifier, several names), rather than leave it out.
 List<ShaderUniform> shaderUniforms(String source) {
   final declaration = RegExp(
     r'^\s*uniform\s+(\w+)\s+(\w+)\s*(?:\[\s*(\d+)\s*\])?\s*;',
     multiLine: true,
   );
-  return [
+  final uniforms = [
     for (final m in declaration.allMatches(source))
       (type: m[1]!, name: m[2]!, count: int.parse(m[3] ?? '1')),
   ];
+  final declared = RegExp(
+    r'^\s*uniform\b',
+    multiLine: true,
+  ).allMatches(source).length;
+  if (declared != uniforms.length) {
+    throw FormatException(
+      'Parsed ${uniforms.length} of $declared uniform declarations; '
+      'declare each as `uniform <type> <name>;` or '
+      '`uniform <type> <name>[<n>];`.',
+    );
+  }
+  return uniforms;
 }
 
 /// The float offset of each float uniform in [uniforms], in declaration
