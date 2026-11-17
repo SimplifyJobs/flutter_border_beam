@@ -39,7 +39,7 @@ final class WaveSpec {
       hairlineFade = _within(_seconds(style.timing!.hairlineFade!), 0.01),
       pull = _finite(style.motion!.pull!),
       inhale = _finite(style.motion!.inhale!),
-      gatherGlow = _within(style.motion!.gatherGlow!, 0.0),
+      gatherGlow = _within(style.motion!.gatherGlow!, 0.0, 2.0),
       gatherDots = _within(style.motion!.gatherDots!, 0.0, 1.0),
       launchGap = _within(style.motion!.launchGap!, 0.0),
       orientation = _within(style.motion!.orientation!, 0.0, 1.0),
