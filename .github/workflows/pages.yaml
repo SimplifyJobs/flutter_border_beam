@@ -3,10 +3,10 @@
 # The site is `example/` — the one-screen effect showcase — built for web and
 # served at
 #
-#     https://simplifyjobs.github.io/flutter_border_beam/
+#     https://simplifyjobs.github.io/prismatic/
 #
 # The root README links to that URL. Pages serves a project site under the
-# repo name, so the `--base-href` below must stay `/flutter_border_beam/`.
+# repo name, so the `--base-href` below must stay `/prismatic/`.
 #
 # ── ONE-TIME SETUP THE MAINTAINER MUST DO ────────────────────────────────────
 #
@@ -81,7 +81,7 @@ jobs:
       # `https://<owner>.github.io/<repo>/`, not from the domain root.
       - name: Build web
         working-directory: example
-        run: flutter build web --release --base-href /flutter_border_beam/
+        run: flutter build web --release --base-href /prismatic/
 
       - name: Add the SPA fallback
         working-directory: example

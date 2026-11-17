@@ -1,11 +1,11 @@
 blank_issues_enabled: false
 contact_links:
   - name: Question or idea
-    url: https://github.com/SimplifyJobs/flutter_border_beam/discussions
+    url: https://github.com/SimplifyJobs/prismatic/discussions
     about: Ask how to do something, or float an idea before it becomes a proposal.
   - name: Live demo
-    url: https://simplifyjobs.github.io/flutter_border_beam/
+    url: https://simplifyjobs.github.io/prismatic/
     about: See every effect and palette in the browser.
   - name: Security vulnerability
-    url: https://github.com/SimplifyJobs/flutter_border_beam/security/advisories/new
+    url: https://github.com/SimplifyJobs/prismatic/security/advisories/new
     about: Report privately. Never in a public issue.

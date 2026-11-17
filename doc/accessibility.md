@@ -1,5 +1,7 @@
 # Accessibility
 
+How both effects behave for assistive technology, reduced motion, focus and pointers. The sections up to [Contrast and legibility](#contrast-and-legibility) cover `BorderBeam`; [DistortionWave](#distortionwave) covers the wave.
+
 A border beam is decoration. It should make a state easier to notice for people who can see it, and cost nothing for everyone else. Three rules follow from that, and the package enforces two of them for you.
 
 ## Reduced motion
@@ -69,7 +71,7 @@ BeamFocusRing(
 
 It follows `FocusManager.highlightMode`, the same rule `FocusableActionDetector` uses: it lights for keyboard and mouse focus and stays dark for touch, where a ring around a tapped field is noise. `alwaysShow: true` overrides that.
 
-Because it only flips `BorderBeam`'s `active`, focus arrives and leaves on the beam's fades (about 0.5s in, 0.6s out) rather than as a cut. A fade is still a state change, so keep the underlying widget's own focus decoration if your design needs an instant indicator.
+Because it only flips `BorderBeam`'s `active`, focus arrives and leaves on the beam's spring fades rather than as a cut. A fade is still a state change, so keep the underlying widget's own focus decoration if your design needs an instant indicator.
 
 ## Contrast and legibility
 
@@ -79,3 +81,38 @@ The beam mostly paints around content, but `BorderBeam` paints over its child, s
 - **Inward glows** (the inner glow of `rotate` and `pulse`, `line`'s spikes) reach into the child. Keep important content clear of the border by the child's own padding, or turn the reach down with `style.glow`.
 
 For anyone sensitive to flicker, the relevant settings are the same: prefer longer cycles, and honour reduced motion with `staticFrame` or `hide`. At the default timings nothing in the package repeats faster than about once a second on its own. Two things can: a very short `cycle`, and `BorderBeamController.flash()` (or `pulse()`) called in quick succession — each call starts a fresh accent, whatever the cycle. Treat sub-second cycles and repeated flashes as deliberate choices.
+
+## DistortionWave
+
+Code: `lib/src/distortion_wave/distortion_wave.dart` (the widget's `build`),
+`render/render_wave_stage.dart` (touches, semantics), `wave_source.dart`
+(anchors). Tests: `test/distortion_wave/widget/distortion_wave_test.dart`.
+
+- **Reduced motion.** When `MediaQuery.disableAnimations` is on, the wave is a
+  plain crossfade — the outgoing side fading over the incoming one — and a
+  full run takes 0.3 s. `DistortionWaveRoute` does the same (both transition
+  durations become 300 ms). There is no per-wave switch to opt out.
+- **Semantics.** The wave adds none of its own. The semantics tree holds only
+  the side at rest, or, while a wave runs, the side it is heading for — so a
+  screen reader moves to the new view as soon as the wave starts.
+- **Focus.** The side off screen — at rest, or held at either end by
+  `progress` — is wrapped in `ExcludeFocus`, so Tab, autofocus and focus
+  traversal never land on a view that cannot be seen. While a wave runs,
+  focus is not excluded on either side.
+- **Touches.** At rest the visible side takes touches. While a wave bends the
+  views, neither does. Once a reveal no longer bends the revealed side (the
+  front has crossed the whole view and only colour lingers on the edges), the
+  revealed side takes touches again, so its controls answer at once. During
+  a reduced-motion crossfade neither side takes touches until it ends.
+- **Keyboard and screen-reader starts.** A `DistortionWaveAnchor` counts as
+  pressed when focus lands inside it, not only on pointer-down; reached by
+  keyboard, it forgets its last touch so the wave opens evenly rather than
+  leaning toward an old touch. When a screen reader activates a button
+  without touching or focusing it, the wave opens from the only anchor on the
+  side on screen (rules: [distortion_wave_usage.md](distortion_wave_usage.md#distortionwaveanchor)).
+- **Never the only signal.** As with the beam, the wave is emphasis: the
+  revealed view itself must state the outcome ("Payment sent").
+- **Flashing.** One run is one front crossing once; while colour lingers on
+  the edges it drifts and breathes slowly (`WaveGlow.rimPulse`; 0 keeps only a
+  slow drift). Toggling `revealed` repeatedly in quick succession sends the
+  wave back and forth each time — treat that as a deliberate choice.

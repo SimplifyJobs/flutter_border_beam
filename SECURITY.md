@@ -2,9 +2,9 @@
 
 ## Supported versions
 
-Fixes land on the latest published minor of `flutter_border_beam`. Older
+Fixes land on the latest published minor of `prismatic`. Older
 minors are not patched — upgrade to the newest release on
-[pub.dev](https://pub.dev/packages/flutter_border_beam) before reporting.
+[pub.dev](https://pub.dev/packages/prismatic) before reporting.
 
 | Version | Supported |
 | --- | --- |
@@ -16,7 +16,7 @@ minors are not patched — upgrade to the newest release on
 **Do not open a public issue for a security report.**
 
 Use GitHub's private vulnerability reporting: go to the
-[Security tab](https://github.com/SimplifyJobs/flutter_border_beam/security)
+[Security tab](https://github.com/SimplifyJobs/prismatic/security)
 of the repository and press **Report a vulnerability**. That opens a private
 advisory visible only to you and the maintainers.
 
@@ -38,28 +38,35 @@ Please give us a reasonable window to ship a fix before disclosing publicly.
 
 ## Scope
 
-This is a **rendering package**. It draws animated borders with one fragment
-shader that ships inside the package: it opens no sockets, reads no files
-other than its own bundled shader asset, writes nothing, stores nothing, and
-collects nothing. It has no runtime dependencies beyond the Flutter SDK.
+This is a **rendering package**. It draws two effects with fragment shaders
+that ship inside the package — `BorderBeam`, animated light around a
+widget's border (`shaders/beam.frag`), and `DistortionWave`, a wave that
+carries one view into another (`shaders/wave.frag` and
+`shaders/wave_glow.frag`). It opens no sockets, reads no files other than
+its own bundled shader assets, writes nothing, stores nothing, and collects
+nothing. Its only runtime dependencies are the Flutter SDK and
+[`material_ui`](https://pub.dev/packages/material_ui), for the Material theme
+the beam reads its surface from.
 Most of the vulnerability classes a security report usually covers simply
 have no surface here.
 
 In scope:
 
 - Attacker-controllable input to the public API — colors, stops, radii,
-  durations, segment anchors — that causes a crash, an unbounded allocation, a
-  hang, or an unrecoverable render-loop failure in a host app.
+  durations, segment anchors, wave styles, palettes, sources and progress —
+  that causes a crash, an unbounded allocation, a hang, or an unrecoverable
+  render-loop failure in a host app.
 - A compromise of the release path: the publishing workflow, the pub.dev
   automated-publishing configuration, or the published archive's contents
-  (including `shaders/beam.frag`).
+  (including the shaders: `shaders/*.frag` and the `shaders/common/*.glsl`
+  they include).
 - Anything in the package that reaches the network or the filesystem. There
   should be nothing; if you find something, that is the report.
 
 Out of scope:
 
 - Visual bugs, jank, and performance that is merely disappointing — those are
-  ordinary [issues](https://github.com/SimplifyJobs/flutter_border_beam/issues).
+  ordinary [issues](https://github.com/SimplifyJobs/prismatic/issues).
 - Frame-rate or battery cost of an animation configured to be expensive.
 - Vulnerabilities in Flutter, Dart, or a browser engine — report those to
   their own projects.

@@ -24,13 +24,13 @@ All three are drawn by the same shader in the same single draw call, so they cos
 
 ## Defaults
 
-| Effect | Family | `cycle` | `cycleGap` | `hueMode` | `huePeriod` |
-| --- | --- | --- | --- | --- | --- |
-| `rotate` | travelling | 2.4s | 0 | `pingPong` | 12s |
-| `line` | travelling | 3.1s | 0 | `pingPong` | 8s |
-| `pulse` | ambient | 2.3s | — | `continuous` | 16s |
+| Effect | Family | `cycleGap` | `hueMode` |
+| --- | --- | --- | --- |
+| `rotate` | travelling | zero | `pingPong` |
+| `line` | travelling | zero | `pingPong` (on a shorter period than `rotate`) |
+| `pulse` | ambient | — (ignored) | `continuous` |
 
-Every one of these is a fallback: `BeamTiming` and `BeamStyle` override them field by field. `BeamEffect.defaultCycle`, `defaultCycleGap`, `defaultHueMode`, and `defaultHuePeriod` expose them in code.
+Each effect's default `cycle` and `huePeriod` are getters on its class in `lib/src/border_beam/effects/beam_effect.dart` — `BeamEffect.defaultCycle`, `defaultCycleGap`, `defaultHueMode`, `defaultHuePeriod` — read them there rather than hard-coding them. Every one is a fallback: `BeamTiming` and `BeamStyle` override them field by field.
 
 Each effect is also tuned twice — once for dark surfaces and once for light ones — and `BeamStyle.theme` picks which (see [theming](theming.md)).
 
@@ -51,7 +51,7 @@ BorderBeam(
 | `count` | 1 | How many beams lap the border at once, evenly spaced. 1–4. |
 | `comet` | false | Adds an outer glow that trails the head *outside* the border. Leave room around the widget (see [light outside the bounds](shape.md#light-outside-the-bounds)). |
 
-The beam sweeps around the box's centre, so it rounds the corners quickly and slows along the middle of the long edges. A box 56px or shorter (a chip, a pill button) gets the compact tuning — a wider window and a glow that fills the control; pair it with `BeamShape.stadium()`.
+The beam sweeps around the box's centre, so it rounds the corners quickly and slows along the middle of the long edges. A box whose shortest side is at most `compactMaxExtent` (`lib/src/border_beam/look/rotate_look.dart`; chip and pill-button sized) gets the compact tuning — a wider window and a glow that fills the control; pair it with `BeamShape.stadium()`.
 
 With `progress`, the head sits at that fraction of the turn, clockwise from 12 o'clock — a glowing progress ring; `follow` points the head at the pointer. With a [segment](shape.md#segments), the beam appears at the segment's start and travels to its end.
 
@@ -83,7 +83,7 @@ Patches of colour on the hairline and washing inward from the edges, each swelli
 BorderBeam(effect: const BeamEffect.pulse(), active: isThinking, child: card);
 ```
 
-Its colours rotate continuously by default (a full turn every 16s). With a segment, only the patches inside it breathe.
+Its colours rotate continuously by default (a full turn per `huePeriod`). With a segment, only the patches inside it breathe.
 
 ## Choosing at runtime
 

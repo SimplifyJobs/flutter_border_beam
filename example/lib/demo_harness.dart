@@ -1,10 +1,11 @@
 import 'package:flutter/services.dart';
-import 'package:flutter_border_beam/flutter_border_beam.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:prismatic/prismatic.dart';
 
 /// A single named scene in a demo reel: the widget (usually a `BorderBeam`
-/// around a mock surface) that should be shown centered on the stage while
-/// the recorder captures it.
+/// around a mock surface, or a `DistortionWave` between two mock screens)
+/// that should be shown centered on the stage while the recorder captures
+/// it.
 typedef DemoScene = Widget Function();
 
 /// Boots a full-screen "reel" used to record demo videos (see
@@ -23,8 +24,8 @@ typedef DemoScene = Widget Function();
 /// `<prefix>:DONE`. Keeping the marker contract here means new demos need
 /// zero recorder changes.
 ///
-/// The beam shader is loaded before the reel starts, so the first frame of
-/// every scene is already lit.
+/// The beam and wave shaders are loaded before the reel starts, so the
+/// first frame of every scene is already lit, and the first wave bends.
 Future<void> runDemoReel({
   required String prefix,
   required Map<String, DemoScene> scenes,
@@ -34,7 +35,7 @@ Future<void> runDemoReel({
   Duration gap = const Duration(milliseconds: 1800),
 }) async {
   WidgetsFlutterBinding.ensureInitialized();
-  await BorderBeam.precache();
+  await Future.wait([BorderBeam.precache(), DistortionWave.precache()]);
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
   runApp(

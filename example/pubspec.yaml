@@ -1,7 +1,8 @@
-name: flutter_border_beam_example
+name: prismatic_example
 description: >-
-  One-screen showcase of the flutter_border_beam effects and palettes, plus
-  the recording reels used to capture its demo videos.
+  Showcase of the prismatic effects and palettes — the border beams
+  and the distortion wave — plus the recording reels used to capture
+  its demo videos.
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -13,7 +14,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_border_beam:
+  prismatic:
     path: ../
   material_ui: ^1.11.1
 

@@ -1,19 +1,19 @@
-name: flutter_border_beam
+name: prismatic
 description: >-
-  Animated light around any widget's border: three effects drawn by a
-  single-pass fragment shader at the display rate, 19 palettes, squircle
-  corners, and theming.
-version: 0.2.0
-repository: https://github.com/SimplifyJobs/flutter_border_beam
-issue_tracker: https://github.com/SimplifyJobs/flutter_border_beam/issues
-homepage: https://github.com/SimplifyJobs/flutter_border_beam
-documentation: https://github.com/SimplifyJobs/flutter_border_beam/tree/main/doc
+  Shader effects for Flutter: BorderBeam, light around a widget's border,
+  and DistortionWave, a wave carrying one screen into another. Built for
+  Impeller; also runs on Skia and web.
+version: 0.3.0
+repository: https://github.com/SimplifyJobs/prismatic
+issue_tracker: https://github.com/SimplifyJobs/prismatic/issues
+homepage: https://github.com/SimplifyJobs/prismatic
+documentation: https://github.com/SimplifyJobs/prismatic/tree/main/doc
 topics:
   - animation
-  - border
+  - shader
+  - transition
   - glow
   - effect
-  - ui
 screenshots:
   - path: screenshots/rotate.png
     description: Rotate effect — a beam travels around the full border of a card.
@@ -23,6 +23,10 @@ screenshots:
     description: Pulse effect — colour breathes in from the border of a card.
   - path: screenshots/squircle.png
     description: Superellipse corners in the ocean palette — an Apple-style squircle outline.
+  - path: screenshots/distortion_wave.png
+    description: DistortionWave — the front crossing a screen from a button, bending and blurring what it passes.
+  - path: screenshots/distortion_wave_center.png
+    description: DistortionWave, center type — a ring spreading from an avatar inside a sheet.
 
 environment:
   sdk: ^3.13.0
@@ -37,7 +41,11 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  # Pinned by flutter_test; listed so tests can switch leak tracking on.
+  leak_tracker_flutter_testing: any
 
 flutter:
   shaders:
     - shaders/beam.frag
+    - shaders/wave.frag
+    - shaders/wave_glow.frag

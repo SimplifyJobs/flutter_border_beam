@@ -11,7 +11,7 @@ the first thing a reviewer needs to know.
 <!--
 Bullets, each opening with a bold lead-in naming the area:
 
-- **Render** (`lib/src/render/`, `shaders/beam.frag`) — …
+- **Render** (`lib/src/border_beam/render/`, `shaders/beam.frag`) — …
 - **Docs** — …
 -->
 
@@ -40,17 +40,21 @@ touched, with `--plain-name`.
 **Frame budget** — still one draw, no `saveLayer` / clip / image or mask filter:
 
 <!--
-`test/render/frame_budget_test.dart` must pass unchanged. If you touched the
-shader's uniforms, say so: `shaders/beam.frag` and the offsets and slot
-counts in `lib/src/render/beam_frame.dart` (`beamUniformFloats`) must move
-together, and the uniform order is checked by hand.
+`test/border_beam/render/frame_budget_test.dart` and
+`test/distortion_wave/render/wave_frame_budget_test.dart` must pass
+unchanged. If you touched a shader's uniforms, say so: `shaders/beam.frag`
+moves with `lib/src/border_beam/render/beam_frame.dart` (`beamUniformFloats`),
+and `shaders/common/wave_uniforms.glsl` with
+`lib/src/distortion_wave/render/wave_frame_data.dart` (`waveUniformFloats`).
+The uniform-layout tests check types, counts and order.
 -->
 
 ## Checklist
 
-- [ ] `BeamOutline` and `color_math.dart` still mirror the shader (if either
-      side changed)
+- [ ] `BeamOutline` still mirrors `shaders/common/outline.glsl`, and
+      `BeamFrameData.tableAt` the shader's `TABLE_LOOKUP` (if either side
+      changed)
 - [ ] New public API has doc comments (`public_member_api_docs` is enforced)
 - [ ] Docs and comments describe current behavior — no change-history prose
 - [ ] `CHANGELOG.md` updated
-- [ ] README updated if this changes what a user reaches for first
+- [ ] `doc/` updated for any user-facing change (README only if it changes what a user reaches for first)
