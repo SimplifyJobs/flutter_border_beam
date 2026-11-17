@@ -44,7 +44,7 @@ abstract final class WaveRim {
   /// How thick the colour is at [s] along a perimeter of [perimeter], as a
   /// share of the rim's width, for the lumps in [lumps]. Averages 1; the
   /// thinnest stretch is about a tenth of that, the thickest almost three
-  /// times. The Dart mirror of the shader's `rimThickness`.
+  /// times. The Dart mirror of the shader's `waveRimThickness`.
   static double thickness(Float32List lumps, double s, double perimeter) {
     var t = 0.08;
     for (var i = 0; i < count; i++) {
