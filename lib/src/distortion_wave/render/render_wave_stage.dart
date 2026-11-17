@@ -51,7 +51,8 @@ enum WavePhase {
 /// content it draws both sides from GPU images of them (`WaveSideImages`),
 /// taken when first needed and again when that side's content repaints,
 /// in one shader draw plus one atlas draw for the dots; no layers, clips or
-/// filters per frame.
+/// filters on its canvas. Taking a picture (and baking its blurred copies)
+/// is separate offscreen work; see `WaveSideImages`.
 class RenderWaveStage extends RenderBox
     with SlottedContainerRenderObjectMixin<WaveSlot, RenderBox> {
   /// A stage at `progress`, with the look `spec`, opening from `source` (by
@@ -95,7 +96,7 @@ class RenderWaveStage extends RenderBox
   WaveSource? _source;
 
   /// Where the wave opens from; null for the default spot of the wave's
-  /// type. Measured the first time a frame needs it after it is set.
+  /// type. Measured the first time a run's frame needs it.
   WaveSource? get source => _source;
   set source(WaveSource? value) {
     if (value == _source) return;
@@ -106,8 +107,8 @@ class RenderWaveStage extends RenderBox
 
   ({Rect rect, Offset? focus})? _resolved;
 
-  /// The source in the stage's coordinates, measured once per source (and
-  /// per size, for the default spot).
+  /// The source in the stage's coordinates, measured once per run (and per
+  /// size, for the default spot).
   ({Rect rect, Offset? focus}) get _origin => _resolved ??=
       _source?.resolve(this) ??
       (rect: defaultWaveSource(_spec.type, size), focus: null);
@@ -221,6 +222,11 @@ class RenderWaveStage extends RenderBox
   /// What the last frame drew; for tests and diagnostics.
   @visibleForTesting
   WavePhase get debugLastPhase => _lastPhase;
+
+  /// Where the wave opens from in the stage's coordinates, as this run
+  /// measured it; for tests.
+  @visibleForTesting
+  Rect get debugOriginRect => _origin.rect;
 
   /// Whether the stage holds any picture of a side; for tests.
   @visibleForTesting
@@ -430,6 +436,10 @@ class RenderWaveStage extends RenderBox
     if (p <= 0 || p >= 1) {
       _lastPhase = WavePhase.rest;
       _release();
+      // The next run measures its source afresh: a widget behind a
+      // `WaveSource.key` may have moved since (a scroll, a rotation). Mid-run
+      // it stays as measured, so nothing on screen jumps.
+      _resolved = null;
       final side = p <= 0 ? outgoing : incoming;
       if (side != null) context.paintChild(side, offset);
       return;

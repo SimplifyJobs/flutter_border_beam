@@ -545,6 +545,49 @@ void main() {
     expect(waveStage(tester).progress.value, 0);
   });
 
+  testWidgets('a source by key is measured afresh each run, so a widget '
+      'that moved between runs is found where it is', (tester) async {
+    useWaveView(tester);
+    final key = GlobalKey();
+    Widget build({required bool revealed, required double top}) => waveHost(
+      wave(
+        revealed: revealed,
+        source: WaveSource.key(key),
+        child: Stack(
+          children: [
+            flatSide(outgoingColor, 'out'),
+            Positioned(
+              left: 40,
+              top: top,
+              width: 300,
+              height: 60,
+              child: SizedBox(key: key),
+            ),
+          ],
+        ),
+      ),
+    );
+    await tester.pumpWidget(build(revealed: false, top: 700));
+    await tester.pumpWidget(build(revealed: true, top: 700));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(
+      waveStage(tester).debugOriginRect,
+      const Rect.fromLTWH(40, 700, 300, 60),
+    );
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(build(revealed: false, top: 700));
+    await tester.pumpAndSettle();
+
+    await tester.pumpWidget(build(revealed: false, top: 500));
+    await tester.pumpWidget(build(revealed: true, top: 500));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(
+      waveStage(tester).debugOriginRect,
+      const Rect.fromLTWH(40, 500, 300, 60),
+    );
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('a controller collapses into the source it is given', (
     tester,
   ) async {
