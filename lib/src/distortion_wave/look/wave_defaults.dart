@@ -77,10 +77,12 @@ const WaveStyle _vertical = WaveStyle(
   ),
 );
 
-// A sheet is about 0.6 the height of a screen, so the center wave's lengths
-// are 0.6 of the vertical one's. It gathers no colour and no dots before it
-// leaves, has no colour fringing (which would part white into red and blue),
-// and keeps its dots in view.
+// A sheet is about 0.6 the height of a screen, so many of the center wave's
+// lengths start near 0.6 of the vertical one's; each was then calibrated
+// against the reference's center wave, so none is a fixed ratio, and some
+// (the rim's width, the dots' size, the hairline) keep the vertical's. It
+// gathers no colour and no dots before it leaves, has no colour fringing
+// (which would part white into red and blue), and keeps its dots in view.
 final WaveStyle _center = _vertical.merge(
   const WaveStyle(
     type: WaveType.center,
