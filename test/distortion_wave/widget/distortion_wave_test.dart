@@ -860,8 +860,8 @@ void main() {
     final stage = waveStage(tester);
     expect(stage.source, isNull);
     expect(
-      defaultWaveSource(WaveType.vertical, waveTestSize).bottom,
-      lessThanOrEqualTo(waveTestSize.height),
+      stage.debugOriginRect,
+      defaultWaveSource(WaveType.vertical, waveTestSize),
     );
   });
 
