@@ -162,4 +162,4 @@ renderer. If you like it, go star the originals.
 
 ## License
 
-MIT. See [LICENSE](LICENSE), which also carries the original works' notices.
+MIT. See [LICENSE](LICENSE), and [NOTICE](NOTICE) for the original works.
