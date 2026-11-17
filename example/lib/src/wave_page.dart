@@ -458,6 +458,10 @@ class _WavePageState extends State<WavePage>
             '${wavePaletteCode(_palettes[_index])}',
             style: _codeStyle(t),
           ),
+          const SizedBox(height: 4),
+          // What a full-screen wave follows: the display's corners, as the
+          // platform (or, on iOS, the app delegate) reports them.
+          Text(_cornersLabel(context), style: _codeStyle(t)),
         ],
       ),
     );
@@ -653,6 +657,16 @@ TextStyle _codeStyle(Tokens t) => TextStyle(
   fontFamily: 'Menlo',
   fontFamilyFallback: const ['monospace', 'Consolas'],
 );
+
+/// The display's corner radii the waves follow, top-left clockwise, or a
+/// note that none are reported.
+String _cornersLabel(BuildContext context) {
+  final r = MediaQuery.maybeDisplayCornerRadiiOf(context);
+  if (r == null) return 'display corners: not reported';
+  String pt(Radius c) => c.x.toStringAsFixed(c.x % 1 == 0 ? 0 : 1);
+  return 'display corners: ${pt(r.topLeft)} · ${pt(r.topRight)} · '
+      '${pt(r.bottomRight)} · ${pt(r.bottomLeft)} pt';
+}
 
 String _typeName(WaveType type) =>
     type.name[0].toUpperCase() + type.name.substring(1);

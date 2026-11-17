@@ -45,7 +45,8 @@ class _ExampleAppState extends State<ExampleApp> {
       dragDevices: PointerDeviceKind.values.toSet(),
       scrollbars: false,
     ),
-    builder: DisplayCorners.apply,
+    builder: (context, child) =>
+        DisplayCornersScope(child: child ?? const SizedBox.shrink()),
     home: Home(
       dark: _dark,
       onToggleTheme: () => setState(() => _dark = !_dark),
