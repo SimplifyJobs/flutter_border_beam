@@ -142,4 +142,44 @@ void main() {
     await tester.pumpAndSettle();
     expect(waveStage(tester).progress.value, 0);
   });
+
+  testWidgets('a run asked for while a GlobalKey moves the wave reaches it '
+      'once it is back in the tree', (tester) async {
+    useWaveView(tester);
+    final controller = DistortionWaveController();
+    addTearDown(controller.dispose);
+    final moving = GlobalKey();
+    Widget keyed() => DistortionWave(
+      key: moving,
+      controller: controller,
+      revealedChild: flatSide(incomingColor, 'in'),
+      child: flatSide(outgoingColor, 'out'),
+    );
+    // The wave leaves the first slot before the second is built, so the
+    // reveal lands while it is out of the tree.
+    Widget build({required bool moved}) => waveHost(
+      Column(
+        children: [
+          Expanded(child: moved ? const SizedBox() : keyed()),
+          Expanded(
+            child: moved
+                ? Builder(
+                    builder: (context) {
+                      controller.reveal();
+                      return keyed();
+                    },
+                  )
+                : const SizedBox(),
+          ),
+        ],
+      ),
+    );
+
+    await tester.pumpWidget(build(moved: false));
+    await tester.pumpWidget(build(moved: true));
+    expect(tester.takeException(), isNull);
+    await tester.pumpAndSettle();
+    expect(controller.isRevealed, isTrue);
+    expect(waveStage(tester).progress.value, 1);
+  });
 }

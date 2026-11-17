@@ -323,7 +323,14 @@ class _DistortionWaveState extends State<DistortionWave>
   @override
   void activate() {
     super.activate();
-    widget.controller?.attach(this);
+    final controller = widget.controller;
+    if (controller == null) return;
+    controller.attach(this);
+    // A run asked for while the wave was out of the tree never reached it:
+    // head for the controller's target now.
+    if (controller.isRevealed != _revealing) {
+      drive(reveal: controller.isRevealed);
+    }
   }
 
   @override
