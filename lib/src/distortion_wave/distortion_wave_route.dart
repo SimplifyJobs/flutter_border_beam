@@ -155,6 +155,8 @@ class DistortionWaveRoute<T> extends PageRoute<T> {
   }
 
   void _pictureBelow() {
+    // A route removed before its first frame is disposed before this runs.
+    if (_disposed) return;
     final boundary = _previous?.subtreeContext?.findRenderObject();
     // `debugNeedsPaint` keeps debug builds clear of `toImageSync`'s
     // assertion; it is always false in release, where a page still waiting
@@ -192,8 +194,11 @@ class DistortionWaveRoute<T> extends PageRoute<T> {
     );
   }
 
+  bool _disposed = false;
+
   @override
   void dispose() {
+    _disposed = true;
     _curved?.dispose();
     _below.value?.dispose();
     _below.dispose();

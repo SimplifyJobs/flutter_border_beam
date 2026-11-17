@@ -113,6 +113,22 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('a route removed before its first frame pictures nothing', (
+    tester,
+  ) async {
+    useWaveView(tester);
+    await tester.pumpWidget(app());
+    final route = DistortionWaveRoute<void>(
+      builder: (_) => flatSide(incomingColor, 'next'),
+    );
+    navigatorKey.currentState!
+      ..push(route)
+      ..removeRoute(route);
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(find.byKey(const ValueKey('next')), findsNothing);
+  });
+
   testWidgets('a pop collapses it back onto the page underneath', (
     tester,
   ) async {
