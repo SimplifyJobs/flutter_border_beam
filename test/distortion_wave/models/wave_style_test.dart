@@ -436,6 +436,40 @@ void main() {
   });
 
   group('WaveSpec.resolve', () {
+    test('settles values the constructors do not check to finite ones, '
+        'which holds in release builds too', () {
+      final spec = WaveSpec.resolve(
+        const WaveStyle(
+          motion: WaveMotion(pull: double.nan, launchGap: double.infinity),
+          lens: WaveLens(
+            amplitude: double.nan,
+            width: double.nan,
+            swell: double.infinity,
+          ),
+          glow: WaveGlow(lead: double.infinity, cornerRadius: double.nan),
+          dots: WaveDots(size: double.nan, reach: double.negativeInfinity),
+        ),
+      );
+      final settled = {
+        'pull': spec.pull,
+        'launchGap': spec.launchGap,
+        'amplitude': spec.amplitude,
+        'lensWidth': spec.lensWidth,
+        'swell': spec.swell,
+        'lead': spec.lead,
+        'cornerRadius': spec.cornerRadius,
+        'dotSize': spec.dotSize,
+        'dotReach': spec.dotReach,
+        'duration': spec.duration,
+        'returnDuration': spec.returnDuration,
+      };
+      for (final MapEntry(:key, :value) in settled.entries) {
+        expect(value.isFinite, isTrue, reason: key);
+      }
+      expect(spec.lensWidth, greaterThanOrEqualTo(1));
+      expect(spec.dotReach, 0);
+    });
+
     // Every number of the reference's `DistortionWaveStyle()`, keyed by its
     // Swift name, read off a spec in seconds and points.
     final readers = <String, num Function(WaveSpec)>{

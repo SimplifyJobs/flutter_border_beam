@@ -27,47 +27,47 @@ final class WaveSpec {
   WaveSpec._(this.style)
     : type = style.type!,
       palette = style.palette!,
-      anticipation = math.max(_seconds(style.timing!.anticipation!), 0),
-      travel = math.max(_seconds(style.timing!.travel!), 0.01),
+      anticipation = _within(_seconds(style.timing!.anticipation!), 0.0),
+      travel = _within(_seconds(style.timing!.travel!), 0.01),
       easing = style.timing!.easing!,
-      returnSpeed = style.timing!.returnSpeed!,
+      returnSpeed = _within(style.timing!.returnSpeed!, 0.01, 100),
       linger = _seconds(style.timing!.linger!),
-      rimFade = math.max(_seconds(style.timing!.rimFade!), 0.01),
+      rimFade = _within(_seconds(style.timing!.rimFade!), 0.01),
       rimEasing = style.timing!.rimEasing!,
       hairlineLinger = _seconds(style.timing!.hairlineLinger!),
-      hairlineFade = math.max(_seconds(style.timing!.hairlineFade!), 0.01),
-      pull = style.motion!.pull!,
-      inhale = style.motion!.inhale!,
-      gatherGlow = math.max(style.motion!.gatherGlow!, 0),
-      gatherDots = style.motion!.gatherDots!.clamp(0.0, 1.0),
-      launchGap = math.max(style.motion!.launchGap!, 0),
-      orientation = style.motion!.orientation!.clamp(0.0, 1.0),
-      amplitude = style.lens!.amplitude!,
-      lensWidth = math.max(style.lens!.width!, 1),
-      aberration = math.max(style.lens!.aberration!, 0),
-      swell = style.lens!.swell!,
-      blur = style.lens!.blur!.clamp(0.0, 64.0),
-      blurAhead = math.max(style.lens!.blurAhead!, 1),
-      blurBehind = math.max(style.lens!.blurBehind!, 1),
-      lead = math.max(style.glow!.lead!, 1),
-      tail = math.max(style.glow!.tail!, 1),
-      strength = style.glow!.strength!.clamp(0.0, 1.0),
-      rimWidth = math.max(style.glow!.rimWidth!, 0.5),
-      rimUnevenness = style.glow!.rimUnevenness!.clamp(0.0, 2.0),
-      rimStrength = style.glow!.rimStrength!.clamp(0.0, 1.0),
-      rimSoftness = math.max(style.glow!.rimSoftness!, 1),
-      rimPulse = style.glow!.rimPulse!.clamp(0.0, 1.0),
-      hairlineWidth = math.max(style.glow!.hairlineWidth!, 0),
-      hairlineOpacity = style.glow!.hairlineOpacity!.clamp(0.0, 1.0),
-      hairlineWhite = style.glow!.hairlineWhite!.clamp(0.0, 1.0),
-      cornerRadius = math.max(style.glow!.cornerRadius!, 0),
+      hairlineFade = _within(_seconds(style.timing!.hairlineFade!), 0.01),
+      pull = _finite(style.motion!.pull!),
+      inhale = _finite(style.motion!.inhale!),
+      gatherGlow = _within(style.motion!.gatherGlow!, 0.0),
+      gatherDots = _within(style.motion!.gatherDots!, 0.0, 1.0),
+      launchGap = _within(style.motion!.launchGap!, 0.0),
+      orientation = _within(style.motion!.orientation!, 0.0, 1.0),
+      amplitude = _finite(style.lens!.amplitude!),
+      lensWidth = _within(style.lens!.width!, 1.0),
+      aberration = _within(style.lens!.aberration!, 0.0),
+      swell = _finite(style.lens!.swell!),
+      blur = _within(style.lens!.blur!, 0.0, 64.0),
+      blurAhead = _within(style.lens!.blurAhead!, 1.0),
+      blurBehind = _within(style.lens!.blurBehind!, 1.0),
+      lead = _within(style.glow!.lead!, 1.0),
+      tail = _within(style.glow!.tail!, 1.0),
+      strength = _within(style.glow!.strength!, 0.0, 1.0),
+      rimWidth = _within(style.glow!.rimWidth!, 0.5),
+      rimUnevenness = _within(style.glow!.rimUnevenness!, 0.0, 2.0),
+      rimStrength = _within(style.glow!.rimStrength!, 0.0, 1.0),
+      rimSoftness = _within(style.glow!.rimSoftness!, 1.0),
+      rimPulse = _within(style.glow!.rimPulse!, 0.0, 1.0),
+      hairlineWidth = _within(style.glow!.hairlineWidth!, 0.0),
+      hairlineOpacity = _within(style.glow!.hairlineOpacity!, 0.0, 1.0),
+      hairlineWhite = _within(style.glow!.hairlineWhite!, 0.0, 1.0),
+      cornerRadius = _within(style.glow!.cornerRadius!, 0.0),
       dotCount = style.dots!.count!.clamp(0, 256),
-      dotSize = math.max(style.dots!.size!, 0),
-      dotReach = math.max(style.dots!.reach!, 0),
-      dotFlight = math.max(style.dots!.flight!, 0),
-      dotGap = math.max(style.dots!.gap!, 0),
-      dotLife = math.max(_seconds(style.dots!.life!), 0.01),
-      dotSpread = style.dots!.spread!.clamp(0.0, 1.0);
+      dotSize = _within(style.dots!.size!, 0.0),
+      dotReach = _within(style.dots!.reach!, 0.0),
+      dotFlight = _within(style.dots!.flight!, 0.0),
+      dotGap = _within(style.dots!.gap!, 0.0),
+      dotLife = _within(_seconds(style.dots!.life!), 0.01),
+      dotSpread = _within(style.dots!.spread!, 0.0, 1.0);
 
   /// The fully resolved style this spec was read from.
   final WaveStyle style;
@@ -225,4 +225,15 @@ final class WaveSpec {
 
   static double _seconds(Duration duration) =>
       duration.inMicroseconds / Duration.microsecondsPerSecond;
+
+  // The value objects assert their ranges, but only in debug builds. These
+  // hold in release too, where a NaN, an infinity or a value out of range
+  // would otherwise reach the timeline's arithmetic and the shaders.
+
+  /// [value] kept within [min]–[max]; NaN becomes [min].
+  static double _within(double value, double min, [double max = 1e6]) =>
+      value.isNaN ? min : value.clamp(min, max);
+
+  /// [value], or 0 when it is NaN or infinite.
+  static double _finite(double value) => value.isFinite ? value : 0;
 }
