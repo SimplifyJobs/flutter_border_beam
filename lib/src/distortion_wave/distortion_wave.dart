@@ -297,6 +297,21 @@ class _DistortionWaveState extends State<DistortionWave>
     _clock.jumpTo(progress);
   }
 
+  // A wave leaving the tree lets go of its controller at once, not at
+  // disposal at the end of the frame, so a replacement mounted in the same
+  // frame (a new key, a GlobalKey moving) can take it over.
+  @override
+  void deactivate() {
+    widget.controller?.detach(this);
+    super.deactivate();
+  }
+
+  @override
+  void activate() {
+    super.activate();
+    widget.controller?.attach(this);
+  }
+
   @override
   void dispose() {
     widget.controller?.detach(this);

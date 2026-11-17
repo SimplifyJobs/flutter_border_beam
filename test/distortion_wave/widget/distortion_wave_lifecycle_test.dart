@@ -111,4 +111,35 @@ void main() {
     expect(stage.debugLastPhase, WavePhase.rest);
     expect(stage.debugHoldsImages, isFalse);
   });
+
+  testWidgets('a controller passes to a wave that replaces its own in the '
+      'same frame, by a new key or a GlobalKey moving', (tester) async {
+    useWaveView(tester);
+    final controller = DistortionWaveController();
+    addTearDown(controller.dispose);
+    final moving = GlobalKey();
+    Widget build(Key key, {bool wrapped = false}) {
+      final wave = DistortionWave(
+        key: key,
+        controller: controller,
+        revealedChild: flatSide(incomingColor, 'in'),
+        child: flatSide(outgoingColor, 'out'),
+      );
+      return waveHost(wrapped ? SizedBox.expand(child: wave) : wave);
+    }
+
+    await tester.pumpWidget(build(const ValueKey('compact')));
+    await tester.pumpWidget(build(const ValueKey('wide')));
+    expect(tester.takeException(), isNull);
+    controller.reveal();
+    await tester.pumpAndSettle();
+    expect(waveStage(tester).progress.value, 1);
+
+    await tester.pumpWidget(build(moving));
+    await tester.pumpWidget(build(moving, wrapped: true));
+    expect(tester.takeException(), isNull);
+    controller.collapse();
+    await tester.pumpAndSettle();
+    expect(waveStage(tester).progress.value, 0);
+  });
 }
