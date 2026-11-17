@@ -3,8 +3,9 @@
 This document covers the border beam's renderer; for using it, see
 [border_beam_usage.md](border_beam_usage.md). The distortion wave has its
 own: **[distortion_wave.md](distortion_wave.md)**. Code both share lives in
-`lib/src/core/` (`ShaderProgram`, `Oklab`) and `shaders/common/`
-(`outline.glsl`, the rounded-superellipse outline every shader includes).
+`lib/src/core/` (`ShaderProgram`) and `shaders/common/` (`outline.glsl`,
+the rounded-superellipse outline every shader includes). `lib/src/core/`
+also holds `Oklab`, which only the wave uses so far.
 
 Two ideas carry the border beam:
 

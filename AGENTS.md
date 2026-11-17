@@ -15,8 +15,9 @@ Flutter package of shader effects built for Impeller, with two effects:
   (MIT): both views are drawn from GPU pictures of themselves by **one shader
   draw plus at most one atlas draw per frame** while the wave bends them.
 
-Code shared by both lives in `lib/src/core/` (`ShaderProgram`, OKLab) and
-`shaders/common/` (the rounded-superellipse `outline()`).
+Code shared by both lives in `lib/src/core/` (`ShaderProgram`) and
+`shaders/common/` (the rounded-superellipse `outline()`); `lib/src/core/`
+also holds `Oklab`, which only the wave uses.
 
 This file is the one agent guide: Codex reads `AGENTS.md`, and Claude Code
 reads `CLAUDE.md`, which only imports this file (`@AGENTS.md`). Edit this

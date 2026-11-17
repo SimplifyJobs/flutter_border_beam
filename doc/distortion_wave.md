@@ -3,9 +3,11 @@
 How a distortion wave is built, from its timeline to the draws a frame
 takes. For using it, see [distortion_wave_usage.md](distortion_wave_usage.md);
 for the border beam's renderer, [architecture.md](architecture.md). Code
-shared with the beam: `lib/src/core/` (`ShaderProgram`, `Oklab`) and
-`shaders/common/outline.glsl`, mirrored in Dart by `BeamOutline`
-(`lib/src/border_beam/render/beam_outline.dart`).
+shared with the beam: `lib/src/core/shader_program.dart` (`ShaderProgram`)
+and `shaders/common/outline.glsl`, mirrored in Dart by `BeamOutline`
+(`lib/src/border_beam/render/beam_outline.dart`). The wave's colours are
+mixed in OKLab with `Oklab` (`lib/src/core/oklab.dart`), which lives in
+`lib/src/core/` but only the wave uses.
 
 Three ideas carry it:
 
