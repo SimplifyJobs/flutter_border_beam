@@ -1,9 +1,10 @@
 /// Distortion waves for Flutter: a colourful refractive wave that opens from
 /// the widget that started it and carries one view into another.
 ///
-/// Drawn by one fragment shader from GPU images of the two views: a swell
-/// that lifts and bends content, a progressive blur, colour fringing, a band
-/// of colour on the front and colour that lingers on the view's edges.
+/// Drawn by fragment shaders from GPU images of the two views, with the
+/// dots in one atlas draw: a swell that lifts and bends content, a
+/// progressive blur, colour fringing, a band of colour on the front and
+/// colour that lingers on the view's edges.
 library;
 
 export 'src/distortion_wave/distortion_wave.dart' show DistortionWave;
