@@ -258,6 +258,34 @@ void main() {
   });
 
   group('a controller', () {
+    testWidgets('swapped in or out, the wave heads for its new owner\'s '
+        'target', (tester) async {
+      useWaveView(tester);
+      final collapsed = DistortionWaveController();
+      final revealed = DistortionWaveController(revealed: true);
+      addTearDown(collapsed.dispose);
+      addTearDown(revealed.dispose);
+      await tester.pumpWidget(waveHost(wave(controller: collapsed)));
+      expect(waveStage(tester).progress.value, 0);
+
+      await tester.pumpWidget(waveHost(wave(controller: revealed)));
+      await tester.pumpAndSettle();
+      expect(waveStage(tester).progress.value, 1);
+      revealed.toggle();
+      await tester.pumpAndSettle();
+      expect(waveStage(tester).progress.value, 0, reason: 'toggle collapses');
+
+      revealed.reveal();
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(waveHost(wave()));
+      await tester.pumpAndSettle();
+      expect(
+        waveStage(tester).progress.value,
+        0,
+        reason: 'without a controller, revealed: false rules',
+      );
+    });
+
     testWidgets('owns playback: reveal, collapse, seek', (tester) async {
       useWaveView(tester);
       final controller = DistortionWaveController();

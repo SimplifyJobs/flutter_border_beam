@@ -181,7 +181,8 @@ class _DistortionWaveState extends State<DistortionWave>
   @override
   void didUpdateWidget(DistortionWave oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!identical(widget.controller, oldWidget.controller)) {
+    final newOwner = !identical(widget.controller, oldWidget.controller);
+    if (newOwner) {
       oldWidget.controller?.detach(this);
       widget.controller?.attach(this);
     }
@@ -199,7 +200,13 @@ class _DistortionWaveState extends State<DistortionWave>
       drive(reveal: widget.controller?.isRevealed ?? widget.revealed);
       return;
     }
-    if (widget.controller == null && widget.revealed != oldWidget.revealed) {
+    final target = widget.controller?.isRevealed ?? widget.revealed;
+    if (newOwner) {
+      // A new owner — another controller, or `revealed` once the controller
+      // is gone — brings its own target: head for it.
+      if (target != _revealing) drive(reveal: target);
+    } else if (widget.controller == null &&
+        widget.revealed != oldWidget.revealed) {
       drive(reveal: widget.revealed);
     }
   }
