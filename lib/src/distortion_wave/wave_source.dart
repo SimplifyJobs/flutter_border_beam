@@ -35,10 +35,9 @@ sealed class WaveSource {
   /// ```
   factory WaveSource.of(BuildContext context) {
     final anchor = context.findAncestorStateOfType<DistortionWaveAnchorState>();
-    final box =
-        (anchor?.context.findRenderObject() ?? context.findRenderObject())
-            as RenderBox?;
-    final rect = _globalRect(box);
+    final rect = _globalRect(
+      anchor?.context.findRenderObject() ?? context.findRenderObject(),
+    );
     if (rect == null) return const _NoSource();
     return _GlobalSource(rect, focus: anchor?.lastTouch);
   }
@@ -47,8 +46,10 @@ sealed class WaveSource {
   /// measured (its widget is gone).
   ({Rect rect, Offset? focus})? resolve(RenderBox stage);
 
-  static Rect? _globalRect(RenderBox? box) {
-    if (box == null || !box.attached || !box.hasSize) return null;
+  // Null for anything that is not a laid-out box (a sliver, say): it has no
+  // rect to open from.
+  static Rect? _globalRect(RenderObject? box) {
+    if (box is! RenderBox || !box.attached || !box.hasSize) return null;
     return MatrixUtils.transformRect(
       box.getTransformTo(null),
       Offset.zero & box.size,
@@ -90,9 +91,7 @@ final class _KeySource extends WaveSource {
 
   @override
   ({Rect rect, Offset? focus})? resolve(RenderBox stage) {
-    final rect = WaveSource._globalRect(
-      key.currentContext?.findRenderObject() as RenderBox?,
-    );
+    final rect = WaveSource._globalRect(key.currentContext?.findRenderObject());
     if (rect == null) return null;
     return _GlobalSource(rect, focus: focus).resolve(stage);
   }
@@ -217,9 +216,7 @@ class DistortionWaveAnchorState extends State<DistortionWaveAnchor> {
 
   /// The anchor as a source: its rect now, and its last touch.
   WaveSource get source {
-    final rect = WaveSource._globalRect(
-      context.findRenderObject() as RenderBox?,
-    );
+    final rect = WaveSource._globalRect(context.findRenderObject());
     if (rect == null) return const _NoSource();
     return _GlobalSource(rect, focus: _lastTouch);
   }

@@ -808,6 +808,25 @@ void main() {
     expect(resolved.focus, const Offset(30, 40));
   });
 
+  testWidgets('a source whose widget is not a box measures as none', (
+    tester,
+  ) async {
+    useWaveView(tester);
+    final key = GlobalKey();
+    await tester.pumpWidget(
+      waveHost(
+        CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(key: key, child: const SizedBox(height: 50)),
+          ],
+        ),
+      ),
+    );
+    final root = tester.renderObject<RenderBox>(find.byType(CustomScrollView));
+    expect(WaveSource.key(key).resolve(root), isNull);
+    expect(WaveSource.of(key.currentContext!).resolve(root), isNull);
+  });
+
   testWidgets('a wave with no source and no anchor opens from its type\'s '
       'usual spot', (tester) async {
     useWaveView(tester);
