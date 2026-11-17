@@ -145,7 +145,9 @@ disposed.
   on each of its frames while the wave bends it; pause decorative animations
   in a side for the second or so the wave runs, or put them behind a
   `RepaintBoundary` (they then hold still while bent).
-- A platform view in a side cannot be pictured; that run is a crossfade.
+- A platform view in a side cannot be pictured; that run is a crossfade. A
+  `DistortionWaveRoute` over a page showing one fades the new page in and
+  out instead of bending the page underneath.
 
 ## Web
 

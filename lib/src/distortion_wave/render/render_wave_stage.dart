@@ -596,12 +596,23 @@ class RenderWaveStage extends RenderBox
     );
   }
 
-  /// The incoming side, with the outgoing one over it fading out.
+  /// The incoming side, with the outgoing one over it fading out — or, with
+  /// no outgoing side (a route over a page it could not picture), the
+  /// incoming side fading in over whatever is behind the stage.
   void _paintCrossfade(PaintingContext context, Offset offset, double p) {
     final under = incoming;
     final over = outgoing;
+    if (over == null) {
+      final alpha = (p * 255).round();
+      if (under == null || alpha <= 0) return;
+      context.pushOpacity(
+        offset,
+        alpha,
+        (context, offset) => context.paintChild(under, offset),
+      );
+      return;
+    }
     if (under != null) context.paintChild(under, offset);
-    if (over == null) return;
     final alpha = ((1 - p) * 255).round();
     if (alpha <= 0) return;
     context.pushOpacity(

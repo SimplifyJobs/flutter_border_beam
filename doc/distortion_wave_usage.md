@@ -520,6 +520,7 @@ show. `everyFrame` pays that every frame for each side shown. Exact costs:
 | --- | --- |
 | Reduced motion (`MediaQuery.disableAnimations`) | A plain crossfade, the outgoing side fading over the incoming one; a full run takes 0.3 s. Routes too. |
 | A side holding a platform view (map, web view) | It cannot be pictured (`OffsetLayer.supportsRasterization()` is false): that run crossfades. The next run from rest tries the wave again. |
+| A `DistortionWaveRoute` over a page holding a platform view | The page underneath cannot be pictured: the new page fades in over it, and out on pop. |
 | Shaders still loading | The side the wave is on is shown plainly until they load. |
 | A source that cannot be measured | The type's usual spot. |
 

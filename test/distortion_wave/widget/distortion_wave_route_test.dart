@@ -17,6 +17,8 @@ void main() {
 
   final navigatorKey = GlobalKey<NavigatorState>();
   late Animation<double> homeSecondary;
+  // Whether the home page shows a platform view, so it cannot be pictured.
+  var unpicturedHome = false;
 
   Widget app({bool disableAnimations = false}) => waveHost(
     Navigator(
@@ -29,6 +31,12 @@ void main() {
             return Stack(
               children: [
                 flatSide(outgoingColor, 'home'),
+                if (unpicturedHome)
+                  const SizedBox(
+                    width: 10,
+                    height: 10,
+                    child: PlatformViewStandIn(),
+                  ),
                 Positioned(
                   left: 20,
                   top: 764,
@@ -127,6 +135,34 @@ void main() {
     await tester.pump();
     expect(tester.takeException(), isNull);
     expect(find.byKey(const ValueKey('next')), findsNothing);
+  });
+
+  testWidgets('over a page that cannot be pictured, the new page fades in '
+      'and out', (tester) async {
+    useWaveView(tester);
+    unpicturedHome = true;
+    addTearDown(() => unpicturedHome = false);
+    await tester.pumpWidget(app());
+    await tester.tapAt(const Offset(300, 790));
+    await tester.pump();
+    final route = topRoute();
+    await tester.pump();
+    expect(route.debugBelow.value, isNull, reason: 'no picture of it');
+    await tester.pump(const Duration(milliseconds: 900));
+    expect(waveStage(tester).debugLastPhase, WavePhase.crossfading);
+    expect(waveStage(tester).outgoing, isNull);
+    expect(find.byKey(const ValueKey('home')), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('next')), findsOneWidget);
+
+    navigatorKey.currentState!.pop();
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(waveStage(tester).debugLastPhase, WavePhase.crossfading);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('next')), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('a pop collapses it back onto the page underneath', (

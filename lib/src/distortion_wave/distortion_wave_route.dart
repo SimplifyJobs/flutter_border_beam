@@ -36,7 +36,9 @@ import 'wave_source.dart';
 ///
 /// The page underneath is pictured as the push starts, and again as a pop
 /// starts; the wave bends that picture. It does not play its own exit
-/// transition meanwhile. Give the new page an opaque background.
+/// transition meanwhile. Give the new page an opaque background. A page
+/// underneath that cannot be pictured — it shows a platform view — is not
+/// bent: the new page fades in over it, and out on pop.
 class DistortionWaveRoute<T> extends PageRoute<T> {
   /// A route to the page [builder] builds, opening from [source].
   DistortionWaveRoute({
@@ -118,6 +120,14 @@ class DistortionWaveRoute<T> extends PageRoute<T> {
   bool canTransitionFrom(TransitionRoute<dynamic> previousRoute) => false;
 
   final ValueNotifier<ui.Image?> _below = ValueNotifier<ui.Image?>(null);
+
+  // Whether the page underneath could not be pictured last time it was
+  // tried (it shows a platform view): the transition crossfades over it.
+  final ValueNotifier<bool> _belowUnpictured = ValueNotifier<bool>(false);
+  late final Listenable _belowChanged = Listenable.merge([
+    _below,
+    _belowUnpictured,
+  ]);
   ModalRoute<dynamic>? _previous;
 
   // The new page's anchors register here, never with an enclosing wave.
@@ -167,13 +177,20 @@ class DistortionWaveRoute<T> extends PageRoute<T> {
         boundary.debugNeedsPaint) {
       return;
     }
+    // `toImageSync` rasterises the page's own layer; a platform view in it
+    // cannot be, as `WaveSideImages.take` finds for a side. The layer is
+    // protected API, read here as `SnapshotWidget` reads its own.
+    // ignore: invalid_use_of_protected_member
+    final layer = boundary.layer;
+    final pictured = layer != null && layer.supportsRasterization();
     final view = navigator?.context;
     final ratio = view == null
         ? 1.0
         : MediaQuery.maybeDevicePixelRatioOf(view) ??
               View.of(view).devicePixelRatio;
     final old = _below.value;
-    _below.value = boundary.toImageSync(pixelRatio: ratio);
+    _belowUnpictured.value = !pictured;
+    _below.value = pictured ? boundary.toImageSync(pixelRatio: ratio) : null;
     old?.dispose();
   }
 
@@ -202,6 +219,7 @@ class DistortionWaveRoute<T> extends PageRoute<T> {
     _curved?.dispose();
     _below.value?.dispose();
     _below.dispose();
+    _belowUnpictured.dispose();
     super.dispose();
   }
 
@@ -242,36 +260,46 @@ class _WaveRouteTransition extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = DistortionWaveTheme.of(context);
+    final reducedMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     return WaveAnchorScope(
       registry: route._anchors,
-      child: WaveStage(
-        progress: animation,
-        spec: route.spec,
-        source: route.source,
-        devicePixelRatio:
-            MediaQuery.maybeDevicePixelRatioOf(context) ??
-            View.of(context).devicePixelRatio,
-        snapshots: route.snapshots ?? theme.snapshots ?? WaveSnapshots.onChange,
-        plain: MediaQuery.maybeDisableAnimationsOf(context) ?? false,
-        revealing: animation.status != AnimationStatus.reverse,
-        displayRadii:
-            route.style?.glow?.cornerRadius == null &&
-                theme.style?.glow?.cornerRadius == null
-            ? MediaQuery.maybeDisplayCornerRadiiOf(context)
-            : null,
-        viewSize: MediaQuery.maybeSizeOf(context),
-        outgoing: WaveSide(
-          slot: WaveSlot.outgoing,
-          child: ValueListenableBuilder<ui.Image?>(
-            valueListenable: route._below,
-            builder: (context, image, _) => RawImage(
-              image: image,
-              fit: BoxFit.fill,
-              filterQuality: FilterQuality.low,
-            ),
-          ),
-        ),
-        incoming: WaveSide(slot: WaveSlot.incoming, child: child),
+      child: ListenableBuilder(
+        listenable: route._belowChanged,
+        // With no picture to bend, the stage has no outgoing side and
+        // crossfades: the new page fades in over the live page underneath.
+        builder: (context, page) {
+          final unpictured = route._belowUnpictured.value;
+          return WaveStage(
+            progress: animation,
+            spec: route.spec,
+            source: route.source,
+            devicePixelRatio:
+                MediaQuery.maybeDevicePixelRatioOf(context) ??
+                View.of(context).devicePixelRatio,
+            snapshots:
+                route.snapshots ?? theme.snapshots ?? WaveSnapshots.onChange,
+            plain: reducedMotion || unpictured,
+            revealing: animation.status != AnimationStatus.reverse,
+            displayRadii:
+                route.style?.glow?.cornerRadius == null &&
+                    theme.style?.glow?.cornerRadius == null
+                ? MediaQuery.maybeDisplayCornerRadiiOf(context)
+                : null,
+            viewSize: MediaQuery.maybeSizeOf(context),
+            outgoing: unpictured
+                ? null
+                : WaveSide(
+                    slot: WaveSlot.outgoing,
+                    child: RawImage(
+                      image: route._below.value,
+                      fit: BoxFit.fill,
+                      filterQuality: FilterQuality.low,
+                    ),
+                  ),
+            incoming: WaveSide(slot: WaveSlot.incoming, child: page!),
+          );
+        },
+        child: child,
       ),
     );
   }

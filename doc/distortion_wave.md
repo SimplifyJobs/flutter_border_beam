@@ -109,7 +109,7 @@ WaveClock or route animation (or the held `progress`)
 | `rest` | progress 0 or 1 (or the shader not yet loaded) | the visible side, as itself; images released |
 | `distorting` | the wave bends content, or the outgoing side still shows | both sides' images through `wave.frag` (one `drawRect`), and the dots |
 | `glowing` | `contentAtRest` | the revealed side as itself, `wave_glow.frag` over it (one `drawRect`, skipped when edge colour and band are both 0), and the dots; images released |
-| `crossfading` | reduced motion (`plain`), or a side that cannot be rasterised | the incoming side, and the outgoing one over it in a `pushOpacity` layer; images released |
+| `crossfading` | reduced motion (`plain`), or a side that cannot be rasterised | the incoming side, and the outgoing one over it in a `pushOpacity` layer (with no outgoing side — a route over a page it could not picture — the incoming side fading in in that layer); images released |
 
 The stage is a repaint boundary that repaints on every change of its
 progress listenable. A side that is not shown is never pictured; its sampler
@@ -278,7 +278,10 @@ underneath, pictured from that route's own page `RepaintBoundary`
 callback after the push's first frame — until then the outgoing side is
 empty, so the page underneath shows through and nothing jumps — and again
 after a pop starts. The old image is disposed when replaced and in
-`dispose()`. `canTransitionFrom` is false, so the page underneath plays no
+`dispose()`. A page whose layer does not support rasterisation (a platform
+view) is not pictured: the transition then gives the stage no outgoing side
+and `plain: true`, so the new page fades in over the live page underneath,
+and out on pop. `canTransitionFrom` is false, so the page underneath plays no
 exit transition of its own behind the wave.
 
 The route's `CurvedAnimation` (linear forward, `spec.easing.flipped` in

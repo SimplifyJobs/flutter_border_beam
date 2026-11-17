@@ -1,5 +1,4 @@
 import 'package:flutter/gestures.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -638,7 +637,11 @@ void main() {
           child: Stack(
             children: [
               flatSide(incomingColor, 'in'),
-              const SizedBox(width: 10, height: 10, child: _PlatformView()),
+              const SizedBox(
+                width: 10,
+                height: 10,
+                child: PlatformViewStandIn(),
+              ),
             ],
           ),
         ),
@@ -871,26 +874,4 @@ void main() {
     expect(tester.binding.transientCallbackCount, 0);
     expect(SchedulerBinding.instance.hasScheduledFrame, isFalse);
   });
-}
-
-/// Paints what a platform view paints: a layer that cannot be rasterised.
-class _PlatformView extends LeafRenderObjectWidget {
-  const _PlatformView();
-
-  @override
-  RenderObject createRenderObject(BuildContext context) =>
-      _RenderPlatformView();
-}
-
-class _RenderPlatformView extends RenderBox {
-  @override
-  bool get sizedByParent => true;
-
-  @override
-  Size computeDryLayout(BoxConstraints constraints) => constraints.biggest;
-
-  @override
-  void paint(PaintingContext context, Offset offset) {
-    context.addLayer(PlatformViewLayer(rect: offset & size, viewId: 0));
-  }
 }

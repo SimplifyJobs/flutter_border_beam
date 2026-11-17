@@ -1,3 +1,4 @@
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prismatic/src/distortion_wave/distortion_wave.dart';
@@ -47,3 +48,27 @@ Widget flatSide(Color color, String key) => ColoredBox(
   color: color,
   child: const SizedBox.expand(),
 );
+
+/// Paints what a platform view paints: a layer that cannot be rasterised,
+/// so neither a wave's side nor a route's page underneath can be pictured.
+class PlatformViewStandIn extends LeafRenderObjectWidget {
+  /// A stand-in filling its constraints.
+  const PlatformViewStandIn({super.key});
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderPlatformViewStandIn();
+}
+
+class _RenderPlatformViewStandIn extends RenderBox {
+  @override
+  bool get sizedByParent => true;
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) => constraints.biggest;
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    context.addLayer(PlatformViewLayer(rect: offset & size, viewId: 0));
+  }
+}
