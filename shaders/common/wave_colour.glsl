@@ -84,11 +84,12 @@ vec4 waveOutline(vec2 p) {
 const float CORNER_POOL = 2.5;
 
 // How much nearer the rim's own depth can be than the outline's distance:
-// the gap between a corner rounded to the roundest corner's radius and the
-// corner itself, along its diagonal, plus the easing (see waveRimInset).
+// the easing on a corner's diagonal, and the small gap between a circular
+// corner and Flutter's rounded superellipse of the same radius (see
+// waveRimInset).
 float wavePoolSlack() {
   float k = CORNER_POOL * uRim.x;
-  return 0.41422 * max(uBand.w, k) + 0.25 * k;
+  return 0.25 * k + 0.1 * uBand.w;
 }
 
 // A smooth minimum: the smaller of a and b, eased where they are within k.
@@ -97,31 +98,25 @@ float waveSmin(float a, float b, float k) {
   return min(a, b) - h * h * k * 0.25;
 }
 
-// How deep in from the edges the rim's colour is measured: as if every
-// corner were as round as the view's roundest one (and never sharper than
-// the easing), so the colour follows one smooth curve round every corner.
-//
-// The distance to the outline itself would follow each corner as it is: a
-// sharp one (where a display's corners differ, as on a phone whose corners
-// are 8 pt on one side and 59 pt on the other) would turn the colour
-// through a near-square corner, beside round ones. Measured to the round
-// curve, the colour is brightest along it and fades out past it into the
-// sliver between the curve and a sharper corner, just as it does inward —
-// so a sharp corner carries the same slim curve of light as a round one,
-// and its tip stays as dark as a round corner's glass beyond the curve.
-// Signed: negative in that sliver. Deeper than the curve, where its
-// distance would crease along the diagonal, the two edge distances are
-// eased into each other. The hairline keeps to the glass.
+// How deep in from the edges the rim's colour is measured: along each
+// corner's own radius, as the hairline is — a display whose corners differ
+// (8 pt on one side of a phone and 59 pt on the other) has light that
+// follows each of them. Up to that radius the depth is the distance to the
+// corner's arc. Deeper in, the distance to the outline would crease along
+// the corner's diagonal, where the nearest edge changes, and the colour's
+// inner edge would turn there along a mitre; so there the distances to the
+// two edges meeting at the corner are eased into each other, and the inner
+// edge turns smoothly.
 float waveRimInset(vec2 p, float inset) {
   vec2 hs = uRect.zw * 0.5;
   vec2 c = p - hs;
   float k = CORNER_POOL * uRim.x;
   float r = c.x > 0.0 ? (c.y > 0.0 ? uRadii.z : uRadii.y)
                       : (c.y > 0.0 ? uRadii.w : uRadii.x);
-  float rho = min(max(max(r, uBand.w), k), min(hs.x, hs.y));
+  float rho = min(r, min(hs.x, hs.y));
   vec2 q = abs(c) - hs + rho;
   float sd = length(max(q, 0.0)) + min(-waveSmin(-q.x, -q.y, k), 0.0) - rho;
-  return min(inset, -sd);
+  return min(inset, max(-sd, 0.0));
 }
 
 bool waveNearEdge(float inset) {
