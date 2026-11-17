@@ -100,8 +100,10 @@ Code: `lib/src/distortion_wave/render/render_wave_stage.dart`,
 | `glowing` (front crossed, only colour on the edges) | the revealed side as itself, one `drawRect` with `wave_glow.frag` (none once the colour is gone), at most one `drawRawAtlas` | none; pictures released |
 | `crossfading` (reduced motion, or a side holding a platform view) | both sides, the outgoing one in a `pushOpacity` layer | the opacity layer's offscreen pass |
 
-The stage's canvas never gets a `saveLayer`, clip, `ImageFilter`,
-`BackdropFilter`, `MaskFilter` or image draw in the first three phases.
+The stage's own drawing never adds a `saveLayer`, clip, `ImageFilter`,
+`BackdropFilter`, `MaskFilter`, `drawImage` or `drawImageRect` in the first
+three phases. The one image the stage does draw is the dots' sprite, in
+the at most one `drawRawAtlas` above.
 `test/distortion_wave/render/wave_frame_budget_test.dart` asserts this per
 phase × type, and pins how many pictures each side gets.
 
