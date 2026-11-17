@@ -46,6 +46,12 @@ void main() {
   );
 
   for (final type in WaveType.values) {
+    // The glowing case below is found by a scan; a type without one fails
+    // here rather than dropping the case.
+    test('${type.name} has a frame where the edges linger', () {
+      expect(phases(type), contains('edges linger'));
+    });
+
     for (final MapEntry(key: name, value: p) in phases(type).entries) {
       testWidgets('${type.name}, $name: one shader rect, no layers', (
         tester,
