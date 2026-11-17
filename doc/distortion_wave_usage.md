@@ -199,14 +199,20 @@ route's own scope, not with any enclosing `DistortionWave`.
 ## `DistortionWaveRoute`
 
 ```dart
-FilledButton(
-  onPressed: () => Navigator.of(context).push(
-    DistortionWaveRoute<void>(
-      source: WaveSource.of(context),           // inside an anchor: carries the touch
-      builder: (context) => const ReceiptScreen(),
+DistortionWaveAnchor(
+  // A context inside the anchor, so WaveSource.of measures the anchor and
+  // carries its touch.
+  child: Builder(
+    builder: (context) => FilledButton(
+      onPressed: () => Navigator.of(context).push(
+        DistortionWaveRoute<void>(
+          source: WaveSource.of(context),
+          builder: (context) => const ReceiptScreen(),
+        ),
+      ),
+      child: const Text('Send'),
     ),
   ),
-  child: const Text('Send'),
 )
 ```
 
