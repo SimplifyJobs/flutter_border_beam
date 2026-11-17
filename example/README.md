@@ -77,8 +77,8 @@ flutter run -d chrome  # the web
   - **Next step** (`horizontal`): the tab on the left edge goes on.
   - **Success sheet** (`center`): the icon turns the sheet into its paid
     state.
-- On a phone the demo fills the screen, so the wave follows your display's
-  corners. The tab on the right edge slides in the options: the demo, its
+- On a phone the send and step demos fill the screen, so the wave follows
+  your display's corners; the success sheet sits at the bottom. The tab on the right edge slides in the options: the demo, its
   palette, a bar that holds the wave at any moment, and a page pushed on a
   route. On a wide screen the options sit in a side bar.
 
