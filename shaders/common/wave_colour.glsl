@@ -77,9 +77,6 @@ vec4 waveOutline(vec2 p) {
   return outline(p - hs, hs, uRadii, true, uQuads, uView.z);
 }
 
-// Whether p is close enough to the edges for the rim or the hairline to
-// reach it. Further in than this even the thickest lump has faded to
-// nothing, and the hairline is far behind.
 // How wide the crease where two edges meet is rounded, in rim widths.
 const float CORNER_POOL = 2.5;
 
@@ -119,6 +116,9 @@ float waveRimInset(vec2 p, float inset) {
   return min(inset, max(-sd, 0.0));
 }
 
+// Whether p is close enough to the edges for the rim or the hairline to
+// reach it. Further in than this even the thickest lump has faded to
+// nothing, and the hairline is far behind.
 bool waveNearEdge(float inset) {
   return uFront2.w > 0.0 &&
       inset - wavePoolSlack() <
@@ -141,9 +141,6 @@ bool waveColourReaches(vec2 p, float d) {
       max(uRim.x * 2.2 * (1.0 + 1.9 * uRim.z), uHair.x * 0.5 + 0.75);
 }
 
-// The premultiplied colour of the band, the rim and the hairline at p, given
-// the field there (d, q, g) and the view's outline there (o).
-// How thick the rim is at arc length s, as a share of its width.
 // Where p is along the view's edge, as a fraction of the way round,
 // clockwise from the top centre — continuous everywhere the rim can reach.
 //
@@ -184,6 +181,7 @@ float waveEdgeAt(vec2 p) {
   return s / (4.0 * quarter);
 }
 
+// How thick the rim is at arc length s, as a share of its width.
 float waveRimThicknessAt(float s) {
   if (uRim.z <= 0.0) return 1.0;
   // Past 1 the lumps are pushed further still, and the thinnest stretches
@@ -233,8 +231,6 @@ float waveRimHug(vec2 p, float inset, float thickness) {
   return mix(edges, band, round);
 }
 
-// Whether, with the band gone, the rim has faded to nothing this far in and
-// the hairline is behind: exp(-2.76^2) is under the 0.0005 that is dropped.
 // Whether p is in a corner sharp enough that its rim light comes from both
 // edges meeting there (see waveRimHug), within reach of both.
 bool waveInSharpCorner(vec2 p) {
@@ -248,7 +244,9 @@ bool waveInSharpCorner(vec2 p) {
 }
 
 // Whether the rim at p, [thickness] wide there, has faded below a level
-// (and the band is gone), so nothing more need be worked out. Not in a
+// (and the band is gone), so nothing more need be worked out: with the
+// band gone, the rim has faded to nothing this far in and the hairline is
+// behind — exp(-2.76^2) is under the 0.0005 that is dropped. Not in a
 // sharp corner: there the light comes from two edges, each as thick as it
 // is where p falls on it, and p's own thickness says nothing about them.
 bool waveRimFaded(vec2 p, float inset, float thickness) {
@@ -258,6 +256,8 @@ bool waveRimFaded(vec2 p, float inset, float thickness) {
       inset >= uHair.x * 0.5 + 0.75;
 }
 
+// waveGlowWith, given where p is along the edge (edge) and how thick the rim
+// is there (thickness).
 vec4 waveGlowCore(vec2 p, vec4 o, float edge, float thickness, float d, vec2 q, float g) {
   float glow = uFront2.z;
   float rim = uFront2.w;
@@ -353,6 +353,8 @@ vec4 waveGlowCore(vec2 p, vec4 o, float edge, float thickness, float d, vec2 q, 
   return vec4(clamp(rgb, 0.0, 1.0) * total, total) * onGlass;
 }
 
+// The premultiplied colour of the band, the rim and the hairline at p, given
+// the field there (d, q, g) and the view's outline there (o).
 vec4 waveGlowWith(vec2 p, vec4 o, float d, vec2 q, float g) {
   float thickness = 1.0;
   float edge = 0.0;
