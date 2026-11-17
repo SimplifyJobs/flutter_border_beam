@@ -215,8 +215,8 @@ writes them in that order, all `vec4`s:
 That is 31 `vec4`s, **124 floats** — `waveUniformFloats`. `wave.frag` then
 declares its six samplers, in the order the renderer binds them: the
 outgoing side's sharp, near and far images, then the incoming side's.
-`setStage` and `setSpec` are rewritten only when the stage or the spec
-changes; `setFrame` and `setLumps` every frame. `upload` writes all 124
+`setSpec` is rewritten only when the spec or the corners change;
+`setStage`, `setFrame` and `setLumps` every frame. `upload` writes all 124
 floats.
 
 `test/distortion_wave/render/wave_uniform_layout_test.dart` (through

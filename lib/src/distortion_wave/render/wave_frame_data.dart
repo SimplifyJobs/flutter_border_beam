@@ -24,8 +24,8 @@ const double waveNearBlur = 7;
 /// it, with one writer per part. Both `wave.frag` and `wave_glow.frag` read
 /// the same block, so one buffer feeds either.
 ///
-/// Reused frame to frame: the stage and the spec are written only when they
-/// change, the frame and the rim's lumps every frame.
+/// Reused frame to frame: the spec is written only when it (or the corners)
+/// change; the stage, the frame and the rim's lumps every frame.
 final class WaveFrameData {
   /// The floats, in shader order.
   final Float32List data = Float32List(waveUniformFloats);
