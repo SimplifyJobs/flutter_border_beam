@@ -92,8 +92,9 @@ Navigator.of(context).push(
 );
 ```
 
-Five palettes come built in, and any `BorderBeam` palette works too. Or
-pass your own colours:
+Five palettes come built in, and any `BorderBeam` palette works too
+through `WavePalette.fromBeamColors(BeamColors.aurora)`. Or pass your own
+colours:
 
 ```dart
 DistortionWave(
