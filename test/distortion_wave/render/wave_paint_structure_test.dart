@@ -275,10 +275,15 @@ void main() {
       source: avatar,
     );
     expect(frame.at(195, 332), _near(incomingColor, tolerance: 2));
+    // Round it, the ring has opened past this point and revealed the
+    // incoming side; far ahead of the ring the outgoing side still shows.
     expect(
-      frame.difference(195, 332 - 150, incomingColor) +
-          frame.difference(195, 332 - 150, outgoingColor),
-      greaterThan(0),
+      frame.difference(195, 332 - 150, incomingColor),
+      lessThan(frame.difference(195, 332 - 150, outgoingColor)),
+    );
+    expect(
+      frame.difference(195, 800, outgoingColor),
+      lessThan(frame.difference(195, 800, incomingColor)),
     );
   });
 }
