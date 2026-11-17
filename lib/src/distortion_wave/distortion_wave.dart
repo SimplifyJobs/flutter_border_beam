@@ -203,8 +203,12 @@ class _DistortionWaveState extends State<DistortionWave>
     final target = widget.controller?.isRevealed ?? widget.revealed;
     if (newOwner) {
       // A new owner — another controller, or `revealed` once the controller
-      // is gone — brings its own target: head for it.
-      if (target != _revealing) drive(reveal: target);
+      // is gone — brings its own target: head for it, unless a run is on its
+      // way there already. A wave stopped short of it (by a seek) runs on.
+      final heading = _clock.target ?? _clock.progress;
+      if (target != _revealing || heading != (target ? 1 : 0)) {
+        drive(reveal: target);
+      }
     } else if (widget.controller == null &&
         widget.revealed != oldWidget.revealed) {
       drive(reveal: widget.revealed);

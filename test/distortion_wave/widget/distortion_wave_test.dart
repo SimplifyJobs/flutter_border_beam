@@ -286,6 +286,21 @@ void main() {
       );
     });
 
+    testWidgets('let go after a seek, the wave runs on to the target of '
+        '`revealed`', (tester) async {
+      useWaveView(tester);
+      final controller = DistortionWaveController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(waveHost(wave(controller: controller)));
+      controller.seek(0.75);
+      await tester.pump();
+      expect(waveStage(tester).progress.value, 0.75);
+
+      await tester.pumpWidget(waveHost(wave(revealed: true)));
+      await tester.pumpAndSettle();
+      expect(waveStage(tester).progress.value, 1);
+    });
+
     testWidgets('owns playback: reveal, collapse, seek', (tester) async {
       useWaveView(tester);
       final controller = DistortionWaveController();
