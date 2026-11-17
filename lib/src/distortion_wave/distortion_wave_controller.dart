@@ -59,7 +59,7 @@ class DistortionWaveController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _arrived() => notifyListeners();
+  void _changed() => notifyListeners();
 
   @override
   void dispose() {
@@ -102,5 +102,9 @@ extension DistortionWaveControllerBinding on DistortionWaveController {
   }
 
   /// Tells listeners a run has arrived.
-  void arrived() => _arrived();
+  void arrived() => _changed();
+
+  /// Tells the controller's listeners that the wave started a run it was
+  /// not asked for through the controller (a hold let go).
+  void started() => _changed();
 }

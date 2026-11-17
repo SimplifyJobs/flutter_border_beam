@@ -392,6 +392,23 @@ void main() {
       expect(waveStage(tester).progress.value, 1);
     });
 
+    testWidgets('hears of the run that letting go of a hold starts', (
+      tester,
+    ) async {
+      useWaveView(tester);
+      final controller = DistortionWaveController();
+      addTearDown(controller.dispose);
+      final running = <bool>[];
+      controller.addListener(() => running.add(controller.isRunning));
+      await tester.pumpWidget(
+        waveHost(wave(controller: controller, progress: 0.4)),
+      );
+      await tester.pumpWidget(waveHost(wave(controller: controller)));
+      expect(running, [true], reason: 'the run started');
+      await tester.pumpAndSettle();
+      expect(running, [true, false], reason: 'then arrived');
+    });
+
     testWidgets('owns playback: reveal, collapse, seek', (tester) async {
       useWaveView(tester);
       final controller = DistortionWaveController();

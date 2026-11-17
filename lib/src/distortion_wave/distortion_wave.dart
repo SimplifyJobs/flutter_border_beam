@@ -204,6 +204,9 @@ class _DistortionWaveState extends State<DistortionWave>
       // side it is meant to rest on.
       _clock.jumpTo(wasHeld);
       drive(reveal: widget.controller?.isRevealed ?? widget.revealed);
+      // The controller did not start this run, so its listeners hear of it
+      // here; a run that arrived at once has told them already.
+      if (isRunning) widget.controller?.started();
       return;
     }
     final target = widget.controller?.isRevealed ?? widget.revealed;
