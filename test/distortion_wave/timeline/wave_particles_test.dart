@@ -275,7 +275,7 @@ void main() {
         );
         expect(
           dot.pointOn(after, edge).dx,
-          greaterThan(edge.center.dx),
+          greaterThan(edge.right),
           reason: 'dot $index after',
         );
       }
