@@ -163,8 +163,8 @@ void main() {
     });
 
     test('particles burn out one by one', () {
-      // Each burns out in its own time, and all before the edges have
-      // cleared.
+      // Each burns out in its own time, and all before the colour on the
+      // edges has been wiped away.
       expect(particles.every((p) => p.opacityOn(front(0)) == 0), isTrue);
       final launch = at(spec.anticipation + 0.05);
       expect(particles.every((p) => p.opacityOn(launch) > 0), isTrue);
@@ -173,11 +173,8 @@ void main() {
       expect(midway.any((o) => o == 0), isTrue);
       expect(midway.any((o) => o > 0), isTrue);
       final burnt = at(spec.anticipation + spec.dotLife);
-      expect(
-        spec.anticipation + spec.dotLife,
-        lessThanOrEqualTo(spec.duration + 0.001),
-      );
       expect(particles.every((p) => p.opacityOn(burnt) == 0), isTrue);
+      expect(spec.dotLife, lessThanOrEqualTo(spec.linger + spec.rimFade));
     });
   });
 
