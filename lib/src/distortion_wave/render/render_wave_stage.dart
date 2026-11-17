@@ -50,8 +50,8 @@ enum WavePhase {
 /// it resolves the [WaveFrame] and picks a [WavePhase]. While the wave bends
 /// content it draws both sides from GPU images of them (`WaveSideImages`),
 /// taken when first needed and again when that side's content repaints,
-/// in one shader draw plus one atlas draw for the dots; no layers, clips or
-/// filters on its canvas. Taking a picture (and baking its blurred copies)
+/// in one shader draw plus at most one atlas draw for the dots; no layers,
+/// clips or filters on its canvas. Taking a picture (and baking its blurred copies)
 /// is separate offscreen work; see `WaveSideImages`.
 class RenderWaveStage extends RenderBox
     with SlottedContainerRenderObjectMixin<WaveSlot, RenderBox> {

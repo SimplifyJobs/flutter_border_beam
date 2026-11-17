@@ -13,7 +13,7 @@ Flutter package of shader effects built for Impeller, with two effects:
   (`DistortionWaveRoute`). It reimplements the look of Jakub Antalik's SwiftUI
   [Distortion waves](https://github.com/Jakubantalik/Libraries.dev/tree/main/packages/distortion-waves)
   (MIT): both views are drawn from GPU pictures of themselves by **one shader
-  draw plus one atlas draw per frame** while the wave bends them.
+  draw plus at most one atlas draw per frame** while the wave bends them.
 
 Code shared by both lives in `lib/src/core/` (`ShaderProgram`, OKLab) and
 `shaders/common/` (the rounded-superellipse `outline()`).

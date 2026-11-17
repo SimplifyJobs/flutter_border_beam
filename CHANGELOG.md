@@ -38,8 +38,8 @@ A colourful wave that bends one screen into the next.
 - A controller, a theme, `progress:` to hold the wave at any moment, and a
   short crossfade when the system asks for reduced motion.
 - When it fills the screen, its light follows the display's own corners.
-- One shader draw plus one sprite draw per frame. Runs on Impeller, Skia
-  and the web.
+- One shader draw plus at most one atlas draw per frame. Runs on Impeller,
+  Skia and the web.
 
 Earlier versions (0.1.0 and 0.2.0) were developed as `flutter_border_beam`
 and never published. Their notes are in the git history.
