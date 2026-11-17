@@ -36,7 +36,7 @@ class _ExampleAppState extends State<ExampleApp> {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-    title: 'Border Beam',
+    title: 'prismatic',
     debugShowCheckedModeBanner: false,
     theme: buildTheme(_dark ? Brightness.dark : Brightness.light),
     themeAnimationCurve: Curves.easeOut,

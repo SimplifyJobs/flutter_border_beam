@@ -1,108 +1,115 @@
-# prismatic example
+# prismatic examples
 
-A showcase for the [`prismatic`](../) package: each of the three border-beam
-effects on the kind of widget it is made for, big enough to see, and — one tap
-away — the distortion wave on the screens it is made for.
+## A beam around a card
 
-```bash
-flutter run          # phone / desktop
-flutter run -d chrome
+```dart
+BorderBeam(
+  borderRadius: 16,
+  colors: BeamColors.ocean,
+  child: const Card(child: Padding(
+    padding: EdgeInsets.all(24),
+    child: Text('Working on it…'),
+  )),
+)
 ```
 
-`main()` awaits `BorderBeam.precache()` and `DistortionWave.precache()` after
-`WidgetsFlutterBinding.ensureInitialized()`, so both effects' shaders are
-loaded before the first frame.
+Pick another effect with `effect: const BeamEffect.line()` or
+`const BeamEffect.pulse()`.
 
-## What it shows
+## A wave from a button
 
-Swipe the stage, or tap the selector under it, to move between the effects:
+Flip `revealed` to send the wave out. Flip it back to bring it home.
 
-| Effect | Surface |
-| --- | --- |
-| `BeamEffect.rotate()` | an agent's task card |
-| `BeamEffect.line()` | a chat composer, the streak on its bottom edge |
-| `BeamEffect.pulse()` | an assistant's "thinking" card |
+```dart
+DistortionWave(
+  revealed: sent,
+  revealedChild: const ReceiptScreen(),
+  child: ReviewScreen(
+    send: DistortionWaveAnchor(
+      child: FilledButton(
+        onPressed: () => setState(() => sent = true),
+        child: const Text('Send'),
+      ),
+    ),
+  ),
+)
+```
 
-- **Palettes** — the row of swatches is `BeamColors.presets`, all nineteen;
-  each swatch is drawn from the preset's own colour stops.
-- **Fade** — tap the stage, or the play/pause button, to toggle `active` and
-  watch the beam fade out and back in.
-- **Theme** — the sun/moon button flips the app between dark (the default) and
-  light. The beam's `BeamStyle.theme` follows, so it uses its light-surface
-  tuning on the light theme.
-- Under the caption, the effect and palette on screen are written as code
-  (`BeamEffect.line()  ·  BeamColors.ocean`).
+Give both screens an opaque background.
 
-## Distortion wave
+## A wave between pages
 
-The wave button in the home header (between play/pause and the theme toggle)
-opens the distortion wave page — itself on a `DistortionWaveRoute` from that
-button; the close button in the same spot collapses it back. Swipe the stage,
-or tap the selector, to move between three mock screens, one per
-`WaveType`. Each has a `DistortionWaveAnchor` around the control that starts
-the wave, so it opens from that control and leans toward the touch:
+```dart
+Navigator.of(context).push(
+  DistortionWaveRoute<void>(
+    source: WaveSource.of(context),
+    builder: (_) => const ReceiptScreen(),
+  ),
+);
+```
 
-| Type | Demo |
-| --- | --- |
-| `WaveType.vertical` | **Send money** — a payment review; Send reveals the receipt, Done collapses it |
-| `WaveType.horizontal` | **Next step** — a sign-up step; the tall tab on the left edge goes on to the next step, Back returns |
-| `WaveType.center` | **Success sheet** — a 500pt sheet with 48pt corners; the fingerprint icon turns it into its paid state |
+## Load the shaders early
 
-- **Palettes** — the swatches are `WavePalette.presets` (colorful, green,
-  ocean, sunset, mono), then aurora and lagoon through
-  `WavePalette.fromBeamColors`. Each demo starts on its type's default.
-- **Scrub** — drag the bar to hold the wave at any point (`progress:`); let go
-  and it plays on from there to the nearer side. Between drags the thumb
-  follows the wave as it plays.
-- **Route** — the pill in the header pushes a full page on a
-  `DistortionWaveRoute` from itself; Close, in the same spot, pops it back
-  into the pill.
+```dart
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await BorderBeam.precache();
+  await DistortionWave.precache();
+  runApp(const App());
+}
+```
 
-The demos use a `DistortionWaveController` each (the scrub bar seeks it on
-release), so they live in `lib/src/wave_scenes.dart`, shared with the reel;
-the page is `lib/src/wave_page.dart`.
+## The showcase app
 
-On wide windows the screen stays centred at phone-like width. Every card and
-chip uses continuous (superellipse) corners, and each beam is given the same
-corners, so the light sits exactly on the edge.
+This folder is a full app that shows both effects.
 
-For captures, three `--dart-define`s set the opening state:
+```bash
+flutter run            # a phone or desktop
+flutter run -d chrome  # the web
+```
+
+- **Home** shows each beam effect on the widget it suits: `rotate` on a task
+  card, `line` on a chat composer, and `pulse` on a "thinking" card. Swipe
+  between them, pick a palette, pause the beam, or flip the theme.
+- **The wave button** in the header opens the wave page, on a
+  `DistortionWaveRoute`. Each wave type has its own demo screen:
+  - **Send money** (`vertical`): Send reveals the receipt.
+  - **Next step** (`horizontal`): the tab on the left edge goes on.
+  - **Success sheet** (`center`): the icon turns the sheet into its paid
+    state.
+- On a phone the demo fills the screen, so the wave follows your display's
+  corners. The tab on the right edge slides in the options: the demo, its
+  palette, a bar that holds the wave at any moment, and a page pushed on a
+  route. On a wide screen the options sit in a side bar.
+
+Three `--dart-define`s set the opening state, which helps with screenshots:
 
 ```bash
 flutter run --dart-define=START=pulse --dart-define=PALETTE=ocean --dart-define=THEME=light
 ```
 
-## Layout
+### Where things are
 
 | File | What it holds |
 | --- | --- |
-| `lib/main.dart` | `main()` and the app: theme state, `MaterialApp` |
-| `lib/src/home.dart` | the screen: header, swipeable stage, caption, controls |
-| `lib/src/surfaces.dart` | the three mock surfaces the beams wrap |
-| `lib/src/wave_page.dart` | the distortion wave screen, and the page its Route pill pushes |
-| `lib/src/wave_scenes.dart` | the wave demos: mock screens, palettes, `DemoWave` |
-| `lib/src/controls.dart` | the selector, swatches, round toggles, pill button, scrub bar |
-| `lib/src/tokens.dart` | dark and light colour tokens, as a `ThemeExtension` |
+| `lib/main.dart` | `main()` and the app |
+| `lib/src/home.dart` | the beam screen |
+| `lib/src/surfaces.dart` | the mock widgets the beams wrap |
+| `lib/src/wave_page.dart` | the wave screen, and the page its route pushes |
+| `lib/src/wave_scenes.dart` | the wave demos, shared with the reel |
+| `lib/src/display_corners.dart` | the display's corner radii on iOS |
+| `lib/src/controls.dart` | selectors, swatches, toggles and the scrub bar |
+| `lib/src/tokens.dart` | dark and light colour tokens |
 
-## Demo reels
+### Demo reels
 
-The other entry points are recording reels driven by `lib/demo_harness.dart`:
-a reel is a map of scene name → widget, and the harness precaches the
-shaders, then mounts each scene centred on the dark backdrop, printing the
-markers the recorder keys off (`<PREFIX>:<name>:START/END`, then
-`<PREFIX>:DONE`). `lib/showcase.dart` is the README reel — the three effects,
-palettes, and a squircle. `lib/wave_reel.dart` is the wave's — each type's
-demo revealing and collapsing on its own, then the send demo in a border-beam
-palette. Record them with the repo's `tool/record_demo.sh`:
+`lib/showcase.dart` (the beams) and `lib/wave_reel.dart` (the waves) play
+themselves for recording. From the package root, with a booted iOS simulator
+and ffmpeg:
 
 ```bash
-# from the package root, with a booted iOS simulator and ffmpeg installed
 tool/record_demo.sh --target lib/showcase.dart --prefix SHOWCASE --contact
-tool/record_demo.sh --target lib/wave_reel.dart --prefix WAVE --contact
+tool/record_demo.sh --target lib/wave_reel.dart --prefix WAVE --no-crop --contact
 ```
 
-The wave scenes are phone-screen sized, taller than the recorder's default
-crop band; add `--no-crop` (or a `--crop-height`) to keep them whole.
-
-Output mp4s land in `.demos/` (gitignored), centre-cropped at 60fps, with an
-optional contact-sheet PNG for review.
+Videos land in `.demos/`.
