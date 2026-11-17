@@ -46,7 +46,9 @@ enum DisplayCorners {
   private static func radii() -> [Double]? {
     let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
     let windows = scenes.flatMap(\.windows)
-    if #available(iOS 26.0, *), let window = windows.first(where: \.isKeyWindow) ?? windows.first {
+    // Both paths measure the display that holds this window.
+    let window = windows.first(where: \.isKeyWindow) ?? windows.first
+    if #available(iOS 26.0, *), let window {
       let probe = UIView(frame: window.bounds)
       probe.isHidden = true
       probe.isUserInteractionEnabled = false
@@ -57,7 +59,8 @@ enum DisplayCorners {
       probe.removeFromSuperview()
       if found.contains(where: { $0 > 0 }) { return found }
     }
-    guard let single = legacyRadius(scenes.first?.screen) else { return nil }
+    let screen = window?.windowScene?.screen ?? scenes.first?.screen
+    guard let single = legacyRadius(screen) else { return nil }
     return [single, single, single, single]
   }
 
