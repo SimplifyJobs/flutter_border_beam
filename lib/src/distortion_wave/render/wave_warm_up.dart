@@ -68,8 +68,19 @@ void warmUpWaveRendering() {
           tileMode: TileMode.clamp,
         ),
     )
-    ..drawRect(area, Paint()..shader = waveShader)
-    ..drawRect(area, Paint()..shader = glowShader)
+    // Not anti-aliased, as the stage draws them: the pipeline it uses.
+    ..drawRect(
+      area,
+      Paint()
+        ..isAntiAlias = false
+        ..shader = waveShader,
+    )
+    ..drawRect(
+      area,
+      Paint()
+        ..isAntiAlias = false
+        ..shader = glowShader,
+    )
     ..drawRawAtlas(
       image,
       Float32List.fromList([1, 0, 0, 0]),
