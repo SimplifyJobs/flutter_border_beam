@@ -186,4 +186,4 @@ Values of `strengthListenable` above 1 brighten the beam, saturating at full opa
 
 ### Accents
 
-A `BorderBeamController` adds two one-shot accents on a running beam: `pulse()` lifts its brightness and lets it settle, and `flash()` blinks it brighter, holds briefly, and decays (both rise on `BeamSpringCurve.pop`). Neither touches the timeline, both run on real time, and both are no-ops while the beam is hidden or frozen.
+A `BorderBeamController` adds two one-shot accents on a running beam: `pulse()` lifts its brightness and lets it settle, and `flash()` blinks it brighter, holds briefly, and decays. `pulse()` rises on `BeamSpringCurve.pop`; `flash()` has no rise and starts at its peak. Neither touches the timeline, both run on real time, and both are no-ops while the beam is hidden or frozen.

@@ -40,8 +40,8 @@ final class BeamSpringCurve extends Curve {
     response: 0.55,
   );
 
-  /// The rise of a pulse or flash accent: a light bounce, so the boost pops
-  /// past its peak and settles back.
+  /// The rise of a pulse accent: a light bounce, so the boost pops past its
+  /// peak and settles back. A flash has no rise: it starts at its peak.
   static const BeamSpringCurve pop = BeamSpringCurve(
     dampingRatio: 0.75,
     response: 0.3,
