@@ -191,6 +191,40 @@ float waveRimThicknessAt(float s) {
   return max(1.0 + (waveRimThickness(s, uView.z) - 1.0) * uRim.z, 0.04);
 }
 
+// How much of the rim's colour reaches p, 0–1, for a rim [thickness] wide
+// there (as a share of its width).
+//
+// Round a round corner the rim is one band of light following the outline,
+// as the glass does. Round a sharp corner no band can bend without showing
+// it — along a mitre, or bowing into the corner — so there each of the two
+// edges meeting at the corner glows on its own, each with its own
+// thickness where p falls on it, and the two overlap at the corner as light
+// along two edges of a frame does. Corners in between blend the two by how
+// sharp they are next to the rim's width. Away from a corner, where only
+// one edge reaches, both are the same band.
+float waveRimHug(vec2 p, float inset, float thickness) {
+  float w = uRim.x;
+  float band = exp(-waveSq(waveRimInset(p, inset) / (w * thickness)));
+  vec2 hs = uRect.zw * 0.5;
+  vec2 c = p - hs;
+  float r = c.x > 0.0 ? (c.y > 0.0 ? uRadii.z : uRadii.y)
+                      : (c.y > 0.0 ? uRadii.w : uRadii.x);
+  float round = smoothstep(0.75 * w, 2.5 * w, r);
+  if (round >= 1.0) return band;
+  // Only where both edges reach does the corner matter.
+  vec2 e = hs - abs(c);
+  float reach = w * 2.2 * (1.0 + 1.9 * uRim.z);
+  if (max(e.x, e.y) > reach) return band;
+  vec2 onTop = vec2(p.x, c.y < 0.0 ? 0.0 : uRect.w);
+  vec2 onSide = vec2(c.x < 0.0 ? 0.0 : uRect.z, p.y);
+  float top = waveRimThicknessAt(waveEdgeAt(onTop) * uView.z);
+  float side = waveRimThicknessAt(waveEdgeAt(onSide) * uView.z);
+  float a = exp(-waveSq(e.y / (w * top)));
+  float b = exp(-waveSq(e.x / (w * side)));
+  float edges = 1.0 - (1.0 - a) * (1.0 - b);
+  return mix(edges, band, round);
+}
+
 // Whether, with the band gone, the rim has faded to nothing this far in and
 // the hairline is behind: exp(-2.76^2) is under the 0.0005 that is dropped.
 bool waveRimFaded(float inset, float thickness) {
@@ -234,7 +268,7 @@ vec4 waveGlowCore(vec2 p, vec4 o, float edge, float thickness, float d, vec2 q, 
   float shimmer = 0.5;
   float pulse = uRim.w;
   if (nearEdge) {
-    float hug = exp(-waveSq(waveRimInset(p, inset) / (uRim.x * thickness)));
+    float hug = waveRimHug(p, inset, thickness);
     float reached = 1.0 - smoothstep(-lead * 0.7, lead * 0.5, d);
     float kept = smoothstep(-uRim.y, uRim.y, d + (uFront0.w - uFront3.x) / g);
     // Two soft swells of brightness running round the edge.
