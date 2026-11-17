@@ -63,6 +63,11 @@ class WaveStyle {
 
   /// Returns a copy with the given fields replaced. A null argument keeps the
   /// current value.
+  ///
+  /// A group — [timing], [motion], [lens], [glow], [dots] — replaces the
+  /// whole group, unlike [merge], which merges groups field by field:
+  /// `copyWith(glow: WaveGlow(strength: 0.5))` drops the other glow fields
+  /// this style set. To change one field of a group, merge instead.
   WaveStyle copyWith({
     WaveType? type,
     WavePalette? palette,
