@@ -116,7 +116,8 @@ void main() {
     });
 
     test('particles differ in brightness', () {
-      // No two equally bright.
+      // Spread over their range: more than ten different steps of 0.05 of
+      // brightness are taken, and none is dimmer than the floor.
       final levels = {for (final p in particles) (p.brightness * 20).round()};
       expect(levels.length, greaterThan(10));
       expect(
