@@ -1,4 +1,5 @@
 import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -625,6 +626,41 @@ void main() {
     expect(taps, ['in']);
   });
 
+  testWidgets('a side that cannot be pictured crossfades, and takes no '
+      'touch until the wave arrives', (tester) async {
+    useWaveView(tester);
+    final taps = <String>[];
+    Widget build({bool revealed = false}) => waveHost(
+      wave(
+        revealed: revealed,
+        revealedChild: GestureDetector(
+          onTap: () => taps.add('in'),
+          child: Stack(
+            children: [
+              flatSide(incomingColor, 'in'),
+              const SizedBox(width: 10, height: 10, child: _PlatformView()),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpWidget(build());
+    await tester.pumpWidget(build(revealed: true));
+    await tester.pump();
+    // Frame by frame, so the stage tries to picture the side on its way.
+    final glowing = vertical.anticipation + vertical.travel * 0.7;
+    for (var t = 0.0; t < glowing; t += 0.1) {
+      await tester.pump(seconds(0.1));
+    }
+    expect(waveStage(tester).debugLastPhase, WavePhase.crossfading);
+    await tester.tapAt(const Offset(195, 300));
+    expect(taps, isEmpty);
+
+    await tester.pumpAndSettle();
+    await tester.tapAt(const Offset(195, 300));
+    expect(taps, ['in']);
+  });
+
   testWidgets('a held wave opens from the anchor pressed last', (tester) async {
     useWaveView(tester);
     Widget screen() => Stack(
@@ -835,4 +871,26 @@ void main() {
     expect(tester.binding.transientCallbackCount, 0);
     expect(SchedulerBinding.instance.hasScheduledFrame, isFalse);
   });
+}
+
+/// Paints what a platform view paints: a layer that cannot be rasterised.
+class _PlatformView extends LeafRenderObjectWidget {
+  const _PlatformView();
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderPlatformView();
+}
+
+class _RenderPlatformView extends RenderBox {
+  @override
+  bool get sizedByParent => true;
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) => constraints.biggest;
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    context.addLayer(PlatformViewLayer(rect: offset & size, viewId: 0));
+  }
 }

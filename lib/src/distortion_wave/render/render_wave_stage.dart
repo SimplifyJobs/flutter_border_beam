@@ -381,12 +381,13 @@ class RenderWaveStage extends RenderBox
 
   /// The side that takes touches: the one at rest; while the wave runs,
   /// none — except the revealed side once a reveal no longer bends it, so
-  /// it answers while the colour lingers on the edges.
+  /// it answers while the colour lingers on the edges. Never while the
+  /// stage crossfades.
   RenderBox? get _touchable {
     final p = _progress.value;
     if (p <= 0) return outgoing;
     if (p >= 1) return incoming;
-    if (!_revealing || _plain || !hasSize) return null;
+    if (!_revealing || _plain || _unrasterizable || !hasSize) return null;
     final origin = _origin;
     final frame = WaveFrame.at(
       progress: p,
