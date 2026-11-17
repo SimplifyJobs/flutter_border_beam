@@ -76,7 +76,7 @@ The renderer bounds the draw to where light can land: the box grown by the furth
 | `extra_palettes.dart` | The seven extras' colour lists, cycled over `colorful`'s tables. |
 | `beam_look.dart` | `BeamLook.tablesFor(palette)`: a palette's own tables, the extras' cycled ones, or — for every other palette — `colorful`'s geometry recoloured by sampling the palette's stops where each blob sits. Memoized per palette. |
 | `layer_presets.dart` | Per family (rotate, compact chip, line, pulse) and surface: the three layer opacities, the inset shadow colour, brightness, saturation. |
-| `rotate_look.dart` | The rotate window, the compact window, the head highlight and bloom band tables; the inner blob alpha and scale; blurs; the 56 px compact threshold. |
+| `rotate_look.dart` | The rotate window, the compact window, the head highlight and bloom band tables; the inner blob alpha and scale; blurs; the compact threshold, `compactMaxExtent`. |
 | `line_look.dart` | The line's keyframes (travel x and width, edge fade, height, two spike tracks) and its window, highlight, spike, dot, ambient, and shadow geometry. |
 | `pulse_tables.dart`, `pulse_look.dart` | The pulse's blob tables (ring map, inner sizes, bloom), the breathing parameters, the 17-oscillator bank, and the breath the corner opacities follow (a quicker swell than fade). |
 
