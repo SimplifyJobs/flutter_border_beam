@@ -17,8 +17,10 @@ enum WaveType {
   /// A ring spreading evenly from the centre of a round source, such as an
   /// avatar or an icon.
   ///
-  /// The source itself is left alone — no pull, swell, blur or colour on it —
-  /// so it can change in plain view at the wave's centre. Tuned for a sheet
-  /// or card about 500 pt tall, in greens. For a success state.
+  /// The source itself is held still: the pull, swell and blur bend what is
+  /// round it, never the source, and no colour lands on it, so it can change
+  /// in plain view at the wave's centre. Its tuned look gathers no colour or
+  /// dots before it leaves and has no colour fringing. Tuned for a sheet or
+  /// card about 500 pt tall, in greens. For a success state.
   center,
 }
