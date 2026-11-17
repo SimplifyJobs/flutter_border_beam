@@ -1,8 +1,8 @@
 name: prismatic
 description: >-
-  Shader-driven light and motion for Flutter: BorderBeam, animated light
-  around any widget's border, and DistortionWave, a refractive wave that
-  carries one screen into another. Built for Impeller, one draw per frame.
+  Shader effects for Flutter: BorderBeam, light around a widget's border,
+  and DistortionWave, a wave carrying one screen into another. Built for
+  Impeller; also runs on Skia and web.
 version: 0.3.0
 repository: https://github.com/SimplifyJobs/prismatic
 issue_tracker: https://github.com/SimplifyJobs/prismatic/issues
