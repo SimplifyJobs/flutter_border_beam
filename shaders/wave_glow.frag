@@ -42,7 +42,7 @@ void main() {
     edge = waveEdgeAt(p);
     thickness = waveRimThicknessAt(edge * uView.z);
   }
-  if (waveRimFaded(inset, thickness)) {
+  if (waveRimFaded(p, inset, thickness)) {
     fragColor = vec4(0.0);
     return;
   }

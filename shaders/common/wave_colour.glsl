@@ -217,8 +217,16 @@ float waveRimHug(vec2 p, float inset, float thickness) {
   if (max(e.x, e.y) > reach) return band;
   vec2 onTop = vec2(p.x, c.y < 0.0 ? 0.0 : uRect.w);
   vec2 onSide = vec2(c.x < 0.0 ? 0.0 : uRect.z, p.y);
-  float top = waveRimThicknessAt(waveEdgeAt(onTop) * uView.z);
-  float side = waveRimThicknessAt(waveEdgeAt(onSide) * uView.z);
+  // Right at the corner both edges are as thick as the corner is, and each
+  // eases into its own thickness over the rim's reach — as thickness eases
+  // along a round corner's curve — so the corner is lit evenly, not thick on
+  // one edge and thin on the other.
+  vec2 tip = vec2(c.x < 0.0 ? 0.0 : uRect.z, c.y < 0.0 ? 0.0 : uRect.w);
+  float atTip = waveRimThicknessAt(waveEdgeAt(tip) * uView.z);
+  float top = mix(
+      atTip, waveRimThicknessAt(waveEdgeAt(onTop) * uView.z), smoothstep(0.0, reach, e.x));
+  float side = mix(
+      atTip, waveRimThicknessAt(waveEdgeAt(onSide) * uView.z), smoothstep(0.0, reach, e.y));
   float a = exp(-waveSq(e.y / (w * top)));
   float b = exp(-waveSq(e.x / (w * side)));
   float edges = 1.0 - (1.0 - a) * (1.0 - b);
@@ -227,8 +235,25 @@ float waveRimHug(vec2 p, float inset, float thickness) {
 
 // Whether, with the band gone, the rim has faded to nothing this far in and
 // the hairline is behind: exp(-2.76^2) is under the 0.0005 that is dropped.
-bool waveRimFaded(float inset, float thickness) {
+// Whether p is in a corner sharp enough that its rim light comes from both
+// edges meeting there (see waveRimHug), within reach of both.
+bool waveInSharpCorner(vec2 p) {
+  vec2 hs = uRect.zw * 0.5;
+  vec2 c = p - hs;
+  float r = c.x > 0.0 ? (c.y > 0.0 ? uRadii.z : uRadii.y)
+                      : (c.y > 0.0 ? uRadii.w : uRadii.x);
+  if (r >= 2.5 * uRim.x) return false;
+  vec2 e = hs - abs(c);
+  return max(e.x, e.y) <= uRim.x * 2.2 * (1.0 + 1.9 * uRim.z);
+}
+
+// Whether the rim at p, [thickness] wide there, has faded below a level
+// (and the band is gone), so nothing more need be worked out. Not in a
+// sharp corner: there the light comes from two edges, each as thick as it
+// is where p falls on it, and p's own thickness says nothing about them.
+bool waveRimFaded(vec2 p, float inset, float thickness) {
   return uFront2.z <= 0.0 &&
+      !waveInSharpCorner(p) &&
       inset - wavePoolSlack() >= uRim.x * thickness * 2.76 &&
       inset >= uHair.x * 0.5 + 0.75;
 }
