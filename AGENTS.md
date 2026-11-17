@@ -1,14 +1,13 @@
 # prismatic — agent guide
 
-Flutter package of shader effects built for Impeller (renamed from
-`flutter_border_beam` in 0.3.0), with two effects:
+Flutter package of shader effects built for Impeller, with two effects:
 
 - **`BorderBeam`** — animated light around a widget's border. Three effects
   (`rotate`, `line`, `pulse`), all drawn by **one fragment shader in one draw
-  call per frame** — no `saveLayer`, blurs, or clips. Originally ported from
+  call per frame** — no `saveLayer`, blurs, or clips. Its look is that of
   the [border-beam](https://github.com/Jakubantalik/Libraries/tree/main/packages/border-beam)
-  React library (MIT, by Jakub Antalik); since 0.2.0 an independent native
-  renderer that does not track upstream.
+  React library (MIT, by Jakub Antalik), drawn by a native renderer of its
+  own that does not track upstream.
 - **`DistortionWave`** — a refractive wave that opens from a button, edge or
   avatar and carries one view into another, in place or between routes
   (`DistortionWaveRoute`). It reimplements the look of Jakub Antalik's SwiftUI
@@ -160,7 +159,7 @@ when the layout moves. The map below is the index.
 4. **Fixed slots.** 14 blobs in layer 0, 10 in layers 1 and 2, 16 stops per conic table, ≤ 8 palette stops. `addBlob` drops extras silently; palettes with more stops are rejected at resolve.
 5. **Nothing inside the shape reads `u`.** Inside the shape `u` jumps across the medial axis; inner glows are planar blobs (blobs laid along the outline are planar ellipses whose axes follow the normal) or path-space blobs kept within the edge fade.
 6. **Emitters are pure and allocation-light per frame.** An emitter is a function of config, phases, outline, and the palette's tables; it writes into the renderer's reused `BeamFrameData`; table transforms use scratch lists, oscillator banks are cached per tuning, derived tables memoized per palette.
-7. **Parity with the reference look is checked by eye, then pinned by goldens.** The original look (old goldens at `git show 85be4f8:test/golden/goldens/`, from before the `test/border_beam/` move) is the calibration: render side by side when retuning rotate/line/pulse.
+7. **Parity with the reference look is checked by eye, then pinned by goldens.** The goldens in `test/border_beam/golden/goldens/` pin the calibrated look: when retuning rotate/line/pulse, render the change beside them and beside the border-beam reference, and regenerate only once it matches.
 8. **Don't quote or hard-code look values in docs** — tuning lives in `lib/src/border_beam/look/` and the emitters (and `lib/src/distortion_wave/look/` for the wave) and changes; docs describe behaviour.
 
 ### DistortionWave
