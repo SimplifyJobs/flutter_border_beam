@@ -73,6 +73,7 @@ const DistortionWave({
   WaveSource? source,
   WaveType? type,
   WavePalette? palette,
+  BorderRadius? cornerRadii,
   WaveStyle? style,
   DistortionWaveController? controller,
   double? progress,            // asserted 0–1
@@ -90,6 +91,7 @@ const DistortionWave({
 | `source` | Where the wave opens from. Null → the anchor rules below. Read only when a run starts from rest. |
 | `type` | Shorthand for `style.type`; wins over it. |
 | `palette` | Shorthand for `style.palette`; wins over it. |
+| `cornerRadii` | Explicit per-corner superellipse radii for the surface, including inset surfaces. Takes precedence over the display corners and `WaveGlow.cornerRadius`. |
 | `style` | Everything else; over the nearest `DistortionWaveTheme`'s style, over the type's tuned defaults. |
 | `controller` | Attached, it owns playback; `revealed` is ignored. |
 | `progress` | Non-null holds the wave at that point of its life (0–1) instead of animating. Back to null plays on from the held point toward `revealed` (or the controller's `isRevealed`). |
@@ -471,8 +473,12 @@ fields to 0–1, `blur` to 0–64, `returnSpeed` to 0.01–100, dot `count` to
 
 ## Display corners
 
-A wave that **fills the view** puts its edge colour and hairline on the
-display's own corners, each corner its own radius, read from
+Use `DistortionWave.cornerRadii` when a surface has its own set of corner
+radii. A sheet can give the wave its top corners and the display's bottom
+corners.
+
+Without explicit radii, a wave that **fills the view** puts its edge colour
+and hairline on the display's corners, read from
 `MediaQuery.displayCornerRadii` (via `MediaQuery.maybeDisplayCornerRadiiOf`).
 "Fills the view" means the wave's top-left is at the global origin and its
 size equals `MediaQuery.sizeOf` (both within half a pixel). Otherwise — a

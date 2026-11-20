@@ -24,6 +24,7 @@ void main() {
     bool maintainState = true,
     WaveStyle? style,
     WavePalette? palette,
+    BorderRadius? cornerRadii,
     WaveSource? source,
     Widget? child,
     Widget? revealedChild,
@@ -35,6 +36,7 @@ void main() {
     maintainState: maintainState,
     style: style,
     palette: palette,
+    cornerRadii: cornerRadii,
     source: source,
     revealedChild: revealedChild ?? flatSide(incomingColor, 'in'),
     child: child ?? flatSide(outgoingColor, 'out'),
@@ -953,6 +955,38 @@ void main() {
       waveStage(tester).debugCorners,
       BorderRadius.circular(vertical.cornerRadius),
     );
+  });
+
+  testWidgets('explicit corners apply to an inset wave and update in place', (
+    tester,
+  ) async {
+    useWaveView(tester);
+    const corners = BorderRadius.only(
+      topLeft: Radius.circular(32),
+      topRight: Radius.circular(32),
+      bottomLeft: Radius.circular(54),
+      bottomRight: Radius.circular(40),
+    );
+    const uniform = WaveStyle(glow: WaveGlow(cornerRadius: 20));
+
+    Widget insetWave(BorderRadius? radii) => waveHost(
+      Padding(
+        padding: const EdgeInsets.only(top: 40),
+        child: wave(progress: 0.5, cornerRadii: radii, style: uniform),
+      ),
+      displayCornerRadii: BorderRadius.circular(50),
+    );
+
+    await tester.pumpWidget(insetWave(corners));
+    final stage = waveStage(tester);
+    expect(stage.debugCorners, corners);
+
+    final folded = corners.copyWith(bottomRight: Radius.zero);
+    await tester.pumpWidget(insetWave(folded));
+    expect(stage.debugCorners, folded);
+
+    await tester.pumpWidget(insetWave(null));
+    expect(stage.debugCorners, BorderRadius.circular(20));
   });
 
   testWidgets('starts no ticker until it runs, and stops when it arrives', (

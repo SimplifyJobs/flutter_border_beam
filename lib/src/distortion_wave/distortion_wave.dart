@@ -63,6 +63,7 @@ class DistortionWave extends StatefulWidget {
     this.source,
     this.type,
     this.palette,
+    this.cornerRadii,
     this.style,
     this.controller,
     this.progress,
@@ -96,6 +97,12 @@ class DistortionWave extends StatefulWidget {
 
   /// Its colours; shorthand for `style.palette`, and wins over it.
   final WavePalette? palette;
+
+  /// Individual superellipse corner radii of the surface the wave fills.
+  ///
+  /// Takes precedence over display corners and `WaveGlow.cornerRadius`.
+  /// Works for both full-screen and inset surfaces.
+  final BorderRadius? cornerRadii;
 
   /// Everything else about its look, over the nearest
   /// [DistortionWaveTheme]'s style, over the tuned defaults of its type.
@@ -144,6 +151,7 @@ class DistortionWave extends StatefulWidget {
         DiagnosticsProperty<WaveSource>('source', source, defaultValue: null),
       )
       ..add(EnumProperty<WaveType>('type', type, defaultValue: null))
+      ..add(DiagnosticsProperty<BorderRadius>('cornerRadii', cornerRadii))
       ..add(DiagnosticsProperty<WaveStyle>('style', style, defaultValue: null))
       ..add(DoubleProperty('progress', progress, defaultValue: null));
   }
@@ -389,6 +397,7 @@ class _DistortionWaveState extends State<DistortionWave>
       snapshots: _snapshots,
       plain: _reducedMotion(),
       revealing: _revealing,
+      cornerRadii: widget.cornerRadii,
       displayRadii: _followsDisplay
           ? MediaQuery.maybeDisplayCornerRadiiOf(context)
           : null,
@@ -416,6 +425,7 @@ class WaveStage
     this.snapshots = WaveSnapshots.onChange,
     this.plain = false,
     this.revealing = false,
+    this.cornerRadii,
     this.displayRadii,
     this.viewSize,
     this.outgoing,
@@ -442,6 +452,9 @@ class WaveStage
 
   /// Whether the wave is heading for [incoming].
   final bool revealing;
+
+  /// The surface's explicit corner radii, if supplied.
+  final BorderRadius? cornerRadii;
 
   /// The display's corner radii, for edges that follow them while the stage
   /// fills the view; null when the style sets its own radius.
@@ -474,6 +487,7 @@ class WaveStage
     snapshots: snapshots,
     plain: plain,
     revealing: revealing,
+    cornerRadii: cornerRadii,
     displayRadii: displayRadii,
     viewSize: viewSize,
   );
@@ -488,6 +502,7 @@ class WaveStage
       ..snapshots = snapshots
       ..plain = plain
       ..revealing = revealing
+      ..cornerRadii = cornerRadii
       ..displayRadii = displayRadii
       ..viewSize = viewSize;
   }

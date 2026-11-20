@@ -3,7 +3,7 @@ description: >-
   Shader effects for Flutter: BorderBeam, light around a widget's border,
   and DistortionWave, a wave carrying one screen into another. Built for
   Impeller; also runs on Skia and web.
-version: 0.3.0
+version: 0.4.0
 repository: https://github.com/SimplifyJobs/prismatic
 issue_tracker: https://github.com/SimplifyJobs/prismatic/issues
 homepage: https://github.com/SimplifyJobs/prismatic
