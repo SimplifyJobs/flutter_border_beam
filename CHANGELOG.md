@@ -3,6 +3,11 @@
 All notable changes to this package are documented here, following
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 0.4.0
+
+- Add `DistortionWave.cornerRadii` for surfaces with independent corner
+  radii, including inset sheets.
+
 ## 0.3.0
 
 The first release on pub.dev. Two shader effects for Flutter, built for

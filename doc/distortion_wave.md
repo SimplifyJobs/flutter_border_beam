@@ -184,7 +184,8 @@ Per pixel, in the stage's logical coordinates (see the shader's header):
 
 ### The edges' corners
 
-`RenderWaveStage._corners`: when the widget passed the display's radii
+`RenderWaveStage._corners` uses `DistortionWave.cornerRadii` when supplied.
+Otherwise, when the widget passed the display's radii
 (`MediaQuery.maybeDisplayCornerRadiiOf`, only when no style or theme sets
 `WaveGlow.cornerRadius`) and the stage fills the view (global origin and
 `MediaQuery.sizeOf` size, within half a pixel), each corner takes the

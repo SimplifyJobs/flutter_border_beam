@@ -65,6 +65,7 @@ class RenderWaveStage extends RenderBox
     this._snapshots = WaveSnapshots.onChange,
     this._plain = false,
     this._revealing = false,
+    this._cornerRadii,
     this._displayRadii,
     this._viewSize,
   });
@@ -145,6 +146,16 @@ class RenderWaveStage extends RenderBox
     markNeedsPaint();
   }
 
+  BorderRadius? _cornerRadii;
+
+  /// Explicit corner radii for the wave, independent of the stage's position.
+  BorderRadius? get cornerRadii => _cornerRadii;
+  set cornerRadii(BorderRadius? value) {
+    if (value == _cornerRadii) return;
+    _cornerRadii = value;
+    markNeedsPaint();
+  }
+
   BorderRadius? _displayRadii;
 
   /// The display's corner radii, when the edges should follow them: set when
@@ -167,10 +178,10 @@ class RenderWaveStage extends RenderBox
     markNeedsPaint();
   }
 
-  /// The corners the edges follow this frame: the display's — each corner
-  /// its own — while the stage fills the view and the display reports them;
-  /// else the spec's radius on all four.
+  /// The explicit corners, the display's corners for a full-view stage, or
+  /// the spec's radius on all four corners.
   BorderRadius get _corners {
+    if (_cornerRadii case final corners?) return corners;
     final radii = _displayRadii;
     final view = _viewSize;
     if (radii != null && view != null && attached && hasSize) {
